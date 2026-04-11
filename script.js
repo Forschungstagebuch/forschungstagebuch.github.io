@@ -7,8 +7,8 @@
    2. Settings → API → kopiere "Project URL" und "anon public" Key
    3. Trage sie hier ein (der anon-Key ist sicher, öffentlich sichtbar)
    ──────────────────────────────────────────────────────────────────── */
-const SUPABASE_URL      = 'https://qqjahksotcdkvwutazvh.supabase.co';   // z.B. https://xyz.supabase.co
-const SUPABASE_ANON_KEY = 'sb_publishable_DBaxvM-PdGUBdVMF6p0fPQ_Z9OibJFu';        // beginnt mit eyJ...
+const SUPABASE_URL      = 'https://qqjahksotcdkvwutazvh.supabase.co';
+const SUPABASE_ANON_KEY = 'sb_publishable_DBaxvM-PdGUBdVMF6p0fPQ_Z9OibJFu';
 
 const _sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 

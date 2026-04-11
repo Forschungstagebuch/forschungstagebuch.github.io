@@ -105,8 +105,8 @@
 
       <label class="fl" for="roleSelect">Rolle</label>
       <select id="roleSelect" class="role-sel">
-        <option value="lehrer">📖 Lehrer (Schüler)</option>
-        <option value="admin">⚙️ Admin (Lehrkraft)</option>
+        <option value="lehrer">Lehrer</option>
+        <option value="admin">Admin</option>
       </select>
 
       <label class="fl" for="pwf">Passwort</label>
@@ -413,7 +413,7 @@
           <label class="fmt-lbl">Folientitel</label>
           <input type="text" class="fmt-inp" id="sldSlideTitle" placeholder="Folie 1" oninput="curSlide().title=this.value;renderSpanel()">
           <label class="fmt-lbl">Format</label>
-          <select class="fmt-inp" id="sldFmt" onchange="curSlide().format=this.value;applySlideSize();setTimeout(fitSlide,30)">
+          <select class="fmt-inp" id="sldFmt" onchange="curSlide().format=this.value;applySlideSize();setTimeout(fitSlide,30);renderSpanel()">
             <option value="16:9">16:9 – Widescreen (Standard)</option>
             <option value="4:3">4:3 – Standard</option>
             <option value="A4-quer">A4 Querformat</option>
@@ -423,7 +423,7 @@
           </select>
           <div id="fmtSzInfo" class="fmt-hint"></div>
           <label class="fmt-lbl">Hintergrund</label>
-          <input type="color" class="fmt-inp fmt-color" id="sldBg" oninput="curSlide().slideBg=this.value;applySlideSize()">
+          <input type="color" class="fmt-inp fmt-color" id="sldBg" oninput="curSlide().slideBg=this.value;applySlideSize();renderSpanel()">
           <label class="fmt-chk-lbl"><input type="checkbox" id="sldGrid" checked onchange="toggleGrid(this.checked)"> Punktraster</label>
           <button class="fmt-tog" style="width:100%;padding:8px;font-size:12px;margin-top:8px" onclick="fitSlide()">Folie einpassen</button>
         </div>
