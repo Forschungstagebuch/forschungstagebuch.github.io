@@ -107,6 +107,7 @@ function pushHistory(){
   if(_undoStack.length>UNDO_MAX)_undoStack.shift();
   _redoStack=[];
   _updateHistBtns();
+  _spRefresh();
 }
 function _restoreElements(snap){
   const sl=curSlide(); if(!sl||!snap)return;
@@ -135,6 +136,10 @@ function pushHistoryDebounced(){
   clearTimeout(_histDebTimer);
   _histDebTimer=setTimeout(pushHistory,400);
 }
+
+/* Debounced slide-panel preview refresh — called after any element change */
+let _spDebTimer=null;
+function _spRefresh(){clearTimeout(_spDebTimer);_spDebTimer=setTimeout(()=>{if(edEntry)renderSpanel();},120);}
 
 /* ════════ STORAGE (Supabase + In-Memory-Cache) ════════
    load()    → gibt den Cache synchron zurück (für alle bestehenden Aufrufe)
@@ -863,7 +868,7 @@ function buildInnerContent(el, readOnly){
     if(!readOnly){
       div.addEventListener('mousedown',ev=>ev.stopPropagation());
       div.addEventListener('focus',()=>{activeRTBEl=el.id;});
-      div.addEventListener('input',()=>{const e=getEl(el.id);if(e)e.html=div.innerHTML;});
+      div.addEventListener('input',()=>{const e=getEl(el.id);if(e)e.html=div.innerHTML;_spRefresh();});
       div.addEventListener('mouseup',()=>{saveRange();setTimeout(posRTB,20);});
       div.addEventListener('keyup',()=>{saveRange();setTimeout(posRTB,20);});
     }
@@ -875,7 +880,7 @@ function buildInnerContent(el, readOnly){
     div.textContent=el.html||(el.text||'');
     if(!readOnly){
       div.addEventListener('mousedown',ev=>ev.stopPropagation());
-      div.addEventListener('input',()=>{const e=getEl(el.id);if(e)e.html=div.textContent;});
+      div.addEventListener('input',()=>{const e=getEl(el.id);if(e)e.html=div.textContent;_spRefresh();});
     }
     return div;
   }
@@ -900,7 +905,7 @@ function buildInnerContent(el, readOnly){
     const d=document.createElement('div');d.className='el-badge';
     const p=document.createElement('div');p.className='el-badge-inner';
     p.contentEditable=readOnly?'false':'true'; p.textContent=el.text||'Badge';
-    if(!readOnly){p.addEventListener('mousedown',ev=>ev.stopPropagation());p.addEventListener('input',()=>{const e=getEl(el.id);if(e)e.text=p.textContent;});}
+    if(!readOnly){p.addEventListener('mousedown',ev=>ev.stopPropagation());p.addEventListener('input',()=>{const e=getEl(el.id);if(e)e.text=p.textContent;_spRefresh();});}
     d.appendChild(p);return d;
   }
   if(el.type&&el.type.startsWith('er-')){
@@ -918,7 +923,7 @@ function buildInnerContent(el, readOnly){
     if(el.type==='er-cardinality')txt.classList.add('el-er-cardinality');
     if(el.type==='er-key-attribute')txt.classList.add('key-attr');
     txt.contentEditable=readOnly?'false':'true'; txt.textContent=el.text||'';
-    if(!readOnly){txt.addEventListener('mousedown',ev=>ev.stopPropagation());txt.addEventListener('input',()=>{const e=getEl(el.id);if(e)e.text=txt.textContent;});}
+    if(!readOnly){txt.addEventListener('mousedown',ev=>ev.stopPropagation());txt.addEventListener('input',()=>{const e=getEl(el.id);if(e)e.text=txt.textContent;_spRefresh();});}
     wrap.appendChild(txt);
     return wrap;
   }
@@ -956,17 +961,15 @@ function flushEl(){
 function selectEl(id){
   flushEl(); deselectAll(); selElId=id;
   const dom=document.getElementById('sel_'+id);
-  if(dom){dom.classList.add('selected');}
+  if(dom){dom.classList.add('selected');dom.style.zIndex=++zMax;}
   const el=getEl(id); if(!el)return;
-  el.z=++zMax; if(dom)dom.style.zIndex=el.z;
   edTab('fmt'); populateFmt(el);
 }
 function selectLine(id){
   deselectAll(); selElId=id;
   const dom=document.getElementById('sel_'+id);
-  if(dom){dom.classList.add('selected');}
+  if(dom){dom.classList.add('selected');dom.style.zIndex=++zMax;}
   const el=getEl(id); if(!el)return;
-  el.z=++zMax; if(dom)dom.style.zIndex=el.z;
   edTab('fmt'); populateFmt(el);
 }
 function deselectAll(){
@@ -1043,13 +1046,14 @@ function applyFmt(prop,val){
   if(inn&&['fontFamily','fontSize','color','fontWeight','fontStyle','textDecoration','textAlign','lineHeight'].includes(prop)){
     if(prop==='fontSize')inn.style.fontSize=val+'px'; else inn.style[prop]=val;
   }
+  _spRefresh();
 }
 function applyERSt(prop,val){
   if(!selElId)return; const el=getEl(selElId); if(!el)return;
   pushHistoryDebounced();
   el.erStyle=el.erStyle||{}; el.erStyle[prop]=val;
-  if(el.type==='er-line'){updateLineDom(el);return;}
-  updateERSVG(el);
+  if(el.type==='er-line'){updateLineDom(el);_spRefresh();return;}
+  updateERSVG(el); _spRefresh();
 }
 function setTransp(checked){
   if(!selElId)return; const el=getEl(selElId); if(!el)return;
@@ -1064,13 +1068,14 @@ function applyPos(dim,val){
     const b=lnBounds(el);
     if(dim==='x'){const dx=val-b.lx;el.x1+=dx;el.x2+=dx;}
     if(dim==='y'){const dy=val-b.ly;el.y1+=dy;el.y2+=dy;}
-    updateLineDom(el);return;
+    updateLineDom(el);_spRefresh();return;
   }
   if(dim==='x')el.x=val; if(dim==='y')el.y=val;
   if(dim==='w')el.w=Math.max(10,val); if(dim==='h')el.h=Math.max(2,val);
   const d=document.getElementById('sel_'+selElId); if(!d)return;
   d.style.left=el.x+'px';d.style.top=el.y+'px';d.style.width=el.w+'px';d.style.height=el.h+'px';
   if(el.type&&el.type.startsWith('er-'))updateERSVG(el);
+  _spRefresh();
 }
 function snapCH(){if(!selElId)return;const el=getEl(selElId);if(!el||el.type==='er-line')return;const sz=slSz(curSlide());el.x=Math.round(sz.w/2-(el.w||0)/2);const d=document.getElementById('sel_'+selElId);if(d)d.style.left=el.x+'px';refreshFP(el);}
 function snapCV(){if(!selElId)return;const el=getEl(selElId);if(!el||el.type==='er-line')return;const sz=slSz(curSlide());el.y=Math.round(sz.h/2-(el.h||0)/2);const d=document.getElementById('sel_'+selElId);if(d)d.style.top=el.y+'px';refreshFP(el);}
@@ -1356,6 +1361,8 @@ document.addEventListener('mousemove',ev=>{
 });
 document.addEventListener('mouseup',()=>{
   if(MS&&(MS.type==='move'||MS.type==='move-line'||MS.type==='resize'||MS.type==='drag-pt')){
+    // Commit visual z-index to data model now that a real action happened
+    if(MS.type!=='drag-pt'){const el=getEl(MS.elId);if(el)el.z=zMax;}
     pushHistory();
   }
   MS=null;hideGuides();hideConnDots();
