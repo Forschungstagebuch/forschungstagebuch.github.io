@@ -1122,14 +1122,11 @@ function addEl(type){
 /* ════════ MOVEMENT STATE MACHINE ════════ */
 function startMove(elId,ev){
   const el=getEl(elId); if(!el)return;
-  // Pre-bind line endpoints to connPts indices ONCE at drag start — avoids per-frame proximity bugs
+  pushHistory();
   let lineBindings=null;
   if(el.type&&el.type.startsWith('er-')&&el.type!=='er-line'){
     const pts=connPts(el);
     lineBindings=[];
-    /* ATTACHED_TH: sehr klein – nur wirklich angedockte Endpunkte werden
-       beim Ziehen mitgezogen. SNAP_TH gilt weiterhin nur beim Ziehen von
-       Linienendpunkten (drag-pt), nicht beim Bewegen von Elementen. */
     const ATTACHED_TH=4;
     (curSlide()?.elements||[]).forEach(line=>{
       if(line.type!=='er-line')return;
@@ -1148,16 +1145,19 @@ function startMove(elId,ev){
 }
 function startMoveLine(elId,ev){
   const el=getEl(elId); if(!el)return;
+  pushHistory();
   MS={type:'move-line',elId,sx:ev.clientX,sy:ev.clientY,data:{x1:el.x1,y1:el.y1,x2:el.x2,y2:el.y2}};
   ev.preventDefault();
 }
 function startResize(elId,ev){
   const el=getEl(elId); if(!el)return;
+  pushHistory();
   MS={type:'resize',elId,sx:ev.clientX,sy:ev.clientY,data:{w:el.w||10,h:el.h||10}};
   ev.preventDefault();
 }
 function startDragPt(lineId,ptNum,ev){
   const el=getEl(lineId); if(!el)return;
+  pushHistory();
   MS={type:'drag-pt',elId:lineId,ptNum,sx:ev.clientX,sy:ev.clientY,
       data:{x1:el.x1,y1:el.y1,x2:el.x2,y2:el.y2}};
   ev.preventDefault();
@@ -1375,7 +1375,11 @@ document.addEventListener('mouseup',()=>{
       changed=(el.x1!==MS.data.x1||el.y1!==MS.data.y1||el.x2!==MS.data.x2||el.y2!==MS.data.y2);
     if(changed){
       if(MS.type!=='drag-pt'&&el)el.z=zMax;
-      pushHistory();
+      _spRefresh();
+    } else {
+      /* Nothing moved — discard the snapshot we pushed at drag start */
+      _undoStack.pop();
+      _updateHistBtns();
     }
   }
   MS=null;hideGuides();hideConnDots();
@@ -1387,45 +1391,42 @@ function trySnapEl(el,nx,ny){
   const sz=slSz(curSlide());
   const ew=el.w||0, eh=el.h||0;
   let rx=nx, ry=ny;
-  let bestX=SNAP, bestY=SNAP;   // best distance found so far
-  let guideX=null, guideY=null; // pixel position on slide where guide should draw
+  let bestX=SNAP, bestY=SNAP;
+  let guideX=null, guideY=null;
+  let colorX='rgba(239,68,68,.85)', colorY='rgba(239,68,68,.85)';
 
-  function checkX(candidateLeft, axisX){
+  function checkX(candidateLeft,axisX,isCenter){
     const d=Math.abs(nx-candidateLeft);
-    if(d<bestX){bestX=d;rx=candidateLeft;guideX=axisX;}
+    if(d<bestX){bestX=d;rx=candidateLeft;guideX=axisX;colorX=isCenter?'rgba(59,130,246,.85)':'rgba(239,68,68,.85)';}
   }
-  function checkY(candidateTop, axisY){
+  function checkY(candidateTop,axisY,isCenter){
     const d=Math.abs(ny-candidateTop);
-    if(d<bestY){bestY=d;ry=candidateTop;guideY=axisY;}
+    if(d<bestY){bestY=d;ry=candidateTop;guideY=axisY;colorY=isCenter?'rgba(59,130,246,.85)':'rgba(239,68,68,.85)';}
   }
 
   /* Slide center */
   const scx=sz.w/2, scy=sz.h/2;
-  checkX(Math.round(scx-ew/2), scx);
-  checkY(Math.round(scy-eh/2), scy);
+  checkX(Math.round(scx-ew/2),scx,true);
+  checkY(Math.round(scy-eh/2),scy,true);
 
   /* Other elements */
   (curSlide()?.elements||[]).forEach(o=>{
     if(o.id===selElId||!o.w||o.type==='er-line')return;
-    const ox=o.x||0, oy=o.y||0, ow=o.w||0, oh=o.h||0;
-    const ocx=ox+ow/2, ocy=oy+oh/2;
-
-    /* X-axis candidates: left-left, center-center, right-right, abutting */
-    checkX(ox,           ox);           // left edges align → guide on left edge
-    checkX(Math.round(ocx-ew/2), ocx); // centers align  → guide on center
-    checkX(ox+ow-ew,     ox+ow);        // right edges align → guide on right edge
-    checkX(ox+ow,        ox+ow);        // moved-left = other-right
-    checkX(ox-ew,        ox);           // moved-right = other-left
-
-    /* Y-axis candidates: top-top, center-center, bottom-bottom, abutting */
-    checkY(oy,           oy);           // top edges align → guide on top edge
-    checkY(Math.round(ocy-eh/2), ocy); // centers align → guide on center
-    checkY(oy+oh-eh,     oy+oh);        // bottom edges align → guide on bottom edge
-    checkY(oy+oh,        oy+oh);        // moved-top = other-bottom
-    checkY(oy-eh,        oy);           // moved-bottom = other-top
+    const ox=o.x||0,oy=o.y||0,ow=o.w||0,oh=o.h||0;
+    const ocx=ox+ow/2,ocy=oy+oh/2;
+    checkX(ox,           ox,    false);
+    checkX(Math.round(ocx-ew/2),ocx,true);
+    checkX(ox+ow-ew,     ox+ow, false);
+    checkX(ox+ow,        ox+ow, false);
+    checkX(ox-ew,        ox,    false);
+    checkY(oy,           oy,    false);
+    checkY(Math.round(ocy-eh/2),ocy,true);
+    checkY(oy+oh-eh,     oy+oh, false);
+    checkY(oy+oh,        oy+oh, false);
+    checkY(oy-eh,        oy,    false);
   });
 
-  /* Show / hide guide lines, positioned at the alignment axis */
+  /* Show / hide guide lines */
   const sRect=document.getElementById('slideCV')?.getBoundingClientRect();
   if(sRect){
     const gH=document.getElementById('gH');
@@ -1433,15 +1434,15 @@ function trySnapEl(el,nx,ny){
     if(guideY!==null){
       gH.style.display='block';
       gH.style.top=(sRect.top+guideY*cvScale)+'px';
-    } else {
-      gH.style.display='none';
-    }
+      gH.style.background=colorY;
+      gH.style.boxShadow=`0 0 4px ${colorY}`;
+    } else { gH.style.display='none'; }
     if(guideX!==null){
       gV.style.display='block';
       gV.style.left=(sRect.left+guideX*cvScale)+'px';
-    } else {
-      gV.style.display='none';
-    }
+      gV.style.background=colorX;
+      gV.style.boxShadow=`0 0 4px ${colorX}`;
+    } else { gV.style.display='none'; }
   }
   return{x:rx,y:ry};
 }

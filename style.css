@@ -258,9 +258,9 @@ body::after{content:'';position:fixed;inset:0;pointer-events:none;z-index:9990;b
 .slide-cv.dnd-over{outline:2px solid var(--gold)}
 
 /* ══ SNAP GUIDES ══ */
-.snap-guide{position:fixed;pointer-events:none;z-index:9995;display:none;background:rgba(59,130,246,.7)}
-.snap-h{height:1px;left:0;right:0;box-shadow:0 0 3px rgba(59,130,246,.5)}
-.snap-v{width:1px;top:0;bottom:0;box-shadow:0 0 3px rgba(59,130,246,.5)}
+.snap-guide{position:fixed;pointer-events:none;z-index:9995;display:none;background:rgba(239,68,68,.85)}
+.snap-h{height:1px;left:0;right:0;box-shadow:0 0 4px rgba(239,68,68,.6)}
+.snap-v{width:1px;top:0;bottom:0;box-shadow:0 0 4px rgba(239,68,68,.6)}
 
 /* ══ SLIDE ELEMENTS ══ */
 .sel{position:absolute;box-sizing:border-box;cursor:move}
