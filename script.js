@@ -7,8 +7,8 @@
    2. Settings → API → kopiere "Project URL" und "anon public" Key
    3. Trage sie hier ein (der anon-Key ist sicher, öffentlich sichtbar)
    ──────────────────────────────────────────────────────────────────── */
-const SUPABASE_URL      = 'https://qqjahksotcdkvwutazvh.supabase.co';   // z.B. https://xyz.supabase.co
-const SUPABASE_ANON_KEY = 'sb_publishable_DBaxvM-PdGUBdVMF6p0fPQ_Z9OibJFu';       // beginnt mit eyJ...
+const SUPABASE_URL      = 'DEINE_SUPABASE_PROJECT_URL';   // z.B. https://xyz.supabase.co
+const SUPABASE_ANON_KEY = 'DEIN_SUPABASE_ANON_KEY';       // beginnt mit eyJ...
 
 const _sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
@@ -1122,12 +1122,19 @@ function startMove(elId,ev){
   if(el.type&&el.type.startsWith('er-')&&el.type!=='er-line'){
     const pts=connPts(el);
     lineBindings=[];
+    /* ATTACHED_TH: sehr klein – nur wirklich angedockte Endpunkte werden
+       beim Ziehen mitgezogen. SNAP_TH gilt weiterhin nur beim Ziehen von
+       Linienendpunkten (drag-pt), nicht beim Bewegen von Elementen. */
+    const ATTACHED_TH=4;
     (curSlide()?.elements||[]).forEach(line=>{
       if(line.type!=='er-line')return;
-      let b1=-1,b2=-1,tol=SNAP_TH+4;
-      pts.forEach((p,i)=>{if(Math.hypot(line.x1-p.x,line.y1-p.y)<tol){tol=Math.hypot(line.x1-p.x,line.y1-p.y);b1=i;}});
-      tol=SNAP_TH+4;
-      pts.forEach((p,i)=>{if(Math.hypot(line.x2-p.x,line.y2-p.y)<tol){tol=Math.hypot(line.x2-p.x,line.y2-p.y);b2=i;}});
+      let b1=-1,b2=-1,best1=ATTACHED_TH,best2=ATTACHED_TH;
+      pts.forEach((p,i)=>{
+        const d1=Math.hypot(line.x1-p.x,line.y1-p.y);
+        if(d1<best1){best1=d1;b1=i;}
+        const d2=Math.hypot(line.x2-p.x,line.y2-p.y);
+        if(d2<best2){best2=d2;b2=i;}
+      });
       if(b1>=0||b2>=0)lineBindings.push({lineId:line.id,pt1Idx:b1,pt2Idx:b2});
     });
   }
