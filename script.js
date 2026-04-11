@@ -1307,6 +1307,7 @@ function findSnap(nx,ny,excludeId){
 document.addEventListener('mousemove',ev=>{
   if(!MS)return;
   const dx=(ev.clientX-MS.sx)/cvScale, dy=(ev.clientY-MS.sy)/cvScale;
+  if(!MS.dirty&&(Math.abs(dx)>1||Math.abs(dy)>1))MS.dirty=true;
 
   if(MS.type==='move'){
     const el=getEl(MS.elId); if(!el)return;
@@ -1361,31 +1362,61 @@ document.addEventListener('mousemove',ev=>{
 });
 document.addEventListener('mouseup',()=>{
   if(MS&&(MS.type==='move'||MS.type==='move-line'||MS.type==='resize'||MS.type==='drag-pt')){
-    // Commit visual z-index to data model now that a real action happened
-    if(MS.type!=='drag-pt'){const el=getEl(MS.elId);if(el)el.z=zMax;}
-    pushHistory();
+    if(MS.dirty){
+      if(MS.type!=='drag-pt'){const el=getEl(MS.elId);if(el)el.z=zMax;}
+      pushHistory();
+    }
   }
   MS=null;hideGuides();hideConnDots();
 });
 
 /* ── Snap helper for regular elements ── */
-const SNAP=10;
 function trySnapEl(el,nx,ny){
   const sz=slSz(curSlide());
-  const cw=sz.w/2, ch=sz.h/2, ew=el.w||0, eh=el.h||0;
-  let rx=nx, ry=ny; let showH=false, showV=false;
-  if(Math.abs(nx+ew/2-cw)<SNAP){rx=Math.round(cw-ew/2);showV=true;}
-  if(Math.abs(ny+eh/2-ch)<SNAP){ry=Math.round(ch-eh/2);showH=true;}
+  const ew=el.w||0, eh=el.h||0;
+  let rx=nx, ry=ny, showH=false, showV=false;
+
+  /* Candidate snap positions for X axis (left edge of moved element) */
+  const xSnaps=[];
+  /* Candidate snap positions for Y axis (top edge of moved element) */
+  const ySnaps=[];
+
+  /* Slide center */
+  xSnaps.push(Math.round(sz.w/2-ew/2));   // center-H on slide
+  ySnaps.push(Math.round(sz.h/2-eh/2));   // center-V on slide
+
+  /* Other elements */
   (curSlide()?.elements||[]).forEach(o=>{
     if(o.id===selElId||!o.w||o.type==='er-line')return;
-    const ocx=(o.x||0)+(o.w||0)/2, ocy=(o.y||0)+(o.h||0)/2;
-    if(Math.abs(nx+ew/2-ocx)<SNAP){rx=Math.round(ocx-ew/2);showV=true;}
-    if(Math.abs(ny+eh/2-ocy)<SNAP){ry=Math.round(ocy-eh/2);showH=true;}
+    const ox=o.x||0, oy=o.y||0, ow=o.w||0, oh=o.h||0;
+    const ocx=ox+ow/2, ocy=oy+oh/2;
+
+    /* X: left-left, center-center, right-right, left-right, right-left */
+    xSnaps.push(ox);                  // left edges align
+    xSnaps.push(Math.round(ocx-ew/2)); // centers align
+    xSnaps.push(ox+ow-ew);            // right edges align
+    xSnaps.push(ox+ow);               // moved left = other right
+    xSnaps.push(ox-ew);               // moved right = other left
+
+    /* Y: top-top, center-center, bottom-bottom, top-bottom, bottom-top */
+    ySnaps.push(oy);                  // top edges align
+    ySnaps.push(Math.round(ocy-eh/2)); // centers align
+    ySnaps.push(oy+oh-eh);            // bottom edges align
+    ySnaps.push(oy+oh);               // moved top = other bottom
+    ySnaps.push(oy-eh);               // moved bottom = other top
   });
+
+  /* Find closest snap within threshold */
+  xSnaps.forEach(sx=>{if(Math.abs(nx-sx)<SNAP){rx=sx;showV=true;}});
+  ySnaps.forEach(sy=>{if(Math.abs(ny-sy)<SNAP){ry=sy;showH=true;}});
+
+  /* Show / hide guide lines */
   const sRect=document.getElementById('slideCV')?.getBoundingClientRect();
   if(sRect){
-    if(showH){const gH=document.getElementById('gH');gH.style.display='block';gH.style.top=(sRect.top+(ry+eh/2)*cvScale)+'px';}else document.getElementById('gH').style.display='none';
-    if(showV){const gV=document.getElementById('gV');gV.style.display='block';gV.style.left=(sRect.left+(rx+ew/2)*cvScale)+'px';}else document.getElementById('gV').style.display='none';
+    if(showH){const gH=document.getElementById('gH');gH.style.display='block';gH.style.top=(sRect.top+(ry+eh/2)*cvScale)+'px';}
+    else document.getElementById('gH').style.display='none';
+    if(showV){const gV=document.getElementById('gV');gV.style.display='block';gV.style.left=(sRect.left+(rx+ew/2)*cvScale)+'px';}
+    else document.getElementById('gV').style.display='none';
   }
   return{x:rx,y:ry};
 }
