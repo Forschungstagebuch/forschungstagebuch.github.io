@@ -1157,7 +1157,9 @@ function startResize(elId,ev){
   ev.preventDefault();
 }
 function startDragPt(lineId,ptNum,ev){
-  MS={type:'drag-pt',elId:lineId,ptNum,sx:ev.clientX,sy:ev.clientY};
+  const el=getEl(lineId); if(!el)return;
+  MS={type:'drag-pt',elId:lineId,ptNum,sx:ev.clientX,sy:ev.clientY,
+      data:{x1:el.x1,y1:el.y1,x2:el.x2,y2:el.y2}};
   ev.preventDefault();
   showConnDots(lineId);
 }
@@ -1307,7 +1309,6 @@ function findSnap(nx,ny,excludeId){
 document.addEventListener('mousemove',ev=>{
   if(!MS)return;
   const dx=(ev.clientX-MS.sx)/cvScale, dy=(ev.clientY-MS.sy)/cvScale;
-  if(!MS.dirty&&(Math.abs(dx)>1||Math.abs(dy)>1))MS.dirty=true;
 
   if(MS.type==='move'){
     const el=getEl(MS.elId); if(!el)return;
@@ -1362,8 +1363,18 @@ document.addEventListener('mousemove',ev=>{
 });
 document.addEventListener('mouseup',()=>{
   if(MS&&(MS.type==='move'||MS.type==='move-line'||MS.type==='resize'||MS.type==='drag-pt')){
-    if(MS.dirty){
-      if(MS.type!=='drag-pt'){const el=getEl(MS.elId);if(el)el.z=zMax;}
+    const el=getEl(MS.elId);
+    let changed=false;
+    if(MS.type==='move'&&el)
+      changed=(el.x!==MS.data.x||el.y!==MS.data.y);
+    else if(MS.type==='move-line'&&el)
+      changed=(el.x1!==MS.data.x1||el.y1!==MS.data.y1||el.x2!==MS.data.x2||el.y2!==MS.data.y2);
+    else if(MS.type==='resize'&&el)
+      changed=(el.w!==MS.data.w||el.h!==MS.data.h);
+    else if(MS.type==='drag-pt'&&el)
+      changed=(el.x1!==MS.data.x1||el.y1!==MS.data.y1||el.x2!==MS.data.x2||el.y2!==MS.data.y2);
+    if(changed){
+      if(MS.type!=='drag-pt'&&el)el.z=zMax;
       pushHistory();
     }
   }
@@ -1375,16 +1386,23 @@ const SNAP=10;
 function trySnapEl(el,nx,ny){
   const sz=slSz(curSlide());
   const ew=el.w||0, eh=el.h||0;
-  let rx=nx, ry=ny, showH=false, showV=false;
+  let rx=nx, ry=ny;
+  let bestX=SNAP, bestY=SNAP;   // best distance found so far
+  let guideX=null, guideY=null; // pixel position on slide where guide should draw
 
-  /* Candidate snap positions for X axis (left edge of moved element) */
-  const xSnaps=[];
-  /* Candidate snap positions for Y axis (top edge of moved element) */
-  const ySnaps=[];
+  function checkX(candidateLeft, axisX){
+    const d=Math.abs(nx-candidateLeft);
+    if(d<bestX){bestX=d;rx=candidateLeft;guideX=axisX;}
+  }
+  function checkY(candidateTop, axisY){
+    const d=Math.abs(ny-candidateTop);
+    if(d<bestY){bestY=d;ry=candidateTop;guideY=axisY;}
+  }
 
   /* Slide center */
-  xSnaps.push(Math.round(sz.w/2-ew/2));   // center-H on slide
-  ySnaps.push(Math.round(sz.h/2-eh/2));   // center-V on slide
+  const scx=sz.w/2, scy=sz.h/2;
+  checkX(Math.round(scx-ew/2), scx);
+  checkY(Math.round(scy-eh/2), scy);
 
   /* Other elements */
   (curSlide()?.elements||[]).forEach(o=>{
@@ -1392,32 +1410,38 @@ function trySnapEl(el,nx,ny){
     const ox=o.x||0, oy=o.y||0, ow=o.w||0, oh=o.h||0;
     const ocx=ox+ow/2, ocy=oy+oh/2;
 
-    /* X: left-left, center-center, right-right, left-right, right-left */
-    xSnaps.push(ox);                  // left edges align
-    xSnaps.push(Math.round(ocx-ew/2)); // centers align
-    xSnaps.push(ox+ow-ew);            // right edges align
-    xSnaps.push(ox+ow);               // moved left = other right
-    xSnaps.push(ox-ew);               // moved right = other left
+    /* X-axis candidates: left-left, center-center, right-right, abutting */
+    checkX(ox,           ox);           // left edges align → guide on left edge
+    checkX(Math.round(ocx-ew/2), ocx); // centers align  → guide on center
+    checkX(ox+ow-ew,     ox+ow);        // right edges align → guide on right edge
+    checkX(ox+ow,        ox+ow);        // moved-left = other-right
+    checkX(ox-ew,        ox);           // moved-right = other-left
 
-    /* Y: top-top, center-center, bottom-bottom, top-bottom, bottom-top */
-    ySnaps.push(oy);                  // top edges align
-    ySnaps.push(Math.round(ocy-eh/2)); // centers align
-    ySnaps.push(oy+oh-eh);            // bottom edges align
-    ySnaps.push(oy+oh);               // moved top = other bottom
-    ySnaps.push(oy-eh);               // moved bottom = other top
+    /* Y-axis candidates: top-top, center-center, bottom-bottom, abutting */
+    checkY(oy,           oy);           // top edges align → guide on top edge
+    checkY(Math.round(ocy-eh/2), ocy); // centers align → guide on center
+    checkY(oy+oh-eh,     oy+oh);        // bottom edges align → guide on bottom edge
+    checkY(oy+oh,        oy+oh);        // moved-top = other-bottom
+    checkY(oy-eh,        oy);           // moved-bottom = other-top
   });
 
-  /* Find closest snap within threshold */
-  xSnaps.forEach(sx=>{if(Math.abs(nx-sx)<SNAP){rx=sx;showV=true;}});
-  ySnaps.forEach(sy=>{if(Math.abs(ny-sy)<SNAP){ry=sy;showH=true;}});
-
-  /* Show / hide guide lines */
+  /* Show / hide guide lines, positioned at the alignment axis */
   const sRect=document.getElementById('slideCV')?.getBoundingClientRect();
   if(sRect){
-    if(showH){const gH=document.getElementById('gH');gH.style.display='block';gH.style.top=(sRect.top+(ry+eh/2)*cvScale)+'px';}
-    else document.getElementById('gH').style.display='none';
-    if(showV){const gV=document.getElementById('gV');gV.style.display='block';gV.style.left=(sRect.left+(rx+ew/2)*cvScale)+'px';}
-    else document.getElementById('gV').style.display='none';
+    const gH=document.getElementById('gH');
+    const gV=document.getElementById('gV');
+    if(guideY!==null){
+      gH.style.display='block';
+      gH.style.top=(sRect.top+guideY*cvScale)+'px';
+    } else {
+      gH.style.display='none';
+    }
+    if(guideX!==null){
+      gV.style.display='block';
+      gV.style.left=(sRect.left+guideX*cvScale)+'px';
+    } else {
+      gV.style.display='none';
+    }
   }
   return{x:rx,y:ry};
 }
