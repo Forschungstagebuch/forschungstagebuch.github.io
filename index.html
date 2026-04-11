@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Forschungstagebuch — Informatik</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,700;0,900;1,400&family=JetBrains+Mono:wght@400;600&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<!-- ═══════ LOGIN ═══════ -->
+<div id="loginView" class="view active">
+  <div class="blob blob-a"></div>
+  <div class="blob blob-b"></div>
+  <div class="login-wrap">
+    <div class="login-box">
+      <div class="login-icon">📓</div>
+      <h2 class="login-title">Forschungs<em>tagebuch</em></h2>
+      <p class="login-sub">Informatik · Q1 – Q4<br>Gib dein Passwort ein um fortzufahren.</p>
+
+      <label class="fl" for="pwf">Passwort</label>
+      <div class="pw-row">
+        <input type="password" id="pwf" placeholder="••••••••"
+               oninput="onPwIn()" onkeydown="if(event.key==='Enter')doLogin()">
+        <button class="eye-btn" type="button" onclick="toggleEye()" title="Passwort anzeigen">
+          <svg id="eyeIco" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/>
+          </svg>
+        </button>
+      </div>
+      <div class="login-hint" id="lhint"></div>
+
+      <button class="btn-login" onclick="doLogin()">Einloggen →</button>
+      <div class="login-err" id="lerr"></div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════ LEHRER VIEW ═══════ -->
+<div id="lehrerView" class="view">
+  <nav class="navbar">
+    <div class="n-brand">
+      <div class="n-logo">FT</div>
+      <div><div class="n-name">Forschungstagebuch</div><div class="n-sub">Informatik</div></div>
+    </div>
+    <div class="n-right">
+      <span class="n-pill">📖 Lehrer-Ansicht</span>
+      <button class="btn-out" onclick="logout()">Abmelden</button>
+    </div>
+  </nav>
+  <div class="main">
+    <div class="ph">
+      <div class="ph-k">// Forschungstagebuch</div>
+      <h1>Die <em>Lernreise</em><br>in der Informatik</h1>
+      <p>Chronologisches Tagebuch aller behandelten Themen – geordnet nach Schulhalbjahr.</p>
+    </div>
+    <div class="stats">
+      <div class="stat"><div class="stat-n" id="sn1">0</div><div class="stat-l">Einträge gesamt</div></div>
+      <div class="stat"><div class="stat-n" id="sn2">0</div><div class="stat-l">Monate dokumentiert</div></div>
+      <div class="stat"><div class="stat-n" id="sn3">0</div><div class="stat-l">Themen / Tags</div></div>
+    </div>
+    <div class="q-tabs" id="qtL"></div>
+    <div class="srch-wrap">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+      <input type="text" id="srL" placeholder="Suche nach Titel, Inhalt, Tag oder Datum (z.B. 02.2026) …" oninput="renderL()">
+    </div>
+    <div class="entries" id="entL"></div>
+  </div>
+</div>
+
+<!-- ═══════ ADMIN VIEW ═══════ -->
+<div id="adminView" class="view">
+  <nav class="navbar">
+    <div class="n-brand">
+      <div class="n-logo">FT</div>
+      <div><div class="n-name">Forschungstagebuch</div><div class="n-sub">Informatik</div></div>
+    </div>
+    <div class="n-right">
+      <span class="n-pill adm">⚙️ Admin</span>
+      <button class="btn-out" onclick="logout()">Abmelden</button>
+    </div>
+  </nav>
+  <div class="main">
+    <div class="ph">
+      <div class="ph-k">// Admin-Bereich</div>
+      <h1>Einträge <em>verwalten</em></h1>
+      <p>Erstellen, bearbeiten, löschen und per Drag &amp; Drop oder Pfeilen neu sortieren.</p>
+    </div>
+    <div class="q-tabs" id="qtA"></div>
+    <div class="toolbar">
+      <div class="srch-wrap" style="margin:0">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+        <input type="text" id="srA" placeholder="Suche nach Titel, Inhalt, Tag oder Datum (z.B. 02.2026) …" oninput="renderA()">
+      </div>
+      <button class="btn-new" onclick="openModal()">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+        Neuer Eintrag
+      </button>
+    </div>
+    <div class="entries" id="entA"></div>
+  </div>
+</div>
+
+<!-- ═══════ MODAL ═══════ -->
+<div class="overlay" id="ov" onclick="bgCl(event)">
+  <div class="modal">
+    <h2 class="m-title" id="mh">Neuer Eintrag</h2>
+    <div class="fg-row">
+      <div class="fg"><label>Datum</label><input type="date" id="fDat"></div>
+      <div class="fg">
+        <label>Halbjahr</label>
+        <select id="fQ">
+          <option value="Q1">Q1</option>
+          <option value="Q2" selected>Q2</option>
+          <option value="Q3">Q3</option>
+          <option value="Q4">Q4</option>
+        </select>
+      </div>
+    </div>
+    <div class="fg"><label>Titel</label><input type="text" id="fTit" placeholder="z.B. ER-Modell – Einführung"></div>
+    <div class="fg"><label>Tags (kommagetrennt)</label><input type="text" id="fTag" placeholder="z.B. ER-Modell, Datenbanken, Beziehungen"></div>
+    <div class="fg"><label>Eintrag</label><textarea id="fBod" placeholder="Was wurde behandelt? Welche Konzepte, Erkenntnisse, Schwierigkeiten?"></textarea></div>
+    <div class="fg"><label>Code-Snippet (optional)</label>
+      <textarea id="fCod" style="font-family:'JetBrains Mono',monospace;font-size:12.5px;min-height:90px" placeholder="// Code hier einfügen …"></textarea>
+    </div>
+    <div class="m-foot">
+      <button class="btn-can" onclick="closeModal()">Abbrechen</button>
+      <button class="btn-sav" onclick="saveE()">Speichern</button>
+    </div>
+  </div>
+</div>
+
+<script src="script.js" defer></script>
+</body>
+</html>
