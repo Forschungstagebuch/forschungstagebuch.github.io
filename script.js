@@ -1371,6 +1371,7 @@ document.addEventListener('mouseup',()=>{
 });
 
 /* ── Snap helper for regular elements ── */
+const SNAP=10;
 function trySnapEl(el,nx,ny){
   const sz=slSz(curSlide());
   const ew=el.w||0, eh=el.h||0;
