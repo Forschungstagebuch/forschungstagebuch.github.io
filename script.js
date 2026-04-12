@@ -96,6 +96,7 @@ let MS=null; // {type:'move'|'resize'|'drag-pt', elId, sx,sy, data:{}}
 let cvScale=1, cvOffX=0, cvOffY=0;
 let vScale=1;
 let activeRTBEl=null; // element id for rich text focus
+let adminScreen='journal'; // 'journal' | 'dateien' | 'notizen'
 
 /* ── Undo / Redo ── */
 let _undoStack=[], _redoStack=[];
@@ -263,6 +264,9 @@ async function logout(){
   await _sb.auth.signOut();
   curRole = null;
   _data = [];
+  adminScreen='journal';
+  _noteLoaded=false;
+  _treeState={};
   showView('loginView');
 }
 function showView(id){
@@ -548,6 +552,26 @@ function updStats(){
 }
 function refreshAll(){buildQTabs('lehrer');buildQTabs('admin');renderL();renderA();updStats();}
 
+/* ════════ ADMIN SCREEN SWITCHER ════════ */
+function switchAdminScreen(screen){
+  adminScreen=screen;
+  ['journal','dateien','notizen'].forEach(s=>{
+    const map={journal:'Journal',dateien:'Dateien',notizen:'Notizen'};
+    const btn=document.getElementById('modeBtn'+map[s]);
+    if(btn)btn.classList.toggle('act',s===screen);
+  });
+  const js=document.getElementById('adminJournalSection');
+  const fs=document.getElementById('adminFilesSection');
+  const ns=document.getElementById('adminNotesSection');
+  const st=document.getElementById('adminStats');
+  if(js)js.style.display=screen==='journal'?'':'none';
+  if(fs)fs.style.display=screen==='dateien'?'':'none';
+  if(ns)ns.style.display=screen==='notizen'?'':'none';
+  if(st)st.style.display=screen==='journal'?'':'none';
+  if(screen==='dateien')loadFiles();
+  if(screen==='notizen')loadNote();
+}
+
 /* ════════ VIEWER ════════ */
 let vEntry=null;
 function openViewer(id){
@@ -671,6 +695,15 @@ function closeEditor(){
   if(!confirm('Änderungen verwerfen?'))return;
   document.getElementById('editorView').classList.remove('open');
   edEntry=null; selElId=null; hideGuides(); hideRTB();
+}
+function resetSlide(){
+  if(!edEntry)return;
+  const sl=curSlide(); if(!sl)return;
+  if(!confirm(`Alle Elemente von "${sl.title||'diese Folie'}" löschen?`))return;
+  pushHistory();
+  sl.elements=[];
+  deselectAll(); hideRTB();
+  renderSlide(); renderSpanel();
 }
 function saveEditor(){
   if(!edEntry)return; flushEl();
@@ -1506,6 +1539,8 @@ function syncSavedToEl(){
     const dom=document.getElementById('sel_'+activeRTBEl);
     const ce=dom?.querySelector('.el-text');
     if(el&&ce)el.html=ce.innerHTML;
+  } else if(adminScreen==='notizen'){
+    scheduleNoteSave();
   }
 }
 
@@ -1633,7 +1668,9 @@ function posRTB(){
   const sel=window.getSelection(); if(!sel||!sel.rangeCount){hideRTB();return;}
   const range=sel.getRangeAt(0); if(range.collapsed){hideRTB();return;}
   const anc=range.commonAncestorContainer;
-  const textEl=anc.nodeType===3?anc.parentElement.closest('.el-text'):anc.closest?.('.el-text');
+  const textEl=anc.nodeType===3
+    ?anc.parentElement.closest('.el-text,.notes-editor')
+    :anc.closest?.('.el-text,.notes-editor');
   if(!textEl){hideRTB();return;}
 
   // Read current selection color and update A + bar
@@ -1677,16 +1714,17 @@ function hideRTB(){
 }
 
 document.addEventListener('selectionchange',()=>{
-  if(!document.getElementById('editorView').classList.contains('open')){hideRTB();return;}
-  // Only update posRTB if focus is inside an el-text
+  const editorOpen=document.getElementById('editorView').classList.contains('open');
+  const notesActive=adminScreen==='notizen'&&curRole==='admin'&&document.getElementById('adminView')?.classList.contains('active');
+  if(!editorOpen&&!notesActive){hideRTB();return;}
   const active=document.activeElement;
-  if(active&&active.classList.contains('el-text')){
+  if(active&&(active.classList.contains('el-text')||active.classList.contains('notes-editor'))){
     saveRange();
     setTimeout(posRTB,30);
   }
 });
 document.addEventListener('mousedown',ev=>{
-  if(!ev.target.closest('#rtb')&&!ev.target.closest('.el-text')){
+  if(!ev.target.closest('#rtb')&&!ev.target.closest('.el-text')&&!ev.target.closest('.notes-editor')){
     hideRTB();
   }
   // Close font dropdown on outside click
@@ -1706,6 +1744,663 @@ document.addEventListener('wheel',ev=>{
   }
   // Otherwise let the scroll area handle it naturally
 },{passive:false});
+
+
+/* ════════════════════════════════════════════════════
+   DATEIEN — Supabase Storage Cloud (File Tree)
+   Bucket: info-files (erstelle im Supabase-Dashboard:
+   Storage → New Bucket → Name: "info-files" → Private)
+   Policies: Authenticated users können lesen/schreiben/löschen
+   ════════════════════════════════════════════════════ */
+const FILES_BUCKET = 'info-files';
+const FILES_MAX_BYTES = 50 * 1024 * 1024;
+const FILES_TOTAL_LIMIT = 1024 * 1024 * 1024;
+
+let _renameTarget = null;
+let _treeState = {};     // path → { expanded: bool, items: array|null }
+let _fileDragSrc = null; // path of the file currently being dragged
+
+function fmtBytes(b){
+  if(!b||b===0)return '0 B';
+  const u=['B','KB','MB','GB'], i=Math.floor(Math.log(b)/Math.log(1024));
+  return (b/Math.pow(1024,i)).toFixed(i?1:0)+' '+u[i];
+}
+
+/* SVG icons — all consistent with each other */
+const SVG_FOLDER=`<svg width="18" height="16" viewBox="0 0 18 16" fill="none" xmlns="http://www.w3.org/2000/svg" style="color:var(--gold);opacity:.85"><path d="M1 3.5C1 2.67 1.67 2 2.5 2H6.38c.35 0 .68.13.93.37L8.5 3.5H15.5C16.33 3.5 17 4.17 17 5v8c0 .83-.67 1.5-1.5 1.5h-13C1.67 14.5 1 13.83 1 13V3.5z" stroke="currentColor" stroke-width="1.4" fill="rgba(232,160,48,.08)"/></svg>`;
+const SVG_FOLDER_OPEN=`<svg width="18" height="16" viewBox="0 0 18 16" fill="none" xmlns="http://www.w3.org/2000/svg" style="color:var(--gold);opacity:.85"><path d="M1 3.5C1 2.67 1.67 2 2.5 2H6.38c.35 0 .68.13.93.37L8.5 3.5H15.5C16.33 3.5 17 4.17 17 5v1H2.5C1.67 6 1 5.33 1 4.5V3.5z" stroke="currentColor" stroke-width="1.4" fill="rgba(232,160,48,.12)"/><path d="M1 6h16l-1.8 7.2A1.5 1.5 0 0 1 13.74 14.5H2.5A1.5 1.5 0 0 1 1 13V6z" stroke="currentColor" stroke-width="1.4" fill="rgba(232,160,48,.14)"/></svg>`;
+const SVG_CHEVRON_RIGHT=`<svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>`;
+const SVG_CHEVRON_DOWN=`<svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>`;
+const SVG_SPINNER=`<div class="file-spinner" style="width:10px;height:10px;border-width:1.5px;display:inline-block"></div>`;
+
+function fileIcon(name){
+  const ext=(name.split('.').pop()||'').toLowerCase();
+  const color={
+    png:'var(--gold)',jpg:'var(--gold)',jpeg:'var(--gold)',gif:'var(--gold)',svg:'var(--gold)',webp:'var(--gold)',
+    pdf:'#f87171',
+    doc:'#7dd3fc',docx:'#7dd3fc',
+    ppt:'#fb923c',pptx:'#fb923c',
+    xls:'#86efac',xlsx:'#86efac',
+    mp4:'#c084fc',mp3:'#c084fc',
+    zip:'#94a3b8',rar:'#94a3b8',
+    py:'#fbbf24',js:'#fbbf24',ts:'#fbbf24',
+    html:'#fb923c',css:'#7dd3fc',json:'#86efac',
+    txt:'#94a3b8',md:'#94a3b8',
+  }[ext]||'var(--text3)';
+  const imgExts=['png','jpg','jpeg','gif','svg','webp'];
+  if(imgExts.includes(ext)){
+    return `<svg width="16" height="14" viewBox="0 0 18 16" fill="none" xmlns="http://www.w3.org/2000/svg" style="color:${color}"><rect x="1" y="1" width="16" height="14" rx="2" stroke="currentColor" stroke-width="1.4" fill="rgba(232,160,48,.06)"/><circle cx="5.5" cy="5.5" r="1.5" fill="currentColor" opacity=".7"/><path d="M1 11l4-4 3 3 2.5-2.5L16 13" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round" opacity=".7"/></svg>`;
+  }
+  // Generic file icon with colored accent
+  return `<svg width="15" height="16" viewBox="0 0 15 18" fill="none" xmlns="http://www.w3.org/2000/svg" style="color:${color}"><path d="M2 1h7.5L13 4.5V17H2V1z" stroke="currentColor" stroke-width="1.3" fill="rgba(0,0,0,.0)" opacity=".5"/><polyline points="9 1 9 5 13 5" stroke="currentColor" stroke-width="1.3" opacity=".5"/><line x1="4" y1="8" x2="11" y2="8" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" opacity=".7"/><line x1="4" y1="11" x2="11" y2="11" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" opacity=".7"/><line x1="4" y1="14" x2="8" y2="14" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" opacity=".7"/></svg>`;
+}
+
+/* ── Load root and render tree ── */
+async function loadFiles(){
+  _treeState={};
+  const listEl=document.getElementById('filesList');
+  if(listEl)listEl.innerHTML='<div style="text-align:center;padding:40px;color:var(--text3);font-size:13px">Laden …</div>';
+
+  const {data,error}=await _sb.storage.from(FILES_BUCKET).list('',{
+    limit:500,offset:0,sortBy:{column:'name',order:'asc'}
+  });
+
+  if(error){
+    if(listEl)listEl.innerHTML=error.message.includes('not found')
+      ?`<div class="files-empty"><div class="files-empty-i" style="font-size:32px">☁️</div><div style="font-size:14px;color:var(--text2)">Bucket nicht gefunden</div><div class="files-empty-p">Erstelle <strong style="color:var(--gold)">info-files</strong> im Supabase-Dashboard.</div></div>`
+      :`<div class="files-empty"><div class="files-empty-i" style="font-size:32px">⚠️</div><div class="files-empty-p">${esc(error.message)}</div></div>`;
+    return;
+  }
+
+  const items=(data||[]).filter(f=>f.name!=='.emptyFolderPlaceholder');
+  _treeState['']={expanded:true,items};
+
+  // Compute total used across all root-level files only (approximation)
+  const rootFiles=items.filter(f=>f.id!==null);
+  const totalUsed=rootFiles.reduce((s,f)=>s+(f.metadata?.size||0),0);
+  const pct=Math.min(100,(totalUsed/FILES_TOTAL_LIMIT)*100);
+  const fillEl=document.getElementById('filesStorageFill');
+  const pctEl=document.getElementById('filesStoragePct');
+  const lblEl=document.getElementById('filesStorageLabel');
+  if(fillEl){fillEl.style.width=pct.toFixed(1)+'%';fillEl.style.background=pct>85?'#f87171':pct>65?'#fbbf24':'var(--gold)';}
+  if(pctEl)pctEl.textContent=pct.toFixed(1)+'%';
+  if(lblEl)lblEl.textContent=`${fmtBytes(totalUsed)} von 1 GB`;
+
+  renderFileTree();
+}
+
+async function _loadFolderItems(path){
+  const {data,error}=await _sb.storage.from(FILES_BUCKET).list(path,{
+    limit:500,offset:0,sortBy:{column:'name',order:'asc'}
+  });
+  if(error)return[];
+  return(data||[]).filter(f=>f.name!=='.emptyFolderPlaceholder');
+}
+
+/* ── Toggle folder expand/collapse ── */
+async function toggleFolder(path){
+  const st=_treeState[path];
+  if(st&&st.expanded){
+    _treeState[path].expanded=false;
+    renderFileTree();
+    return;
+  }
+  if(!st||st.items===null||st.items===undefined){
+    // Show loading spinner on the arrow
+    _treeState[path]={expanded:false,items:undefined};
+    renderFileTree(); // show spinner state
+    const items=await _loadFolderItems(path);
+    _treeState[path]={expanded:true,items};
+  } else {
+    _treeState[path].expanded=true;
+  }
+  renderFileTree();
+}
+
+/* ── Render the full tree ── */
+function renderFileTree(){
+  const listEl=document.getElementById('filesList');if(!listEl)return;
+  const rootSt=_treeState[''];
+  if(!rootSt||!rootSt.items){
+    listEl.innerHTML='<div class="files-empty"><div class="files-empty-i">☁️</div><div class="files-empty-p">Fehler beim Laden.</div></div>';
+    return;
+  }
+  if(!rootSt.items.length){
+    listEl.innerHTML=`<div class="files-empty"><div class="files-empty-i">☁️</div><div style="font-size:14px;color:var(--text2)">Leer</div><div class="files-empty-p">Lade Dateien hoch oder erstelle einen Ordner.</div></div>`;
+    return;
+  }
+  listEl.innerHTML=_renderTreeLevel(rootSt.items,'',0);
+}
+
+function _renderTreeLevel(items,parentPath,depth){
+  if(!items)return`<div class="tree-loading">${SVG_SPINNER} Laden …</div>`;
+  const folders=items.filter(f=>f.id===null);
+  const files=items.filter(f=>f.id!==null);
+  let html='';
+  const indent=depth*18;
+
+  for(const f of folders){
+    const fullPath=parentPath?`${parentPath}/${f.name}`:f.name;
+    const safePath=fullPath.replace(/'/g,"\\'");
+    const st=_treeState[fullPath];
+    const expanded=st?.expanded||false;
+    const loading=st&&st.items===undefined;
+    const arrowIcon=loading?SVG_SPINNER:expanded?SVG_CHEVRON_DOWN:SVG_CHEVRON_RIGHT;
+    const folderIcon=expanded?SVG_FOLDER_OPEN:SVG_FOLDER;
+    html+=`<div class="file-tree-folder" data-tree-path="${fullPath}"
+      ondragover="treeFolderDragOver(event,'${safePath}')"
+      ondragleave="treeFolderDragLeave(event)"
+      ondrop="treeFolderDrop(event,'${safePath}')">
+      <div class="file-tree-folder-row" style="padding-left:${indent}px"
+           onclick="toggleFolder('${safePath}')">
+        <span class="file-tree-arrow">${arrowIcon}</span>
+        <span class="file-icon-inline">${folderIcon}</span>
+        <span class="file-tree-name">${esc(f.name)}</span>
+        <div class="file-acts" onclick="event.stopPropagation()">
+          <button class="file-act-btn del" onclick="deleteFolder('${safePath}')" title="Ordner löschen">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></svg>
+          </button>
+        </div>
+      </div>
+      ${expanded&&st.items?`<div class="file-tree-children">${_renderTreeLevel(st.items,fullPath,depth+1)}</div>`:''}
+    </div>`;
+  }
+
+  for(const f of files){
+    const fullPath=parentPath?`${parentPath}/${f.name}`:f.name;
+    const safePath=fullPath.replace(/'/g,"\\'");
+    const size=f.metadata?.size||0;
+    const date=f.updated_at?new Date(f.updated_at).toLocaleDateString('de-DE',{day:'2-digit',month:'2-digit',year:'numeric'}):'-';
+    const icon=fileIcon(f.name);
+    html+=`<div class="file-item" data-name="${fullPath}" draggable="true"
+      style="padding-left:${indent+4}px"
+      ondragstart="fileItemDragStart(event,'${safePath}')"
+      ondragend="fileItemDragEnd(event)">
+      <div class="file-icon">${icon}</div>
+      <div class="file-info">
+        <div class="file-name" title="${esc(f.name)}">${esc(f.name)}</div>
+        <div class="file-meta"><span>${fmtBytes(size)}</span><span>${date}</span></div>
+      </div>
+      <div class="file-acts">
+        <span class="file-status" style="display:none"><div class="file-spinner"></div><span class="file-status-txt"></span></span>
+        <button class="file-act-btn dl" onclick="downloadFile('${safePath}')" title="Herunterladen">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+        </button>
+        <button class="file-act-btn rn" onclick="openRenameModal('${safePath}')" title="Umbenennen">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+        </button>
+        <label class="file-act-btn ov" title="Überschreiben" style="cursor:pointer">
+          <input type="file" style="display:none" onchange="overwriteFile('${safePath}',this)">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><polyline points="16 16 12 12 8 16"/><line x1="12" y1="12" x2="12" y2="21"/><path d="M20.39 18.39A5 5 0 0 0 18 9h-1.26A8 8 0 1 0 3 16.3"/></svg>
+        </label>
+        <button class="file-act-btn mv" onclick="openMoveModal('${safePath}')" title="Verschieben (Modal)">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M5 9l-3 3 3 3"/><path d="M19 9l3 3-3 3"/><line x1="2" y1="12" x2="22" y2="12"/></svg>
+        </button>
+        <button class="file-act-btn del" onclick="deleteFile('${safePath}')" title="Löschen">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></svg>
+        </button>
+      </div>
+    </div>`;
+  }
+  return html||'<div class="tree-empty-folder">Leer</div>';
+}
+
+/* ── Drag-and-drop between tree nodes ── */
+function fileItemDragStart(ev,path){
+  _fileDragSrc=path;
+  ev.dataTransfer.effectAllowed='move';
+  ev.dataTransfer.setData('text/plain',path);
+  setTimeout(()=>{
+    const el=document.querySelector(`.file-item[data-name="${path}"]`);
+    if(el)el.classList.add('dragging');
+  },0);
+}
+function fileItemDragEnd(ev){
+  _fileDragSrc=null;
+  document.querySelectorAll('.file-item.dragging').forEach(e=>e.classList.remove('dragging'));
+}
+function treeFolderDragOver(ev,folderPath){
+  if(!_fileDragSrc)return;
+  ev.preventDefault();ev.stopPropagation();
+  ev.dataTransfer.dropEffect='move';
+  const el=document.querySelector(`.file-tree-folder[data-tree-path="${folderPath}"]`);
+  if(el)el.classList.add('drag-over');
+}
+function treeFolderDragLeave(ev){
+  // Only remove if leaving the folder element itself (not a child)
+  const folder=ev.currentTarget.closest?.('.file-tree-folder');
+  if(folder&&!folder.contains(ev.relatedTarget))folder.classList.remove('drag-over');
+}
+async function treeFolderDrop(ev,folderPath){
+  ev.preventDefault();ev.stopPropagation();
+  const folder=ev.currentTarget.closest?.('.file-tree-folder')||ev.currentTarget;
+  folder.classList.remove('drag-over');
+  if(!_fileDragSrc)return;
+  const srcPath=_fileDragSrc; _fileDragSrc=null;
+  const srcDir=srcPath.includes('/')?srcPath.substring(0,srcPath.lastIndexOf('/')):'';
+  if(srcDir===folderPath)return; // already in this folder
+  const fileName=srcPath.split('/').pop();
+  const destPath=`${folderPath}/${fileName}`;
+  await _moveFile(srcPath,destPath);
+}
+
+/* Drop onto the root (files-list background) */
+function treeRootDragOver(ev){
+  if(!_fileDragSrc)return;
+  ev.preventDefault();
+  ev.dataTransfer.dropEffect='move';
+  document.getElementById('filesList')?.classList.add('drag-over-root');
+}
+function treeRootDragLeave(ev){
+  if(!ev.currentTarget.contains(ev.relatedTarget))
+    document.getElementById('filesList')?.classList.remove('drag-over-root');
+}
+async function treeRootDrop(ev){
+  ev.preventDefault();
+  document.getElementById('filesList')?.classList.remove('drag-over-root');
+  if(!_fileDragSrc)return;
+  const srcPath=_fileDragSrc; _fileDragSrc=null;
+  const srcDir=srcPath.includes('/')?srcPath.substring(0,srcPath.lastIndexOf('/')):'';
+  if(srcDir==='')return; // already at root
+  const fileName=srcPath.split('/').pop();
+  await _moveFile(srcPath,fileName);
+}
+
+/* ── Upload files ── */
+async function uploadFilesToBucket(fileList,pathPrefix=''){
+  const failed=[];
+  const statusDiv=document.getElementById('filesUploadStatus');
+  const statusTxt=document.getElementById('filesUploadStatusText');
+  const arr=Array.from(fileList);
+  for(let i=0;i<arr.length;i++){
+    const file=arr[i];
+    if(file.size>FILES_MAX_BYTES){failed.push(`${file.name} (zu groß, max. 50 MB)`);continue;}
+    const uploadPath=pathPrefix?`${pathPrefix}/${file.name}`:file.name;
+    if(statusDiv&&statusTxt){statusTxt.textContent=`Hochladen ${i+1}/${arr.length}: ${file.name}`;statusDiv.style.display='flex';}
+    const {error}=await _sb.storage.from(FILES_BUCKET).upload(uploadPath,file,{upsert:true});
+    if(error)failed.push(`${file.name}: ${error.message}`);
+  }
+  if(statusDiv)statusDiv.style.display='none';
+  if(failed.length)alert('Fehler beim Hochladen:\n'+failed.join('\n'));
+  await loadFiles();
+}
+
+/* ── Upload folder (webkitdirectory input) ── */
+async function uploadFolderToBucket(fileList){
+  const failed=[];
+  const statusDiv=document.getElementById('filesUploadStatus');
+  const statusTxt=document.getElementById('filesUploadStatusText');
+  const arr=Array.from(fileList);
+  for(let i=0;i<arr.length;i++){
+    const file=arr[i];
+    if(file.size>FILES_MAX_BYTES){failed.push(`${file.name} (zu groß)`);continue;}
+    // webkitRelativePath is e.g. "FolderName/sub/file.txt" — use it directly from root
+    const uploadPath=file.webkitRelativePath||file.name;
+    if(statusDiv&&statusTxt){statusTxt.textContent=`Hochladen ${i+1}/${arr.length}: ${uploadPath}`;statusDiv.style.display='flex';}
+    const {error}=await _sb.storage.from(FILES_BUCKET).upload(uploadPath,file,{upsert:true});
+    if(error)failed.push(`${uploadPath}: ${error.message}`);
+  }
+  if(statusDiv)statusDiv.style.display='none';
+  if(failed.length)alert('Fehler beim Hochladen:\n'+failed.join('\n'));
+  await loadFiles();
+}
+
+/* ── FileSystem Entries (drag-drop folder) ── */
+function _readDirEntries(reader){
+  return new Promise(resolve=>{
+    const all=[];
+    const read=()=>{reader.readEntries(batch=>{if(!batch.length){resolve(all);return;}all.push(...batch);read();},()=>resolve(all));};
+    read();
+  });
+}
+async function _collectFiles(entry,pathSoFar){
+  const results=[];
+  if(entry.isFile){
+    const file=await new Promise((res,rej)=>entry.file(res,rej));
+    const uploadPath=pathSoFar?`${pathSoFar}/${entry.name}`:entry.name;
+    results.push({file,uploadPath});
+  } else if(entry.isDirectory){
+    const subPath=pathSoFar?`${pathSoFar}/${entry.name}`:entry.name;
+    const subEntries=await _readDirEntries(entry.createReader());
+    if(!subEntries.length){
+      results.push({
+        file:new File([new Blob([''])],'.emptyFolderPlaceholder',{type:'text/plain'}),
+        uploadPath:`${subPath}/.emptyFolderPlaceholder`
+      });
+    }
+    for(const sub of subEntries)results.push(...await _collectFiles(sub,subPath));
+  }
+  return results;
+}
+async function uploadEntries(entries){
+  const statusDiv=document.getElementById('filesUploadStatus');
+  const statusTxt=document.getElementById('filesUploadStatusText');
+  const failed=[];
+  // Collect all files from the dropped entries — paths are built from root
+  let allFiles=[];
+  for(const entry of entries)allFiles.push(...await _collectFiles(entry,''));
+  for(let i=0;i<allFiles.length;i++){
+    const {file,uploadPath}=allFiles[i];
+    if(file.name!=='.emptyFolderPlaceholder'&&file.size>FILES_MAX_BYTES){failed.push(`${file.name} (zu groß, max. 50 MB)`);continue;}
+    if(statusDiv&&statusTxt){statusTxt.textContent=`Hochladen ${i+1}/${allFiles.length}: ${uploadPath}`;statusDiv.style.display='flex';}
+    const {error}=await _sb.storage.from(FILES_BUCKET).upload(uploadPath,file,{upsert:true});
+    if(error)failed.push(`${uploadPath}: ${error.message}`);
+  }
+  if(statusDiv)statusDiv.style.display='none';
+  if(failed.length)alert('Fehler beim Hochladen:\n'+failed.join('\n'));
+  await loadFiles();
+}
+
+function filesOnDragOver(ev){ev.preventDefault();document.getElementById('filesDropZone').classList.add('dnd');}
+function filesOnDragLeave(){document.getElementById('filesDropZone').classList.remove('dnd');}
+function filesOnDrop(ev){
+  ev.preventDefault();document.getElementById('filesDropZone').classList.remove('dnd');
+  const items=ev.dataTransfer?.items;
+  if(items&&items.length){
+    const entries=[];
+    for(let i=0;i<items.length;i++){const e=items[i].webkitGetAsEntry?.();if(e)entries.push(e);}
+    if(entries.length){uploadEntries(entries);return;}
+  }
+  const files=ev.dataTransfer?.files;
+  if(files&&files.length)uploadFilesToBucket(files);
+}
+function filesOnInput(ev){const files=ev.target.files;if(files&&files.length){uploadFilesToBucket(files);ev.target.value='';}}
+function folderOnInput(ev){const files=ev.target.files;if(files&&files.length){uploadFolderToBucket(files);ev.target.value='';}}
+
+/* ── Create folder (always at root) ── */
+function openCreateFolderModal(){
+  document.getElementById('createFolderInput').value='';
+  document.getElementById('createFolderModal').style.display='flex';
+  setTimeout(()=>document.getElementById('createFolderInput').focus(),50);
+}
+function closeCreateFolderModal(){document.getElementById('createFolderModal').style.display='none';}
+document.addEventListener('keydown',ev=>{
+  if(ev.key==='Escape'&&document.getElementById('createFolderModal')?.style.display==='flex')closeCreateFolderModal();
+});
+async function confirmCreateFolder(){
+  const name=document.getElementById('createFolderInput').value.trim();
+  if(!name)return;
+  closeCreateFolderModal();
+  const placeholderPath=name+'/.emptyFolderPlaceholder';
+  const {error}=await _sb.storage.from(FILES_BUCKET).upload(placeholderPath,new Blob(['']),{upsert:true});
+  if(error){alert('Ordner erstellen fehlgeschlagen: '+error.message);return;}
+  const items=await _loadFolderItems('');
+  _treeState['']={expanded:true,items};
+  renderFileTree();
+}
+
+/* ── Delete folder (recursively) ── */
+async function listAllInPath(path){
+  const {data}=await _sb.storage.from(FILES_BUCKET).list(path,{limit:1000});
+  let paths=[];
+  for(const item of data||[]){
+    const full=path+'/'+item.name;
+    if(item.id===null){paths=paths.concat(await listAllInPath(full));}
+    else{paths.push(full);}
+  }
+  return paths;
+}
+async function deleteFolder(fullPath){
+  if(!confirm(`Ordner "${fullPath.split('/').pop()}" und alle Inhalte wirklich löschen?`))return;
+  const allFiles=await listAllInPath(fullPath);
+  if(allFiles.length){
+    const {error}=await _sb.storage.from(FILES_BUCKET).remove(allFiles);
+    if(error){alert('Lösch-Fehler: '+error.message);return;}
+  }
+  // Remove from tree state and refresh parent
+  delete _treeState[fullPath];
+  const parentPath=fullPath.includes('/')?fullPath.substring(0,fullPath.lastIndexOf('/')):'';
+  const items=await _loadFolderItems(parentPath);
+  _treeState[parentPath]={expanded:true,items:(_treeState[parentPath]?.items?items:items)};
+  _treeState[parentPath].items=items;
+  _treeState[parentPath].expanded=true;
+  renderFileTree();
+}
+
+/* ── Helper ── */
+function setFileStatus(name,msg){
+  const item=document.querySelector(`.file-item[data-name="${name}"]`);if(!item)return;
+  const st=item.querySelector('.file-status');if(!st)return;
+  st.style.display=msg?'flex':'none';
+  const txt=st.querySelector('.file-status-txt');if(txt)txt.textContent=msg;
+}
+
+function guessMime(name){
+  const ext=(name.split('.').pop()||'').toLowerCase();
+  const map={png:'image/png',jpg:'image/jpeg',jpeg:'image/jpeg',gif:'image/gif',webp:'image/webp',
+    svg:'image/svg+xml',pdf:'application/pdf',mp4:'video/mp4',mp3:'audio/mpeg',zip:'application/zip',
+    json:'application/json',txt:'text/plain',md:'text/markdown',html:'text/html',
+    doc:'application/msword',docx:'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+    ppt:'application/vnd.ms-powerpoint',pptx:'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+    xls:'application/vnd.ms-excel',xlsx:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'};
+  return map[ext]||'application/octet-stream';
+}
+
+/* ── Download single file ── */
+async function downloadFile(fullPath){
+  const {data,error}=await _sb.storage.from(FILES_BUCKET).createSignedUrl(fullPath,60);
+  if(error){alert('Download-Fehler: '+error.message);return;}
+  const a=document.createElement('a');a.href=data.signedUrl;a.download=fullPath.split('/').pop();
+  document.body.appendChild(a);a.click();document.body.removeChild(a);
+}
+
+/* ── Download ALL as ZIP ── */
+async function listAllFilesRecursive(path=''){
+  const {data}=await _sb.storage.from(FILES_BUCKET).list(path,{limit:1000});
+  let files=[];
+  for(const item of data||[]){
+    if(item.name==='.emptyFolderPlaceholder')continue;
+    const full=path?`${path}/${item.name}`:item.name;
+    if(item.id===null){files=files.concat(await listAllFilesRecursive(full));}
+    else{files.push(full);}
+  }
+  return files;
+}
+async function downloadAllAsZip(){
+  const btn=document.getElementById('filesZipBtn');
+  if(btn){btn.disabled=true;btn.innerHTML='<div class="file-spinner" style="width:12px;height:12px;border-width:1.5px"></div> Erstelle ZIP …';}
+  try{
+    const allFiles=await listAllFilesRecursive();
+    if(!allFiles.length){alert('Keine Dateien vorhanden.');return;}
+    const zip=new JSZip();
+    for(let i=0;i<allFiles.length;i++){
+      const path=allFiles[i];
+      if(btn)btn.innerHTML=`<div class="file-spinner" style="width:12px;height:12px;border-width:1.5px"></div> ${i+1}/${allFiles.length} …`;
+      const {data,error}=await _sb.storage.from(FILES_BUCKET).download(path);
+      if(error){console.warn('Skip '+path+': '+error.message);continue;}
+      zip.file(path,data);
+    }
+    const blob=await zip.generateAsync({type:'blob'});
+    const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='Forschungstagebuch-Dateien.zip';
+    document.body.appendChild(a);a.click();document.body.removeChild(a);URL.revokeObjectURL(a.href);
+  }catch(e){alert('ZIP-Fehler: '+e.message);}
+  finally{if(btn){btn.disabled=false;btn.innerHTML='<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg> Alles als ZIP';}}
+}
+
+/* ── Delete / Overwrite file ── */
+async function deleteFile(fullPath){
+  if(!confirm(`"${fullPath.split('/').pop()}" wirklich löschen?`))return;
+  setFileStatus(fullPath,'Löschen …');
+  const {error}=await _sb.storage.from(FILES_BUCKET).remove([fullPath]);
+  if(error){setFileStatus(fullPath,'');alert('Lösch-Fehler: '+error.message);return;}
+  // Refresh parent folder in tree
+  const parentPath=fullPath.includes('/')?fullPath.substring(0,fullPath.lastIndexOf('/')):'';
+  const items=await _loadFolderItems(parentPath);
+  if(_treeState[parentPath]){_treeState[parentPath].items=items;}
+  renderFileTree();
+}
+async function overwriteFile(fullPath,inputEl){
+  const file=inputEl.files[0];if(!file)return;
+  if(file.size>FILES_MAX_BYTES){alert('Datei zu groß (max. 50 MB)');return;}
+  if(!confirm(`"${fullPath.split('/').pop()}" überschreiben?`))return;
+  setFileStatus(fullPath,'Überschreiben …');
+  const {error}=await _sb.storage.from(FILES_BUCKET).upload(fullPath,file,{upsert:true});
+  if(error){setFileStatus(fullPath,'');alert('Fehler: '+error.message);return;}
+  const parentPath=fullPath.includes('/')?fullPath.substring(0,fullPath.lastIndexOf('/')):'';
+  const items=await _loadFolderItems(parentPath);
+  if(_treeState[parentPath])_treeState[parentPath].items=items;
+  renderFileTree();
+}
+
+/* ── Core move helper ── */
+async function _moveFile(srcPath,destPath){
+  setFileStatus(srcPath,'Verschieben …');
+  try{
+    const {data:blob,error:dlErr}=await _sb.storage.from(FILES_BUCKET).download(srcPath);
+    if(dlErr)throw new Error(dlErr.message);
+    const fileName=srcPath.split('/').pop();
+    const contentType=(blob.type&&blob.type!=='')?blob.type:guessMime(srcPath);
+    const file=new File([blob],fileName,{type:contentType});
+    const {error:ulErr}=await _sb.storage.from(FILES_BUCKET).upload(destPath,file,{upsert:true,contentType});
+    if(ulErr)throw new Error(ulErr.message);
+    const {error:delErr}=await _sb.storage.from(FILES_BUCKET).remove([srcPath]);
+    if(delErr)throw new Error(delErr.message);
+    // Refresh both source and destination parent paths
+    const srcParent=srcPath.includes('/')?srcPath.substring(0,srcPath.lastIndexOf('/')):'';
+    const dstParent=destPath.includes('/')?destPath.substring(0,destPath.lastIndexOf('/')):'';
+    for(const p of new Set([srcParent,dstParent])){
+      const items=await _loadFolderItems(p);
+      if(_treeState[p]){_treeState[p].items=items;}
+      else if(p===''){_treeState['']={expanded:true,items};}
+    }
+    renderFileTree();
+  }catch(e){
+    setFileStatus(srcPath,'');
+    alert('Verschieben fehlgeschlagen: '+e.message);
+  }
+}
+
+/* ── Rename ── */
+function openRenameModal(fullPath){
+  _renameTarget=fullPath;
+  document.getElementById('renameInput').value=fullPath.split('/').pop();
+  document.getElementById('renameModal').style.display='flex';
+  setTimeout(()=>{const inp=document.getElementById('renameInput');inp.focus();inp.select();},50);
+}
+function closeRenameModal(){document.getElementById('renameModal').style.display='none';_renameTarget=null;}
+document.addEventListener('keydown',ev=>{
+  if(ev.key==='Escape'&&document.getElementById('renameModal')?.style.display==='flex')closeRenameModal();
+});
+async function confirmRename(){
+  const newBaseName=document.getElementById('renameInput').value.trim();
+  if(!newBaseName||!_renameTarget)return;
+  const dir=_renameTarget.includes('/')?_renameTarget.substring(0,_renameTarget.lastIndexOf('/')):'';
+  const newFullPath=dir?`${dir}/${newBaseName}`:newBaseName;
+  if(newFullPath===_renameTarget){closeRenameModal();return;}
+  const targetName=_renameTarget;
+  closeRenameModal();
+  await _moveFile(targetName,newFullPath);
+}
+
+/* ── Move via modal ── */
+let _moveModalTarget=null;
+async function openMoveModal(fullPath){
+  _moveModalTarget=fullPath;
+  const sel=document.getElementById('moveFolderSelect');
+  if(!sel)return;
+  sel.innerHTML='<option value="">— Wurzelverzeichnis —</option>';
+  await _collectFolderOptions(sel,'',0);
+  const currentDir=fullPath.includes('/')?fullPath.substring(0,fullPath.lastIndexOf('/')):'';
+  Array.from(sel.options).forEach(opt=>{if(opt.value===currentDir)opt.disabled=true;});
+  document.getElementById('moveModal').style.display='flex';
+}
+async function _collectFolderOptions(selectEl,path,depth){
+  const {data}=await _sb.storage.from(FILES_BUCKET).list(path,{limit:500});
+  const folders=(data||[]).filter(f=>f.id===null&&f.name!=='.emptyFolderPlaceholder');
+  for(const f of folders){
+    const fullP=path?`${path}/${f.name}`:f.name;
+    const indent='\u00a0\u00a0'.repeat(depth)+(depth?'└ ':'');
+    const opt=document.createElement('option');opt.value=fullP;opt.textContent=indent+f.name;
+    selectEl.appendChild(opt);
+    if(depth<4)await _collectFolderOptions(selectEl,fullP,depth+1);
+  }
+}
+function closeMoveModal(){document.getElementById('moveModal').style.display='none';_moveModalTarget=null;}
+document.addEventListener('keydown',ev=>{
+  if(ev.key==='Escape'&&document.getElementById('moveModal')?.style.display==='flex')closeMoveModal();
+});
+async function confirmMove(){
+  const destFolder=document.getElementById('moveFolderSelect').value;
+  if(!_moveModalTarget)return;
+  const fileName=_moveModalTarget.split('/').pop();
+  const newFullPath=destFolder?`${destFolder}/${fileName}`:fileName;
+  if(newFullPath===_moveModalTarget){closeMoveModal();return;}
+  const src=_moveModalTarget;
+  closeMoveModal();
+  await _moveFile(src,newFullPath);
+}
+
+
+/* ════════════════════════════════════════════════════
+   NOTIZEN — Supabase notes Tabelle
+   SQL: CREATE TABLE notes (id INT PRIMARY KEY DEFAULT 1,
+        content TEXT NOT NULL DEFAULT '', updated_at TIMESTAMPTZ DEFAULT NOW());
+        INSERT INTO notes (id,content) VALUES (1,'') ON CONFLICT DO NOTHING;
+   ════════════════════════════════════════════════════ */
+let _noteSaveTimer=null;
+let _noteLoaded=false;
+
+async function loadNote(){
+  if(_noteLoaded)return; // already loaded this session
+  const ed=document.getElementById('notesEditor');
+  if(!ed)return;
+  ed.innerHTML='<span style="color:var(--text3);font-size:13px">Notizen laden …</span>';
+
+  const { data, error } = await _sb.from('notes').select('content').eq('id',1).single();
+  if(error&&error.code!=='PGRST116'){
+    ed.innerHTML=''; setNotesStatus('Ladefehler','error'); return;
+  }
+  ed.innerHTML = (data?.content)||'';
+  _noteLoaded=true;
+  setNotesStatus('Gespeichert','ok');
+}
+
+function onNotesInput(){
+  setNotesStatus('Ungespeicherte Änderungen','pending');
+  clearTimeout(_noteSaveTimer);
+  _noteSaveTimer=setTimeout(saveNote, 1500);
+}
+
+async function saveNote(){
+  const ed=document.getElementById('notesEditor');
+  if(!ed)return;
+  const content=ed.innerHTML||'';
+  setNotesStatus('Speichern …','saving');
+  const { error } = await _sb.from('notes').upsert({id:1,content,updated_at:new Date().toISOString()},{onConflict:'id'});
+  if(error){setNotesStatus('Fehler beim Speichern','error');return;}
+  setNotesStatus('Gespeichert','ok');
+}
+
+function setNotesStatus(msg, state){
+  const txt=document.getElementById('notesSaveText');
+  const ico=document.getElementById('notesSaveIcon');
+  if(txt)txt.textContent=msg;
+  if(ico){
+    ico.style.opacity=state==='ok'?'1':'0';
+    ico.style.color=state==='error'?'#f87171':'var(--gold)';
+  }
+  const wrap=document.querySelector('.notes-save-status');
+  if(wrap)wrap.style.color=state==='error'?'#f87171':state==='saving'?'var(--gold)':'var(--text3)';
+}
+
+function onNotesFocus(){
+  // Make RTB aware we're in notes mode
+  activeRTBEl=null;
+}
+function onNotesBlur(){
+  // Save on blur too
+  clearTimeout(_noteSaveTimer);
+  const ed=document.getElementById('notesEditor');
+  if(ed&&ed.innerHTML!==undefined&&_noteLoaded){
+    saveNote();
+  }
+}
+
+function scheduleNoteSave(){
+  if(adminScreen!=='notizen'||!_noteLoaded)return;
+  clearTimeout(_noteSaveTimer);
+  _noteSaveTimer=setTimeout(saveNote,1500);
+}
 
 /* ════════ BOOT ════════ */
 document.addEventListener('DOMContentLoaded',async ()=>{

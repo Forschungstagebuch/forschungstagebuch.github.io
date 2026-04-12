@@ -14,6 +14,9 @@
   .db-loading{position:fixed;inset:0;background:rgba(10,10,10,.7);display:flex;align-items:center;justify-content:center;z-index:9999;font-size:14px;color:var(--text2);gap:10px;backdrop-filter:blur(4px)}
   .db-loading-spinner{width:20px;height:20px;border:2px solid var(--border);border-top-color:var(--gold);border-radius:50%;animation:spin .7s linear infinite}
   @keyframes spin{to{transform:rotate(360deg)}}
+  .file-spinner{display:inline-block;width:11px;height:11px;border:1.5px solid rgba(232,160,48,.25);border-top-color:var(--gold);border-radius:50%;animation:spin .7s linear infinite;flex-shrink:0}
+  .file-status{display:none;align-items:center;gap:5px;font-size:11px;color:var(--gold);white-space:nowrap;margin-right:4px}
+  #filesUploadStatus{display:none;align-items:center;gap:7px;font-size:12px;color:var(--gold);padding:8px 0;justify-content:center}
 </style>
 </head>
 <body>
@@ -172,26 +175,154 @@
   </nav>
   <div class="main">
     <div class="ph-center">
-      <h1 class="ph-h1">Einträge <em>verwalten</em></h1>
-      <p class="ph-p">Einträge erstellen, Folien bearbeiten und sortieren.</p>
-      <div class="stats">
+      <h1 class="ph-h1">Admin <em>Bereich</em></h1>
+      <p class="ph-p" id="adminSubtitle">Einträge erstellen, Folien bearbeiten und sortieren.</p>
+      <!-- Admin Mode Switcher -->
+      <div class="admin-mode-btns">
+        <button id="modeBtnJournal" class="admin-mode-btn act" onclick="switchAdminScreen('journal')">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>
+          Forschungstagebuch
+        </button>
+        <button id="modeBtnDateien" class="admin-mode-btn" onclick="switchAdminScreen('dateien')">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polyline points="22 12 16 12 14 15 10 15 8 12 2 12"/><path d="M5.45 5.11L2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"/></svg>
+          Dateien
+        </button>
+        <button id="modeBtnNotizen" class="admin-mode-btn" onclick="switchAdminScreen('notizen')">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
+          Notizen
+        </button>
+      </div>
+      <div class="stats" id="adminStats">
         <div class="stat"><div class="stat-n" id="an1">0</div><div class="stat-l">Einträge</div></div>
         <div class="stat"><div class="stat-n" id="an2">0</div><div class="stat-l">Folien</div></div>
         <div class="stat"><div class="stat-n" id="an3">0</div><div class="stat-l">Tags</div></div>
       </div>
+    </div>
+
+    <!-- ─── Journal Screen ─── -->
+    <div id="adminJournalSection">
       <div class="q-tabs" id="qtA"></div>
-    </div>
-    <div class="admin-bar">
-      <div class="srch-wrap" style="margin:0;flex:1">
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-        <input type="text" id="srA" placeholder="Suche …" oninput="renderA()">
+      <div class="admin-bar">
+        <div class="srch-wrap" style="margin:0;flex:1">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+          <input type="text" id="srA" placeholder="Suche …" oninput="renderA()">
+        </div>
+        <button class="btn-new" onclick="openEditor(null)">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.8" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+          Neuer Eintrag
+        </button>
       </div>
-      <button class="btn-new" onclick="openEditor(null)">
-        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.8" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-        Neuer Eintrag
-      </button>
+      <div class="entries" id="entA"></div>
     </div>
-    <div class="entries" id="entA"></div>
+
+    <!-- ─── Files Screen ─── -->
+    <div id="adminFilesSection" style="display:none">
+      <!-- Upload Zone -->
+      <div class="files-upload-zone" id="filesDropZone"
+           ondragover="filesOnDragOver(event)" ondragleave="filesOnDragLeave(event)" ondrop="filesOnDrop(event)">
+        <input type="file" id="filesInput" multiple onchange="filesOnInput(event)">
+        <input type="file" id="folderInput" webkitdirectory multiple onchange="folderOnInput(event)" style="display:none">
+        <div class="files-upload-icon">
+          <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><polyline points="16 16 12 12 8 16"/><line x1="12" y1="12" x2="12" y2="21"/><path d="M20.39 18.39A5 5 0 0 0 18 9h-1.26A8 8 0 1 0 3 16.3"/></svg>
+        </div>
+        <div class="files-upload-text">Dateien hier ablegen oder klicken zum Auswählen</div>
+        <div class="files-upload-hint">Max. 50 MB pro Datei · Alle Dateitypen erlaubt</div>
+        <div style="margin-top:10px;display:flex;gap:8px;justify-content:center;flex-wrap:wrap">
+          <label class="files-zone-btn" style="cursor:pointer">
+            <input type="file" multiple onchange="filesOnInput(event)" style="display:none">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M13 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/><polyline points="13 2 13 9 20 9"/></svg>
+            Dateien wählen
+          </label>
+          <label class="files-zone-btn" style="cursor:pointer">
+            <input type="file" webkitdirectory multiple onchange="folderOnInput(event)" style="display:none">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
+            Ordner wählen
+          </label>
+        </div>
+      </div>
+      <!-- Upload Status -->
+      <div id="filesUploadStatus"><div class="file-spinner"></div><span id="filesUploadStatusText"></span></div>
+      <!-- Toolbar -->
+      <div class="files-toolbar">
+        <div style="display:flex;gap:8px;flex-shrink:0">
+          <button class="files-toolbar-btn" onclick="openCreateFolderModal()">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/><line x1="12" y1="11" x2="12" y2="17"/><line x1="9" y1="14" x2="15" y2="14"/></svg>
+            Ordner erstellen
+          </button>
+          <button class="files-toolbar-btn" onclick="downloadAllAsZip()" id="filesZipBtn">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+            Alles als ZIP
+          </button>
+        </div>
+      </div>
+      <!-- Storage Bar -->
+      <div class="files-storage-bar" id="filesStorageBar">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" style="color:var(--gold);flex-shrink:0"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"/><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/></svg>
+        <span class="files-storage-label" id="filesStorageLabel">Berechne Speicher …</span>
+        <div class="files-storage-track"><div class="files-storage-fill" id="filesStorageFill" style="width:0%"></div></div>
+        <span class="files-storage-pct" id="filesStoragePct">0%</span>
+      </div>
+      <!-- File List -->
+      <div class="files-list" id="filesList"
+           ondragover="treeRootDragOver(event)"
+           ondragleave="treeRootDragLeave(event)"
+           ondrop="treeRootDrop(event)"></div>
+      <!-- Rename Modal -->
+      <div class="modal-overlay" id="renameModal" style="display:none" onclick="if(event.target===this)closeRenameModal()">
+        <div class="modal-box">
+          <div class="modal-title">Datei umbenennen</div>
+          <input class="modal-inp" id="renameInput" type="text" placeholder="Neuer Dateiname">
+          <div class="modal-acts">
+            <button class="modal-btn-sec" onclick="closeRenameModal()">Abbrechen</button>
+            <button class="modal-btn-pri" onclick="confirmRename()">Umbenennen</button>
+          </div>
+        </div>
+      </div>
+      <!-- Create Folder Modal -->
+      <div class="modal-overlay" id="createFolderModal" style="display:none" onclick="if(event.target===this)closeCreateFolderModal()">
+        <div class="modal-box">
+          <div class="modal-title">Neuen Ordner erstellen</div>
+          <input class="modal-inp" id="createFolderInput" type="text" placeholder="Ordnername" onkeydown="if(event.key==='Enter')confirmCreateFolder()">
+          <div class="modal-acts">
+            <button class="modal-btn-sec" onclick="closeCreateFolderModal()">Abbrechen</button>
+            <button class="modal-btn-pri" onclick="confirmCreateFolder()">Erstellen</button>
+          </div>
+        </div>
+      </div>
+      <!-- Move File Modal -->
+      <div class="modal-overlay" id="moveModal" style="display:none" onclick="if(event.target===this)closeMoveModal()">
+        <div class="modal-box">
+          <div class="modal-title">Datei verschieben</div>
+          <div style="font-size:12px;color:var(--text3);margin-bottom:8px">Zielordner auswählen:</div>
+          <select class="modal-inp" id="moveFolderSelect" style="cursor:pointer"></select>
+          <div class="modal-acts">
+            <button class="modal-btn-sec" onclick="closeMoveModal()">Abbrechen</button>
+            <button class="modal-btn-pri" onclick="confirmMove()">Verschieben</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ─── Notes Screen ─── -->
+    <div id="adminNotesSection" style="display:none">
+      <div class="notes-header">
+        <div class="notes-save-status" id="notesSaveStatus">
+          <span id="notesSaveIcon" style="opacity:0">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="20 6 9 17 4 12"/></svg>
+          </span>
+          <span id="notesSaveText">Gespeichert</span>
+        </div>
+      </div>
+      <div class="notes-editor-wrap" onclick="document.getElementById('notesEditor').focus()">
+        <div class="notes-editor"
+             id="notesEditor"
+             contenteditable="true"
+             spellcheck="false"
+             oninput="onNotesInput()"
+             onfocus="onNotesFocus()"
+             onblur="onNotesBlur()"></div>
+      </div>
+    </div>
   </div>
 </div>
 
@@ -231,6 +362,10 @@
     </div>
     <div style="display:flex;align-items:center;gap:8px;flex-shrink:0">
       <span id="edZoomPct" style="font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--text3)">100%</span>
+      <button class="ed-zoom-reset" onclick="fitSlide()" title="Zoom zurücksetzen">
+        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11V5a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h6"/><path d="m12 12 9 3-4 2-2 4z"/></svg>
+        Zurücksetzen
+      </button>
       <div style="display:flex;gap:3px;align-items:center">
         <button class="ed-hist-btn" id="edUndoBtn" onclick="edUndo()" title="Rückgängig (Strg+Z)" disabled>
           <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7v6h6"/><path d="M21 17a9 9 0 0 0-9-9 9 9 0 0 0-6 2.3L3 13"/></svg>
@@ -239,6 +374,10 @@
           <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 7v6h-6"/><path d="M3 17a9 9 0 0 1 9-9 9 9 0 0 1 6 2.3L21 13"/></svg>
         </button>
       </div>
+      <button class="ed-reset-btn" onclick="resetSlide()" title="Alle Elemente dieser Folie löschen">
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></svg>
+        Folie leeren
+      </button>
       <button class="ed-save-btn" onclick="saveEditor()">
         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
         Speichern
@@ -425,7 +564,10 @@
           <label class="fmt-lbl">Hintergrund</label>
           <input type="color" class="fmt-inp fmt-color" id="sldBg" oninput="curSlide().slideBg=this.value;applySlideSize();renderSpanel()">
           <label class="fmt-chk-lbl"><input type="checkbox" id="sldGrid" checked onchange="toggleGrid(this.checked)"> Punktraster</label>
-          <button class="fmt-tog" style="width:100%;padding:8px;font-size:12px;margin-top:8px" onclick="fitSlide()">Folie einpassen</button>
+          <button class="ed-reset-btn" style="width:100%;margin-top:8px;justify-content:center" onclick="resetSlide()">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></svg>
+            Folie leeren
+          </button>
         </div>
       </div>
     </div><!-- /ed-sb -->
@@ -459,6 +601,7 @@
   <span id="dbLoadingMsg">Laden …</span>
 </div>
 
+<script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="script.js"></script>
 </body>
