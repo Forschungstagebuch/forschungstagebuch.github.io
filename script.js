@@ -96,7 +96,15 @@ let MS=null; // {type:'move'|'resize'|'drag-pt', elId, sx,sy, data:{}}
 let cvScale=1, cvOffX=0, cvOffY=0;
 let vScale=1;
 let activeRTBEl=null; // element id for rich text focus
-let adminScreen='journal'; // 'journal' | 'dateien' | 'notizen'
+let adminScreen='journal'; // 'journal' | 'dateien' | 'notizen' | 'backups' | 'einstellungen'
+
+/* ── Settings State ── */
+let _settings={default_qs_phase:'Q2'};
+let _settingsLoaded=false;
+
+/* ── Editor Change Tracking ── */
+let _origSlidesSnap=null; // JSON snapshot of edEntry.slides at editor open
+let _origMeta=null;       // {titel,datum,q,tags} at editor open
 
 /* ── Undo / Redo ── */
 let _undoStack=[], _redoStack=[];
@@ -255,6 +263,7 @@ async function doLogin(){
   curRole = role;
   dbShow('Einträge laden …');
   await loadFromDB();
+  await loadSettings();
   document.getElementById('dbLoading').style.display = 'none';
   showView(role + 'View');
   // Open topbar and populate QS on login
@@ -272,6 +281,8 @@ async function logout(){
   adminScreen='journal';
   _noteLoaded=false;
   _treeState={};
+  _settingsLoaded=false;
+  _settings={default_qs_phase:'Q2'};
   showView('loginView');
 }
 function showView(id){
@@ -457,11 +468,14 @@ function updateLineDom(el){
   wrap.style.width=b.w+'px'; wrap.style.height=b.h+'px';
   const sx1=el.x1-b.lx, sy1=el.y1-b.ly, sx2=el.x2-b.lx, sy2=el.y2-b.ly;
   const erS=el.erStyle||{};
+  const moving=document.body.classList.contains('er-element-moving');
   const vis=wrap.querySelector('svg.er-line-vis');
   if(vis){
     vis.setAttribute('viewBox',`0 0 ${b.w} ${b.h}`);
     const sw=erS.strokeWidth||2; const da=erS.dashed?`stroke-dasharray="${sw*2.5} ${sw*2}"`:'';
-    vis.innerHTML=`<line x1="${sx1}" y1="${sy1}" x2="${sx2}" y2="${sy2}" stroke="${erS.stroke||'#888077'}" stroke-width="${sw}" stroke-linecap="round" ${da}/>`;
+    // Use butt linecap during entity move to prevent round-cap dots rendering at endpoints
+    const cap=moving?'butt':'round';
+    vis.innerHTML=`<line x1="${sx1}" y1="${sy1}" x2="${sx2}" y2="${sy2}" stroke="${erS.stroke||'#888077'}" stroke-width="${sw}" stroke-linecap="${cap}" ${da}/>`;
   }
   const hit=wrap.querySelector('svg.er-line-hit');
   if(hit){
@@ -469,11 +483,15 @@ function updateLineDom(el){
     const hl=hit.querySelector('line');
     if(hl){hl.setAttribute('x1',sx1);hl.setAttribute('y1',sy1);hl.setAttribute('x2',sx2);hl.setAttribute('y2',sy2);}
   }
-  const pts=wrap.querySelectorAll('.er-line-pt');
-  pts.forEach(p=>{
-    const pn=+p.dataset.pt;
-    p.style.left=(pn===1?sx1:sx2)+'px'; p.style.top=(pn===1?sy1:sy2)+'px';
-  });
+  // Never update er-line-pt positions during entity/resize move — prevents any
+  // repaint-triggered rendering of the handles at the line's attachment points
+  if(!moving){
+    const pts=wrap.querySelectorAll('.er-line-pt');
+    pts.forEach(p=>{
+      const pn=+p.dataset.pt;
+      p.style.left=(pn===1?sx1:sx2)+'px'; p.style.top=(pn===1?sy1:sy2)+'px';
+    });
+  }
 }
 function mkSVGEl(tag){return document.createElementNS('http://www.w3.org/2000/svg',tag);}
 
@@ -623,21 +641,29 @@ function refreshAll(){buildQTabs('lehrer');buildQTabs('admin');renderL();renderA
 /* ════════ ADMIN SCREEN SWITCHER ════════ */
 function switchAdminScreen(screen){
   adminScreen=screen;
-  ['journal','dateien','notizen'].forEach(s=>{
-    const map={journal:'Journal',dateien:'Dateien',notizen:'Notizen'};
-    const btn=document.getElementById('modeBtn'+map[s]);
+  const allScreens=['journal','dateien','notizen','backups','einstellungen'];
+  const labMap={journal:'Journal',dateien:'Dateien',notizen:'Notizen',backups:'Backups',einstellungen:'Einstellungen'};
+  allScreens.forEach(s=>{
+    const btn=document.getElementById('modeBtn'+labMap[s]);
     if(btn)btn.classList.toggle('act',s===screen);
   });
-  const js=document.getElementById('adminJournalSection');
-  const fs=document.getElementById('adminFilesSection');
-  const ns=document.getElementById('adminNotesSection');
+  const secMap={
+    journal:'adminJournalSection',
+    dateien:'adminFilesSection',
+    notizen:'adminNotesSection',
+    backups:'adminBackupsSection',
+    einstellungen:'adminSettingsSection',
+  };
+  Object.entries(secMap).forEach(([s,id])=>{
+    const el=document.getElementById(id);
+    if(el)el.style.display=s===screen?'':'none';
+  });
   const qsp=document.getElementById('qsPanel-A');
-  if(js)js.style.display=screen==='journal'?'':'none';
-  if(fs)fs.style.display=screen==='dateien'?'':'none';
-  if(ns)ns.style.display=screen==='notizen'?'':'none';
   if(qsp)qsp.style.display=screen==='journal'?'':'none';
   if(screen==='dateien')loadFiles();
   if(screen==='notizen')loadNote();
+  if(screen==='backups')loadBackups();
+  if(screen==='einstellungen')initSettingsUI();
 }
 
 /* ════════ VIEWER ════════ */
@@ -754,15 +780,35 @@ function openEditor(id, slideIdx=0){
   document.getElementById('sldQ').value=edEntry.q||'Q2';
   document.getElementById('sldTags').value=(edEntry.tags||[]).join(', ');
   document.getElementById('edBarTitle').textContent=edEntry.titel||'Neuer Eintrag';
+  // Snapshot original state for change detection
+  _origSlidesSnap=JSON.stringify(edEntry.slides);
+  _origMeta={
+    titel:edEntry.titel||'',
+    datum:edEntry.datum||'',
+    q:edEntry.q||'Q2',
+    tags:(edEntry.tags||[]).join(', '),
+  };
   document.getElementById('editorView').classList.add('open');
   edTab('ins'); cvScale=1; cvOffX=0; cvOffY=0;
   populateSlideMeta(); renderSlide(); renderSpanel(); setTimeout(fitSlide,50);
 }
 function curSlide(){return edEntry?.slides?.[edSlideIdx]||edEntry?.slides?.[0];}
+function hasChanges(){
+  if(!edEntry)return false;
+  // Compare live meta fields against snapshot
+  if(document.getElementById('sldEntryTitle').value!==(_origMeta?.titel||''))return true;
+  if(document.getElementById('sldDate').value!==(_origMeta?.datum||''))return true;
+  if(document.getElementById('sldQ').value!==(_origMeta?.q||'Q2'))return true;
+  if(document.getElementById('sldTags').value!==(_origMeta?.tags||''))return true;
+  // Compare slide data (elements, format, bg, titles) against snapshot
+  if(JSON.stringify(edEntry.slides)!==_origSlidesSnap)return true;
+  return false;
+}
 function closeEditor(){
-  if(!confirm('Änderungen verwerfen?'))return;
+  if(hasChanges()&&!confirm('Änderungen verwerfen?'))return;
   document.getElementById('editorView').classList.remove('open');
   edEntry=null; selElId=null; hideGuides(); hideRTB();
+  _origSlidesSnap=null; _origMeta=null;
 }
 function resetSlide(){
   if(!edEntry)return;
@@ -1224,6 +1270,9 @@ function addEl(type){
 function startMove(elId,ev){
   const el=getEl(elId); if(!el)return;
   pushHistory();
+  // Render-Bug Fix: Endpunkt-Handles während Bewegung verstecken (CSS + JS)
+  document.body.classList.add('er-element-moving');
+  document.querySelectorAll('.er-line-pt').forEach(p=>{p.style.display='none';});
   let lineBindings=null;
   if(el.type&&el.type.startsWith('er-')&&el.type!=='er-line'){
     const pts=connPts(el);
@@ -1253,6 +1302,7 @@ function startMoveLine(elId,ev){
 function startResize(elId,ev){
   const el=getEl(elId); if(!el)return;
   pushHistory();
+  document.body.classList.add('er-element-moving');
   MS={type:'resize',elId,sx:ev.clientX,sy:ev.clientY,data:{w:el.w||10,h:el.h||10}};
   ev.preventDefault();
 }
@@ -1463,6 +1513,9 @@ document.addEventListener('mousemove',ev=>{
   }
 });
 document.addEventListener('mouseup',()=>{
+  document.body.classList.remove('er-element-moving');
+  // Restore CSS control over er-line endpoint handles (clear inline style set by startMove)
+  document.querySelectorAll('.er-line-pt').forEach(p=>{p.style.display='';});
   if(MS&&(MS.type==='move'||MS.type==='move-line'||MS.type==='resize'||MS.type==='drag-pt')){
     const el=getEl(MS.elId);
     let changed=false;
@@ -2659,6 +2712,252 @@ function scheduleNoteSave(){
   _noteSaveTimer=setTimeout(saveNote,1500);
 }
 
+/* ════════════════════════════════════════════════════
+   BACKUPS — Supabase backups table
+   SQL (einmalig in Supabase ausführen):
+   CREATE TABLE backups (
+     id BIGINT PRIMARY KEY,
+     created_at TIMESTAMPTZ DEFAULT NOW(),
+     label TEXT,
+     data JSONB NOT NULL
+   );
+   -- RLS: authenticated users dürfen lesen/schreiben/löschen
+   ALTER TABLE backups ENABLE ROW LEVEL SECURITY;
+   CREATE POLICY "auth_all" ON backups FOR ALL TO authenticated USING (true) WITH CHECK (true);
+   ════════════════════════════════════════════════════ */
+const MAX_BACKUPS=5;
+
+async function loadBackups(){
+  const listEl=document.getElementById('backupsList');
+  if(listEl)listEl.innerHTML='<div style="text-align:center;padding:40px;color:var(--text3);font-size:13px">Laden …</div>';
+  const {data,error}=await _sb.from('backups').select('*').order('created_at',{ascending:false});
+  if(error){
+    if(listEl)listEl.innerHTML=`<div class="backup-empty"><div style="font-size:32px;margin-bottom:10px;opacity:.3">⚠️</div><div style="font-size:13px;color:var(--text3)">${esc(error.message)}</div></div>`;
+    return;
+  }
+  renderBackupsList(data||[]);
+}
+
+function renderBackupsList(backups){
+  const listEl=document.getElementById('backupsList');
+  if(!listEl)return;
+  // Update count display
+  const countEl=document.getElementById('backupsCount');
+  if(countEl)countEl.textContent=`${backups.length} / ${MAX_BACKUPS}`;
+  if(!backups.length){
+    listEl.innerHTML=`<div class="backup-empty"><div style="font-size:32px;margin-bottom:10px;opacity:.28">💾</div><div style="font-size:14px;color:var(--text2);margin-bottom:6px">Keine Backups</div><div style="font-size:12px;color:var(--text3)">Erstelle ein Backup, um alle Forschungstagebuch-Einträge zu sichern.</div></div>`;
+    return;
+  }
+  listEl.innerHTML=backups.map(b=>{
+    const d=new Date(b.created_at);
+    const dateStr=d.toLocaleDateString('de-DE',{day:'2-digit',month:'2-digit',year:'numeric'})+' '+d.toLocaleTimeString('de-DE',{hour:'2-digit',minute:'2-digit'});
+    const count=(b.data?.entries||[]).length;
+    const slides=(b.data?.entries||[]).reduce((a,e)=>a+(e.slides||[]).length,0);
+    return `<div class="backup-item">
+      <div style="font-size:22px;flex-shrink:0;opacity:.6">💾</div>
+      <div class="backup-info">
+        <div class="backup-label">${esc(b.label||'Backup')}</div>
+        <div class="backup-meta">
+          <span><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg> ${dateStr}</span>
+          <span><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg> ${count} Einträge · ${slides} Folien</span>
+        </div>
+      </div>
+      <div class="file-acts">
+        <button class="file-act-btn dl" onclick="downloadBackup(${b.id})" title="Als JSON herunterladen">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+        </button>
+        <button class="file-act-btn rn" onclick="restoreBackup(${b.id})" title="Einträge aus Backup wiederherstellen">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 .49-4.95"/></svg>
+        </button>
+        <button class="file-act-btn del" onclick="deleteBackup(${b.id})" title="Backup löschen">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></svg>
+        </button>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+async function createBackup(){
+  const btn=document.getElementById('btnCreateBackup');
+  if(btn){btn.disabled=true;btn.textContent='Erstelle …';}
+  try{
+    const entries=load();
+    const now=new Date();
+    const label=`Backup ${now.toLocaleDateString('de-DE',{day:'2-digit',month:'2-digit',year:'numeric'})} ${now.toLocaleTimeString('de-DE',{hour:'2-digit',minute:'2-digit'})}`;
+    const id=Date.now();
+    // Lösche älteste Backups wenn Limit überschritten
+    const {data:existing,error:listErr}=await _sb.from('backups').select('id,created_at').order('created_at',{ascending:true});
+    if(!listErr&&existing&&existing.length>=MAX_BACKUPS){
+      const toDelete=existing.slice(0,existing.length-MAX_BACKUPS+1).map(b=>b.id);
+      await _sb.from('backups').delete().in('id',toDelete);
+    }
+    const {error}=await _sb.from('backups').insert({id,label,data:{entries}});
+    if(error){alert('Backup-Fehler: '+error.message);return;}
+    await loadBackups();
+  }finally{
+    if(btn){btn.disabled=false;btn.innerHTML='<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg> Backup erstellen';}
+  }
+}
+
+async function downloadBackup(id){
+  const {data,error}=await _sb.from('backups').select('*').eq('id',id).single();
+  if(error){alert('Fehler: '+error.message);return;}
+  const json=JSON.stringify(data.data,null,2);
+  const blob=new Blob([json],{type:'application/json'});
+  const a=document.createElement('a');a.href=URL.createObjectURL(blob);
+  a.download=`forschungstagebuch_backup_${id}.json`;
+  document.body.appendChild(a);a.click();document.body.removeChild(a);
+  URL.revokeObjectURL(a.href);
+}
+
+async function restoreBackup(id){
+  if(!confirm('Achtung: Alle aktuellen Einträge werden durch dieses Backup ersetzt. Fortfahren?'))return;
+  const {data,error}=await _sb.from('backups').select('data').eq('id',id).single();
+  if(error){alert('Fehler: '+error.message);return;}
+  const entries=data.data?.entries||[];
+  // Alle aktuellen Einträge löschen
+  const allIds=load().map(e=>e.id);
+  if(allIds.length){
+    const {error:delErr}=await _sb.from('entries').delete().in('id',allIds);
+    if(delErr){alert('Fehler beim Löschen: '+delErr.message);return;}
+  }
+  // Backup-Einträge einfügen
+  if(entries.length){
+    const rows=entries.map(e=>({id:e.id,q:e.q,datum:e.datum,pos:e.pos??10,titel:e.titel,tags:e.tags||[],slides:e.slides||[]}));
+    const {error:insErr}=await _sb.from('entries').upsert(rows,{onConflict:'id'});
+    if(insErr){alert('Fehler beim Wiederherstellen: '+insErr.message);return;}
+  }
+  _data=entries.map(e=>migrate(JSON.parse(JSON.stringify(e))));
+  refreshAll();
+  alert('✓ Backup erfolgreich geladen!');
+}
+
+async function deleteBackup(id){
+  if(!confirm('Dieses Backup wirklich löschen?'))return;
+  const {error}=await _sb.from('backups').delete().eq('id',id);
+  if(error){alert('Fehler: '+error.message);return;}
+  await loadBackups();
+}
+
+function triggerUploadBackup(){
+  const fi=document.createElement('input');
+  fi.type='file'; fi.accept='.json,application/json';
+  fi.addEventListener('change',()=>{if(fi.files[0])uploadBackupFile(fi.files[0]);});
+  fi.click();
+}
+
+function backupDragOver(ev){
+  ev.preventDefault();
+  ev.dataTransfer.dropEffect='copy';
+  document.getElementById('adminBackupsSection').classList.add('backup-drop-active');
+}
+function backupDragLeave(ev){
+  if(!ev.currentTarget.contains(ev.relatedTarget)){
+    document.getElementById('adminBackupsSection').classList.remove('backup-drop-active');
+  }
+}
+function backupDrop(ev){
+  ev.preventDefault();
+  document.getElementById('adminBackupsSection').classList.remove('backup-drop-active');
+  const files=Array.from(ev.dataTransfer.files);
+  const jsonFiles=files.filter(f=>f.name.toLowerCase().endsWith('.json')||f.type==='application/json');
+  if(!files.length)return;
+  if(!jsonFiles.length){alert('Nur JSON-Backup-Dateien können hochgeladen werden.\nBitte lade eine .json Datei hoch.');return;}
+  if(jsonFiles.length>1){alert('Bitte nur eine Backup-Datei auf einmal hochladen.');return;}
+  uploadBackupFile(jsonFiles[0]);
+}
+
+async function uploadBackupFile(file){
+  let parsed;
+  try{
+    const text=await file.text();
+    parsed=JSON.parse(text);
+  }catch(e){alert('Ungültige JSON-Datei: '+e.message);return;}
+
+  const entries=parsed?.entries||[];
+  if(!Array.isArray(entries)||!entries.length){
+    alert('Keine gültigen Einträge in der Backup-Datei gefunden.');return;
+  }
+  if(!confirm(`Achtung: ${entries.length} Einträge aus Datei laden?\nAlle aktuellen Einträge werden überschrieben. Fortfahren?`))return;
+
+  const btn=document.getElementById('btnUploadBackup');
+  if(btn){btn.disabled=true;btn.textContent='Laden …';}
+  try{
+    // Alle aktuellen Einträge löschen
+    const allIds=load().map(e=>e.id);
+    if(allIds.length){
+      const {error:delErr}=await _sb.from('entries').delete().in('id',allIds);
+      if(delErr){alert('Fehler beim Löschen: '+delErr.message);return;}
+    }
+    // Einträge aus Datei einfügen
+    const rows=entries.map(e=>({id:e.id,q:e.q,datum:e.datum,pos:e.pos??10,titel:e.titel,tags:e.tags||[],slides:e.slides||[]}));
+    const {error:insErr}=await _sb.from('entries').upsert(rows,{onConflict:'id'});
+    if(insErr){alert('Fehler beim Wiederherstellen: '+insErr.message);return;}
+    _data=entries.map(e=>migrate(JSON.parse(JSON.stringify(e))));
+    refreshAll();
+    // Als neues Backup-Eintrag speichern
+    const now=new Date();
+    const label=`Upload ${now.toLocaleDateString('de-DE',{day:'2-digit',month:'2-digit',year:'numeric'})} ${now.toLocaleTimeString('de-DE',{hour:'2-digit',minute:'2-digit'})}`;
+    await _sb.from('backups').insert({id:Date.now(),label,data:{entries}});
+    await loadBackups();
+    alert('✓ Backup aus Datei erfolgreich geladen!');
+  }finally{
+    if(btn){btn.disabled=false;btn.innerHTML='<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="3" x2="12" y2="15"/></svg> Hochladen';}
+  }
+}
+
+/* ════════════════════════════════════════════════════
+   EINSTELLUNGEN — Supabase settings table
+   SQL (einmalig in Supabase ausführen):
+   CREATE TABLE settings (
+     id INT PRIMARY KEY DEFAULT 1,
+     default_qs_phase TEXT DEFAULT 'Q2'
+   );
+   INSERT INTO settings (id,default_qs_phase) VALUES (1,'Q2') ON CONFLICT DO NOTHING;
+   ALTER TABLE settings ENABLE ROW LEVEL SECURITY;
+   CREATE POLICY "auth_all" ON settings FOR ALL TO authenticated USING (true) WITH CHECK (true);
+   ════════════════════════════════════════════════════ */
+
+async function loadSettings(){
+  if(_settingsLoaded){applySettings();initSettingsUI();return;}
+  const {data,error}=await _sb.from('settings').select('*').eq('id',1).single();
+  if(!error&&data){
+    _settings={default_qs_phase:data.default_qs_phase||'Q2'};
+  }
+  _settingsLoaded=true;
+  applySettings();
+}
+
+function applySettings(){
+  // Standard Q-Phase für Quick Selection setzen
+  if(_settings.default_qs_phase){
+    _qsPhaseOpen.lehrer=_settings.default_qs_phase;
+    _qsPhaseOpen.admin=_settings.default_qs_phase;
+  }
+}
+
+function initSettingsUI(){
+  const sel=document.getElementById('settingsDefaultQ');
+  if(sel)sel.value=_settings.default_qs_phase||'Q2';
+  document.getElementById('settingsSaveHint').textContent='';
+}
+
+async function saveSettings(){
+  const sel=document.getElementById('settingsDefaultQ');
+  if(!sel)return;
+  _settings.default_qs_phase=sel.value;
+  applySettings();
+  const hint=document.getElementById('settingsSaveHint');
+  if(hint)hint.textContent='Speichern …';
+  const {error}=await _sb.from('settings').upsert({id:1,default_qs_phase:_settings.default_qs_phase},{onConflict:'id'});
+  if(hint)hint.textContent=error?'❌ Fehler beim Speichern':'✓ Gespeichert';
+  if(!error){
+    buildQS('lehrer');
+    buildQS('admin');
+    setTimeout(()=>{if(hint)hint.textContent='';},2000);
+  }
+}
+
 /* ════════ BOOT ════════ */
 document.addEventListener('DOMContentLoaded',async ()=>{
   initCvAreaObserver();
@@ -2683,6 +2982,7 @@ document.addEventListener('DOMContentLoaded',async ()=>{
       curRole = role;
       dbShow('Einträge laden …');
       await loadFromDB();
+      await loadSettings();
       document.getElementById('dbLoading').style.display='none';
       showView(role+'View');
       refreshAll();
