@@ -3,6 +3,8 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; connect-src https://*.supabase.co; img-src 'self' data: blob: https://*.supabase.co; object-src 'none'; base-uri 'self';">
+<meta name="referrer" content="no-referrer">
 <title>Forschungstagebuch — Informatik</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,700;0,900;1,400&family=JetBrains+Mono:wght@400;500;600&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
@@ -132,25 +134,29 @@
 
 <!-- ═══ LEHRER ═══ -->
 <div id="lehrerView" class="view">
-  <nav class="navbar">
-    <div class="n-brand">
-      <div class="n-logo">FT</div>
-      <div><div class="n-name">Forschungstagebuch</div><div class="n-sub">Informatik</div></div>
+  <div class="topbar open" id="topbar-L">
+    <div class="topbar-hd" onclick="toggleTopbar('lehrer')">
+      <div class="topbar-hd-left">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" style="color:var(--gold);flex-shrink:0"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>
+        <span class="topbar-title">Forschungstagebuch</span>
+        <span class="topbar-sep">·</span>
+        <span class="topbar-sub-badge">Einträge</span>
+        <svg class="topbar-chev" id="topbar-chev-L" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="6 9 12 15 18 9"/></svg>
+      </div>
+      <div class="topbar-hd-right" onclick="event.stopPropagation()">
+        <span class="n-pill">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+          Lehrer
+        </span>
+        <button class="btn-out" onclick="logout()">Abmelden</button>
+      </div>
     </div>
-    <div class="n-right">
-      <span class="n-pill">📖 Lehrer</span>
-      <button class="btn-out" onclick="logout()">Abmelden</button>
+    <div class="topbar-body" id="topbar-body-L">
+      <div class="qs-dd-inner" id="qs-inner-L"></div>
     </div>
-  </nav>
+  </div>
   <div class="main">
     <div class="ph-center">
-      <h1 class="ph-h1"><em>Forschungstagebuch</em></h1>
-      <p class="ph-p">Chronologisches Tagebuch aller behandelten Themen.</p>
-      <div class="stats">
-        <div class="stat"><div class="stat-n" id="sn1">0</div><div class="stat-l">Einträge</div></div>
-        <div class="stat"><div class="stat-n" id="sn2">0</div><div class="stat-l">Folien</div></div>
-        <div class="stat"><div class="stat-n" id="sn3">0</div><div class="stat-l">Tags</div></div>
-      </div>
       <div class="q-tabs" id="qtL"></div>
     </div>
     <div class="srch-wrap">
@@ -163,21 +169,29 @@
 
 <!-- ═══ ADMIN ═══ -->
 <div id="adminView" class="view">
-  <nav class="navbar">
-    <div class="n-brand">
-      <div class="n-logo">FT</div>
-      <div><div class="n-name">Forschungstagebuch</div><div class="n-sub">Informatik</div></div>
+  <div class="topbar open" id="topbar-A">
+    <div class="topbar-hd" onclick="toggleTopbar('admin')">
+      <div class="topbar-hd-left">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" style="color:var(--gold);flex-shrink:0"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>
+        <span class="topbar-title">Forschungstagebuch</span>
+        <span class="topbar-sep">·</span>
+        <span class="topbar-sub-badge">Einträge</span>
+        <svg class="topbar-chev" id="topbar-chev-A" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="6 9 12 15 18 9"/></svg>
+      </div>
+      <div class="topbar-hd-right" onclick="event.stopPropagation()">
+        <span class="n-pill adm">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+          Admin
+        </span>
+        <button class="btn-out" onclick="logout()">Abmelden</button>
+      </div>
     </div>
-    <div class="n-right">
-      <span class="n-pill adm">⚙️ Admin</span>
-      <button class="btn-out" onclick="logout()">Abmelden</button>
+    <div class="topbar-body" id="topbar-body-A">
+      <div class="qs-dd-inner" id="qs-inner-A"></div>
     </div>
-  </nav>
+  </div>
   <div class="main">
     <div class="ph-center">
-      <h1 class="ph-h1">Admin <em>Bereich</em></h1>
-      <p class="ph-p" id="adminSubtitle">Einträge erstellen, Folien bearbeiten und sortieren.</p>
-      <!-- Admin Mode Switcher -->
       <div class="admin-mode-btns">
         <button id="modeBtnJournal" class="admin-mode-btn act" onclick="switchAdminScreen('journal')">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>
@@ -191,11 +205,6 @@
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
           Notizen
         </button>
-      </div>
-      <div class="stats" id="adminStats">
-        <div class="stat"><div class="stat-n" id="an1">0</div><div class="stat-l">Einträge</div></div>
-        <div class="stat"><div class="stat-n" id="an2">0</div><div class="stat-l">Folien</div></div>
-        <div class="stat"><div class="stat-n" id="an3">0</div><div class="stat-l">Tags</div></div>
       </div>
     </div>
 
@@ -244,16 +253,14 @@
       <div id="filesUploadStatus"><div class="file-spinner"></div><span id="filesUploadStatusText"></span></div>
       <!-- Toolbar -->
       <div class="files-toolbar">
-        <div style="display:flex;gap:8px;flex-shrink:0">
-          <button class="files-toolbar-btn" onclick="openCreateFolderModal()">
-            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/><line x1="12" y1="11" x2="12" y2="17"/><line x1="9" y1="14" x2="15" y2="14"/></svg>
-            Ordner erstellen
-          </button>
-          <button class="files-toolbar-btn" onclick="downloadAllAsZip()" id="filesZipBtn">
-            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-            Alles als ZIP
-          </button>
-        </div>
+        <button class="files-toolbar-btn" onclick="openCreateFolderModal()">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/><line x1="12" y1="11" x2="12" y2="17"/><line x1="9" y1="14" x2="15" y2="14"/></svg>
+          Ordner erstellen
+        </button>
+        <button class="files-toolbar-btn" onclick="downloadAllAsZip()" id="filesZipBtn">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+          Alles als ZIP
+        </button>
       </div>
       <!-- Storage Bar -->
       <div class="files-storage-bar" id="filesStorageBar">
@@ -334,7 +341,10 @@
       Zurück
     </button>
     <div class="viewer-bar-mid">
-      <span class="ed-bar-badge">📖 Leseansicht</span>
+      <span class="ed-bar-badge" style="display:inline-flex;align-items:center;gap:5px">
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+        Leseansicht
+      </span>
       <span id="viewerTitle" class="ed-bar-title">—</span>
     </div>
     <div class="viewer-zoom-row">

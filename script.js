@@ -257,6 +257,11 @@ async function doLogin(){
   await loadFromDB();
   document.getElementById('dbLoading').style.display = 'none';
   showView(role + 'View');
+  // Open topbar and populate QS on login
+  const sfx=role==='lehrer'?'L':'A';
+  const bar=document.getElementById('topbar-'+sfx);
+  if(bar){bar.classList.add('open');}
+  buildQS(role);
   refreshAll();
 }
 
@@ -303,12 +308,75 @@ function slSz(sl){return FMT[sl?.format||'16:9']||FMT['16:9'];}
 /* ════════ QUARTER TABS ════════ */
 function buildQTabs(mode){
   const all=load(), el=document.getElementById(mode==='lehrer'?'qtL':'qtA');
+  if(!el)return;
   el.innerHTML=['Q1','Q2','Q3','Q4'].map(q=>{
     const has=all.some(e=>e.q===q), act=activeQ[mode]===q?'act':'';
     return `<button class="q-tab ${act}" onclick="setQ('${mode}','${q}')">${q}${has?'<span class="q-dot"></span>':''}</button>`;
   }).join('');
 }
 function setQ(mode,q){activeQ[mode]=q;buildQTabs(mode);if(mode==='lehrer')renderL();else renderA();}
+
+
+/* ════════ STORAGE KEY SANITIZATION ════════ */
+function sanitizeStorageKey(path){
+  return path
+    .replace(/ä/g,'ae').replace(/ö/g,'oe').replace(/ü/g,'ue')
+    .replace(/Ä/g,'Ae').replace(/Ö/g,'Oe').replace(/Ü/g,'Ue')
+    .replace(/ß/g,'ss').replace(/é|è|ê/g,'e').replace(/à|â/g,'a')
+    .replace(/\s+/g,'-')
+    .replace(/[^a-zA-Z0-9\/\-!*()\$._]/g,'_');
+}
+
+/* ════════ QUICK SELECTION DROPDOWN ════════ */
+const _qsOpen={lehrer:true,admin:true}; // open by default
+const _qsPhaseOpen={lehrer:'Q1',admin:'Q1'}; // Q1 expanded by default
+
+function _qsSfx(mode){return mode==='lehrer'?'L':'A';}
+
+function buildQS(mode){
+  const inner=document.getElementById('qs-inner-'+_qsSfx(mode));
+  if(!inner)return;
+  const all=load();
+  const fmt=d=>new Date(d).toLocaleDateString('de-DE',{day:'2-digit',month:'2-digit'});
+  inner.innerHTML=['Q1','Q2','Q3','Q4'].map(q=>{
+    const entries=all.filter(e=>e.q===q).sort((a,b)=>new Date(a.datum)-new Date(b.datum));
+    const isOpen=_qsPhaseOpen[mode]===q;
+    let dateStr='–';
+    if(entries.length){
+      const dates=entries.map(e=>new Date(e.datum)).filter(d=>!isNaN(d));
+      if(dates.length){
+        const mn=new Date(Math.min(...dates.map(d=>d.getTime())));
+        const mx=new Date(Math.max(...dates.map(d=>d.getTime())));
+        dateStr=mn.getTime()===mx.getTime()?fmt(mn):`${fmt(mn)}–${fmt(mx)}`;
+      }
+    }
+    const listHTML=isOpen?`<div class="qs-dd-list">${
+      entries.length?entries.map(e=>{
+        const ds=e.datum?fmt(new Date(e.datum)):'–';
+        return `<div class="qs-dd-entry" onclick="qsOpenEntry('${mode}',${e.id})"><span class="qs-dd-entry-date">${ds}</span><span class="qs-dd-entry-title">${esc(e.titel||'Ohne Titel')}</span></div>`;
+      }).join(''):'<div class="qs-dd-empty">Keine Einträge</div>'
+    }</div>`:'';
+    const chevRot=isOpen?'rotate(180deg)':'';
+    return `<div class="qs-dd-phase"><div class="qs-dd-phase-hdr${isOpen?' open':''}" onclick="toggleQSPhase('${mode}','${q}')"><div class="qs-dd-q">${q}<svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" style="transition:transform .2s;transform:${chevRot}"><polyline points="6 9 12 15 18 9"/></svg></div><div class="qs-dd-date">${dateStr}</div></div>${listHTML}</div>`;
+  }).join('');
+}
+
+function toggleTopbar(mode){
+  _qsOpen[mode]=!_qsOpen[mode];
+  const sfx=_qsSfx(mode);
+  const bar=document.getElementById('topbar-'+sfx);
+  if(bar)bar.classList.toggle('open',_qsOpen[mode]);
+  if(_qsOpen[mode])buildQS(mode);
+}
+function toggleQSPhase(mode,q){
+  _qsPhaseOpen[mode]=_qsPhaseOpen[mode]===q?null:q;
+  buildQS(mode);
+}
+function qsOpenEntry(mode,id){
+  // Open entry — keep topbar open so user can navigate between entries
+  if(mode==='lehrer')openViewer(id);
+  else openEditor(id);
+}
 
 /* ════════ ER SVG RENDERER ════════ */
 function erShapeSVG(type,w,h,stroke,fill,sw,dashed){
@@ -550,7 +618,7 @@ function updStats(){
   const tags=new Set(all.flatMap(e=>e.tags||[]));
   ['sn3','an3'].forEach(id=>{const el=document.getElementById(id);if(el)el.textContent=tags.size;});
 }
-function refreshAll(){buildQTabs('lehrer');buildQTabs('admin');renderL();renderA();updStats();}
+function refreshAll(){buildQTabs('lehrer');buildQTabs('admin');renderL();renderA();updStats();buildQS('lehrer');buildQS('admin');}
 
 /* ════════ ADMIN SCREEN SWITCHER ════════ */
 function switchAdminScreen(screen){
@@ -563,11 +631,11 @@ function switchAdminScreen(screen){
   const js=document.getElementById('adminJournalSection');
   const fs=document.getElementById('adminFilesSection');
   const ns=document.getElementById('adminNotesSection');
-  const st=document.getElementById('adminStats');
+  const qsp=document.getElementById('qsPanel-A');
   if(js)js.style.display=screen==='journal'?'':'none';
   if(fs)fs.style.display=screen==='dateien'?'':'none';
   if(ns)ns.style.display=screen==='notizen'?'':'none';
-  if(st)st.style.display=screen==='journal'?'':'none';
+  if(qsp)qsp.style.display=screen==='journal'?'':'none';
   if(screen==='dateien')loadFiles();
   if(screen==='notizen')loadNote();
 }
@@ -1757,8 +1825,8 @@ const FILES_MAX_BYTES = 50 * 1024 * 1024;
 const FILES_TOTAL_LIMIT = 1024 * 1024 * 1024;
 
 let _renameTarget = null;
+let _renameTargetIsFolder = false;
 let _treeState = {};     // path → { expanded: bool, items: array|null }
-let _fileDragSrc = null; // path of the file currently being dragged
 
 function fmtBytes(b){
   if(!b||b===0)return '0 B';
@@ -1888,6 +1956,9 @@ function _renderTreeLevel(items,parentPath,depth){
     const arrowIcon=loading?SVG_SPINNER:expanded?SVG_CHEVRON_DOWN:SVG_CHEVRON_RIGHT;
     const folderIcon=expanded?SVG_FOLDER_OPEN:SVG_FOLDER;
     html+=`<div class="file-tree-folder" data-tree-path="${fullPath}"
+      draggable="true"
+      ondragstart="folderDragStart(event,'${safePath}')"
+      ondragend="folderDragEnd(event)"
       ondragover="treeFolderDragOver(event,'${safePath}')"
       ondragleave="treeFolderDragLeave(event)"
       ondrop="treeFolderDrop(event,'${safePath}')">
@@ -1897,6 +1968,15 @@ function _renderTreeLevel(items,parentPath,depth){
         <span class="file-icon-inline">${folderIcon}</span>
         <span class="file-tree-name">${esc(f.name)}</span>
         <div class="file-acts" onclick="event.stopPropagation()">
+          <button class="file-act-btn dl" onclick="downloadFolderAsZip('${safePath}')" title="Als ZIP herunterladen">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+          </button>
+          <button class="file-act-btn rn" onclick="openRenameModal('${safePath}',true)" title="Ordner umbenennen">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+          </button>
+          <button class="file-act-btn mv" onclick="openMoveModal('${safePath}','folder')" title="Ordner verschieben">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M5 9l-3 3 3 3"/><path d="M19 9l3 3-3 3"/><line x1="2" y1="12" x2="22" y2="12"/></svg>
+          </button>
           <button class="file-act-btn del" onclick="deleteFolder('${safePath}')" title="Ordner löschen">
             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></svg>
           </button>
@@ -1946,47 +2026,82 @@ function _renderTreeLevel(items,parentPath,depth){
 }
 
 /* ── Drag-and-drop between tree nodes ── */
+/* Single drag-source state: {path, type:'file'|'folder'} */
+let _dragSrc = null;
+
+function _clearAllDragHighlights(){
+  document.querySelectorAll('.file-item.dragging').forEach(e=>e.classList.remove('dragging'));
+  document.querySelectorAll('.file-tree-folder.dragging').forEach(e=>e.classList.remove('dragging'));
+  document.querySelectorAll('.file-tree-folder.drag-over').forEach(e=>e.classList.remove('drag-over'));
+  document.getElementById('filesList')?.classList.remove('drag-over-root');
+}
+
 function fileItemDragStart(ev,path){
-  _fileDragSrc=path;
+  _dragSrc={path,type:'file'};
   ev.dataTransfer.effectAllowed='move';
   ev.dataTransfer.setData('text/plain',path);
+  ev.stopPropagation(); // prevent bubble to parent folder's ondragstart which would overwrite _dragSrc
   setTimeout(()=>{
     const el=document.querySelector(`.file-item[data-name="${path}"]`);
     if(el)el.classList.add('dragging');
   },0);
 }
-function fileItemDragEnd(ev){
-  _fileDragSrc=null;
-  document.querySelectorAll('.file-item.dragging').forEach(e=>e.classList.remove('dragging'));
+function fileItemDragEnd(){_dragSrc=null;_clearAllDragHighlights();}
+
+function folderDragStart(ev,path){
+  _dragSrc={path,type:'folder'};
+  ev.dataTransfer.effectAllowed='move';
+  ev.dataTransfer.setData('text/plain',path);
+  ev.stopPropagation();
+  setTimeout(()=>{
+    const el=document.querySelector(`.file-tree-folder[data-tree-path="${path}"]`);
+    if(el)el.classList.add('dragging');
+  },0);
 }
+function folderDragEnd(){_dragSrc=null;_clearAllDragHighlights();}
+
 function treeFolderDragOver(ev,folderPath){
-  if(!_fileDragSrc)return;
+  if(!_dragSrc)return;
+  if(_dragSrc.type==='folder'&&(folderPath===_dragSrc.path||folderPath.startsWith(_dragSrc.path+'/')))return;
   ev.preventDefault();ev.stopPropagation();
   ev.dataTransfer.dropEffect='move';
+  // The root highlight must be cleared here — stopPropagation prevents filesList from
+  // receiving dragover, so treeRootDragLeave never fires when moving into a folder child.
+  document.getElementById('filesList')?.classList.remove('drag-over-root');
+  // Clear other highlights first, then highlight only this folder
+  document.querySelectorAll('.file-tree-folder.drag-over').forEach(e=>{
+    if(e.dataset.treePath!==folderPath)e.classList.remove('drag-over');
+  });
   const el=document.querySelector(`.file-tree-folder[data-tree-path="${folderPath}"]`);
   if(el)el.classList.add('drag-over');
 }
 function treeFolderDragLeave(ev){
-  // Only remove if leaving the folder element itself (not a child)
-  const folder=ev.currentTarget.closest?.('.file-tree-folder');
-  if(folder&&!folder.contains(ev.relatedTarget))folder.classList.remove('drag-over');
+  const folder=ev.currentTarget;
+  if(!folder.contains(ev.relatedTarget))folder.classList.remove('drag-over');
 }
 async function treeFolderDrop(ev,folderPath){
   ev.preventDefault();ev.stopPropagation();
-  const folder=ev.currentTarget.closest?.('.file-tree-folder')||ev.currentTarget;
-  folder.classList.remove('drag-over');
-  if(!_fileDragSrc)return;
-  const srcPath=_fileDragSrc; _fileDragSrc=null;
-  const srcDir=srcPath.includes('/')?srcPath.substring(0,srcPath.lastIndexOf('/')):'';
-  if(srcDir===folderPath)return; // already in this folder
-  const fileName=srcPath.split('/').pop();
-  const destPath=`${folderPath}/${fileName}`;
-  await _moveFile(srcPath,destPath);
+  _clearAllDragHighlights();
+  if(!_dragSrc)return;
+  const src=_dragSrc; _dragSrc=null;
+  if(src.type==='folder'){
+    if(folderPath===src.path||folderPath.startsWith(src.path+'/'))return;
+    const folderName=src.path.split('/').pop();
+    const destPath=`${folderPath}/${folderName}`;
+    const srcParent=src.path.includes('/')?src.path.substring(0,src.path.lastIndexOf('/')):'';
+    if(srcParent===folderPath)return; // already inside this folder
+    await _moveFolder(src.path,destPath);
+  } else {
+    const srcDir=src.path.includes('/')?src.path.substring(0,src.path.lastIndexOf('/')):'';
+    if(srcDir===folderPath)return;
+    await _moveFile(src.path,`${folderPath}/${src.path.split('/').pop()}`);
+  }
 }
 
 /* Drop onto the root (files-list background) */
 function treeRootDragOver(ev){
-  if(!_fileDragSrc)return;
+  if(!_dragSrc)return;
+  if(ev.target.closest('.file-tree-folder'))return;
   ev.preventDefault();
   ev.dataTransfer.dropEffect='move';
   document.getElementById('filesList')?.classList.add('drag-over-root');
@@ -1997,13 +2112,29 @@ function treeRootDragLeave(ev){
 }
 async function treeRootDrop(ev){
   ev.preventDefault();
-  document.getElementById('filesList')?.classList.remove('drag-over-root');
-  if(!_fileDragSrc)return;
-  const srcPath=_fileDragSrc; _fileDragSrc=null;
-  const srcDir=srcPath.includes('/')?srcPath.substring(0,srcPath.lastIndexOf('/')):'';
-  if(srcDir==='')return; // already at root
-  const fileName=srcPath.split('/').pop();
-  await _moveFile(srcPath,fileName);
+  _clearAllDragHighlights();
+  if(!_dragSrc){
+    // External drop from OS onto the root list area
+    const items=ev.dataTransfer?.items;
+    if(items&&items.length){
+      const entries=[];
+      for(let i=0;i<items.length;i++){const e=items[i].webkitGetAsEntry?.();if(e)entries.push(e);}
+      /* use same dispatch path as filesOnDrop */
+    }
+    _dropDispatch(ev.dataTransfer?.items,ev.dataTransfer?.files);
+    return;
+  }
+  const src=_dragSrc; _dragSrc=null;
+  if(src.type==='folder'){
+    const folderName=src.path.split('/').pop();
+    const srcParent=src.path.includes('/')?src.path.substring(0,src.path.lastIndexOf('/')):'';
+    if(srcParent==='')return; // already at root
+    await _moveFolder(src.path,folderName);
+  } else {
+    const srcDir=src.path.includes('/')?src.path.substring(0,src.path.lastIndexOf('/')):'';
+    if(srcDir==='')return;
+    await _moveFile(src.path,src.path.split('/').pop());
+  }
 }
 
 /* ── Upload files ── */
@@ -2015,13 +2146,16 @@ async function uploadFilesToBucket(fileList,pathPrefix=''){
   for(let i=0;i<arr.length;i++){
     const file=arr[i];
     if(file.size>FILES_MAX_BYTES){failed.push(`${file.name} (zu groß, max. 50 MB)`);continue;}
-    const uploadPath=pathPrefix?`${pathPrefix}/${file.name}`:file.name;
+    const rawPath=pathPrefix?`${pathPrefix}/${file.name}`:file.name;
+    const uploadPath=sanitizeStorageKey(rawPath);
     if(statusDiv&&statusTxt){statusTxt.textContent=`Hochladen ${i+1}/${arr.length}: ${file.name}`;statusDiv.style.display='flex';}
-    const {error}=await _sb.storage.from(FILES_BUCKET).upload(uploadPath,file,{upsert:true});
+    const {error}=await _sb.storage.from(FILES_BUCKET).upload(uploadPath,file,{upsert:true,contentType:file.type||'application/octet-stream'});
     if(error)failed.push(`${file.name}: ${error.message}`);
   }
   if(statusDiv)statusDiv.style.display='none';
-  if(failed.length)alert('Fehler beim Hochladen:\n'+failed.join('\n'));
+  if (failed.length) {
+    alert('Fehler beim Hochladen:\n' + failed.join('\n'));
+  }
   await loadFiles();
 }
 
@@ -2035,9 +2169,101 @@ async function uploadFolderToBucket(fileList){
     const file=arr[i];
     if(file.size>FILES_MAX_BYTES){failed.push(`${file.name} (zu groß)`);continue;}
     // webkitRelativePath is e.g. "FolderName/sub/file.txt" — use it directly from root
-    const uploadPath=file.webkitRelativePath||file.name;
+    const uploadPath=sanitizeStorageKey(file.webkitRelativePath||file.name);
     if(statusDiv&&statusTxt){statusTxt.textContent=`Hochladen ${i+1}/${arr.length}: ${uploadPath}`;statusDiv.style.display='flex';}
-    const {error}=await _sb.storage.from(FILES_BUCKET).upload(uploadPath,file,{upsert:true});
+    const safeUploadPath=sanitizeStorageKey(uploadPath);
+    const {error}=await _sb.storage.from(FILES_BUCKET).upload(safeUploadPath,file,{upsert:true,contentType:file.type||'application/octet-stream'});
+    if(error)failed.push(`${file.name}: ${error.message}`);
+  }
+  if(statusDiv)statusDiv.style.display='none';
+  if(failed.length)alert('Fehler beim Hochladen:\n'+failed.join('\n'));
+  await loadFiles();
+}
+
+/* ── Folder upload: modern FSA API (Chrome 86+) + legacy FileEntry fallback ──
+
+   PRIMARY path  — getAsFileSystemHandle()
+     FileSystemDirectoryHandle stays valid after the drop event ends.
+     We collect ALL handle-promises synchronously during the event,
+     then await them and traverse with the async-iterator API.
+
+   FALLBACK path — webkitGetAsEntry() + readEntries()
+     Kept for browsers without FSA support.  All readEntries() calls
+     start synchronously within the drop handler before any await.   */
+
+async function _uploadViaFSA(handlePromises){
+  const handles=await Promise.all(handlePromises);
+  const allFiles=[];
+  for(const h of handles){
+    if(!h)continue;
+    if(h.kind==='directory'){
+      const files=await _traverseDirHandle(h,h.name);
+      allFiles.push(...files);
+    }else{
+      const f=await h.getFile();
+      allFiles.push({file:f,uploadPath:sanitizeStorageKey(h.name)});
+    }
+  }
+  _doFolderUpload(allFiles);
+}
+async function _traverseDirHandle(dirH,path){
+  const files=[];
+  for await(const[name,h] of dirH.entries()){
+    const cp=`${path}/${name}`;
+    if(h.kind==='file'){
+      const f=await h.getFile();
+      files.push({file:f,uploadPath:sanitizeStorageKey(cp)});
+    }else if(h.kind==='directory'){
+      files.push(...await _traverseDirHandle(h,cp));
+    }
+  }
+  if(!files.length){
+    files.push({
+      file:new File([''],'.emptyFolderPlaceholder',{type:'text/plain'}),
+      uploadPath:`${sanitizeStorageKey(path)}/.emptyFolderPlaceholder`
+    });
+  }
+  return files;
+}
+
+/* Legacy fallback — callback-based, all readEntries() started synchronously */
+function _startFolderGather(entries,onDone){
+  const gathered=[];let pending=0;
+  function dec(){if(--pending===0)onDone(gathered);}
+  function pe(e,prefix){
+    pending++;
+    if(e.isFile){
+      e.file(f=>{gathered.push({file:f,uploadPath:sanitizeStorageKey(prefix?`${prefix}/${e.name}`:e.name)});dec();},dec);
+    }else if(e.isDirectory){
+      const sub=sanitizeStorageKey(prefix?`${prefix}/${e.name}`:e.name);
+      const reader=e.createReader();const subs=[];
+      function ra(){reader.readEntries(batch=>{
+        if(!batch.length){
+          if(!subs.length)gathered.push({file:new File([''],'.emptyFolderPlaceholder',{type:'text/plain'}),uploadPath:`${sub}/.emptyFolderPlaceholder`});
+          else subs.forEach(s=>pe(s,sub));
+          dec();
+        }else{subs.push(...batch);ra();}
+      },dec);}
+      ra();
+    }else dec();
+  }
+  if(!entries.length){onDone([]);return;}
+  entries.forEach(e=>pe(e,''));
+}
+
+async function _doFolderUpload(fileList){
+  const statusDiv=document.getElementById('filesUploadStatus');
+  const statusTxt=document.getElementById('filesUploadStatusText');
+  const failed=[];
+  if(!fileList.length){
+    alert('Keine Dateien im Ordner gefunden.\nBitte den „Ordner wählen"-Button verwenden.');
+    return;
+  }
+  for(let i=0;i<fileList.length;i++){
+    const{file,uploadPath}=fileList[i];
+    if(file.name!=='.emptyFolderPlaceholder'&&file.size>FILES_MAX_BYTES){failed.push(`${file.name} (zu groß, max. 50 MB)`);continue;}
+    if(statusDiv&&statusTxt){statusTxt.textContent=`Hochladen ${i+1}/${fileList.length}: ${uploadPath}`;statusDiv.style.display='flex';}
+    const{error}=await _sb.storage.from(FILES_BUCKET).upload(uploadPath,file,{upsert:true,contentType:file.type||'application/octet-stream'});
     if(error)failed.push(`${uploadPath}: ${error.message}`);
   }
   if(statusDiv)statusDiv.style.display='none';
@@ -2045,64 +2271,27 @@ async function uploadFolderToBucket(fileList){
   await loadFiles();
 }
 
-/* ── FileSystem Entries (drag-drop folder) ── */
-function _readDirEntries(reader){
-  return new Promise(resolve=>{
-    const all=[];
-    const read=()=>{reader.readEntries(batch=>{if(!batch.length){resolve(all);return;}all.push(...batch);read();},()=>resolve(all));};
-    read();
-  });
-}
-async function _collectFiles(entry,pathSoFar){
-  const results=[];
-  if(entry.isFile){
-    const file=await new Promise((res,rej)=>entry.file(res,rej));
-    const uploadPath=pathSoFar?`${pathSoFar}/${entry.name}`:entry.name;
-    results.push({file,uploadPath});
-  } else if(entry.isDirectory){
-    const subPath=pathSoFar?`${pathSoFar}/${entry.name}`:entry.name;
-    const subEntries=await _readDirEntries(entry.createReader());
-    if(!subEntries.length){
-      results.push({
-        file:new File([new Blob([''])],'.emptyFolderPlaceholder',{type:'text/plain'}),
-        uploadPath:`${subPath}/.emptyFolderPlaceholder`
-      });
-    }
-    for(const sub of subEntries)results.push(...await _collectFiles(sub,subPath));
+function _dropDispatch(items,filesObj){
+  /* Try FSA (modern Chrome) first */
+  if(items&&typeof items[0]?.getAsFileSystemHandle==='function'){
+    const promises=[];
+    for(let i=0;i<items.length;i++) promises.push(items[i].getAsFileSystemHandle().catch(()=>null));
+    _uploadViaFSA(promises);
+    return;
   }
-  return results;
-}
-async function uploadEntries(entries){
-  const statusDiv=document.getElementById('filesUploadStatus');
-  const statusTxt=document.getElementById('filesUploadStatusText');
-  const failed=[];
-  // Collect all files from the dropped entries — paths are built from root
-  let allFiles=[];
-  for(const entry of entries)allFiles.push(...await _collectFiles(entry,''));
-  for(let i=0;i<allFiles.length;i++){
-    const {file,uploadPath}=allFiles[i];
-    if(file.name!=='.emptyFolderPlaceholder'&&file.size>FILES_MAX_BYTES){failed.push(`${file.name} (zu groß, max. 50 MB)`);continue;}
-    if(statusDiv&&statusTxt){statusTxt.textContent=`Hochladen ${i+1}/${allFiles.length}: ${uploadPath}`;statusDiv.style.display='flex';}
-    const {error}=await _sb.storage.from(FILES_BUCKET).upload(uploadPath,file,{upsert:true});
-    if(error)failed.push(`${uploadPath}: ${error.message}`);
-  }
-  if(statusDiv)statusDiv.style.display='none';
-  if(failed.length)alert('Fehler beim Hochladen:\n'+failed.join('\n'));
-  await loadFiles();
+  /* Fallback: FileEntry API — collect entries synchronously */
+  const fsEntries=[];
+  if(items){for(let i=0;i<items.length;i++){const e=items[i].webkitGetAsEntry?.();if(e)fsEntries.push(e);}}
+  if(fsEntries.length){_startFolderGather(fsEntries,_doFolderUpload);return;}
+  /* Last resort: flat files */
+  if(filesObj&&filesObj.length)uploadFilesToBucket(filesObj);
 }
 
 function filesOnDragOver(ev){ev.preventDefault();document.getElementById('filesDropZone').classList.add('dnd');}
 function filesOnDragLeave(){document.getElementById('filesDropZone').classList.remove('dnd');}
 function filesOnDrop(ev){
   ev.preventDefault();document.getElementById('filesDropZone').classList.remove('dnd');
-  const items=ev.dataTransfer?.items;
-  if(items&&items.length){
-    const entries=[];
-    for(let i=0;i<items.length;i++){const e=items[i].webkitGetAsEntry?.();if(e)entries.push(e);}
-    if(entries.length){uploadEntries(entries);return;}
-  }
-  const files=ev.dataTransfer?.files;
-  if(files&&files.length)uploadFilesToBucket(files);
+  _dropDispatch(ev.dataTransfer?.items,ev.dataTransfer?.files);
 }
 function filesOnInput(ev){const files=ev.target.files;if(files&&files.length){uploadFilesToBucket(files);ev.target.value='';}}
 function folderOnInput(ev){const files=ev.target.files;if(files&&files.length){uploadFolderToBucket(files);ev.target.value='';}}
@@ -2217,6 +2406,27 @@ async function downloadAllAsZip(){
   finally{if(btn){btn.disabled=false;btn.innerHTML='<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg> Alles als ZIP';}}
 }
 
+/* ── Download a specific folder as ZIP ── */
+async function downloadFolderAsZip(folderPath){
+  const folderName=folderPath.split('/').pop();
+  try{
+    const allFiles=await listAllInPath(folderPath);
+    const realFiles=allFiles.filter(p=>!p.endsWith('/.emptyFolderPlaceholder')&&!p.endsWith('emptyFolderPlaceholder'));
+    if(!realFiles.length){alert('Ordner ist leer.');return;}
+    const zip=new JSZip();
+    for(let i=0;i<realFiles.length;i++){
+      const path=realFiles[i];
+      const relPath=path.substring(folderPath.length+1);
+      const {data,error}=await _sb.storage.from(FILES_BUCKET).download(path);
+      if(error){console.warn('Skip '+path+': '+error.message);continue;}
+      zip.file(relPath,data);
+    }
+    const blob=await zip.generateAsync({type:'blob'});
+    const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=folderName+'.zip';
+    document.body.appendChild(a);a.click();document.body.removeChild(a);URL.revokeObjectURL(a.href);
+  }catch(e){alert('ZIP-Fehler: '+e.message);}
+}
+
 /* ── Delete / Overwrite file ── */
 async function deleteFile(fullPath){
   if(!confirm(`"${fullPath.split('/').pop()}" wirklich löschen?`))return;
@@ -2242,7 +2452,7 @@ async function overwriteFile(fullPath,inputEl){
   renderFileTree();
 }
 
-/* ── Core move helper ── */
+/* ── Core move file helper ── */
 async function _moveFile(srcPath,destPath){
   setFileStatus(srcPath,'Verschieben …');
   try{
@@ -2255,25 +2465,64 @@ async function _moveFile(srcPath,destPath){
     if(ulErr)throw new Error(ulErr.message);
     const {error:delErr}=await _sb.storage.from(FILES_BUCKET).remove([srcPath]);
     if(delErr)throw new Error(delErr.message);
-    // Refresh both source and destination parent paths
-    const srcParent=srcPath.includes('/')?srcPath.substring(0,srcPath.lastIndexOf('/')):'';
-    const dstParent=destPath.includes('/')?destPath.substring(0,destPath.lastIndexOf('/')):'';
-    for(const p of new Set([srcParent,dstParent])){
-      const items=await _loadFolderItems(p);
-      if(_treeState[p]){_treeState[p].items=items;}
-      else if(p===''){_treeState['']={expanded:true,items};}
-    }
-    renderFileTree();
+    await _refreshParents(srcPath,destPath);
   }catch(e){
     setFileStatus(srcPath,'');
     alert('Verschieben fehlgeschlagen: '+e.message);
   }
 }
 
+/* ── Core move folder helper (recursively copies all files then deletes originals) ── */
+async function _moveFolder(srcPath,destPath){
+  try{
+    const allFiles=await listAllInPath(srcPath);
+    if(!allFiles.length){
+      // Empty folder — create placeholder at dest
+      await _sb.storage.from(FILES_BUCKET).upload(`${destPath}/.emptyFolderPlaceholder`,new Blob(['']),{upsert:true});
+    } else {
+      for(const filePath of allFiles){
+        const relativePart=filePath.substring(srcPath.length+1);
+        const newPath=`${destPath}/${relativePart}`;
+        const {data:blob,error:dlErr}=await _sb.storage.from(FILES_BUCKET).download(filePath);
+        if(dlErr)continue;
+        const fileName=filePath.split('/').pop();
+        const contentType=(blob.type&&blob.type!=='')?blob.type:guessMime(filePath);
+        const file=new File([blob],fileName,{type:contentType});
+        await _sb.storage.from(FILES_BUCKET).upload(newPath,file,{upsert:true,contentType});
+      }
+      const {error:delErr}=await _sb.storage.from(FILES_BUCKET).remove(allFiles);
+      if(delErr)console.warn('Löschen nach Verschieben:', delErr.message);
+    }
+    // Remove old placeholder if it existed
+    await _sb.storage.from(FILES_BUCKET).remove([`${srcPath}/.emptyFolderPlaceholder`]).catch(()=>{});
+    // Delete the stale tree state for the old path and old dest (in case it was expanded before)
+    Object.keys(_treeState).filter(k=>k===srcPath||k.startsWith(srcPath+'/')).forEach(k=>delete _treeState[k]);
+    // destPath is the full new folder path (e.g. 'FolderB/FolderA'), so pass it directly
+    await _refreshParents(srcPath,destPath);
+  }catch(e){
+    alert('Ordner verschieben fehlgeschlagen: '+e.message);
+  }
+}
+
+async function _refreshParents(srcPath,destPath){
+  const srcParent=srcPath.includes('/')?srcPath.substring(0,srcPath.lastIndexOf('/')):'';
+  const dstParent=destPath.includes('/')?destPath.substring(0,destPath.lastIndexOf('/')):'';
+  for(const p of new Set([srcParent,dstParent])){
+    const items=await _loadFolderItems(p);
+    if(_treeState[p]){_treeState[p].items=items;}
+    else if(p===''){_treeState['']={expanded:true,items};}
+    else{_treeState[p]={expanded:false,items};}
+  }
+  renderFileTree();
+}
+
 /* ── Rename ── */
-function openRenameModal(fullPath){
+function openRenameModal(fullPath,isFolder=false){
   _renameTarget=fullPath;
+  _renameTargetIsFolder=isFolder;
   document.getElementById('renameInput').value=fullPath.split('/').pop();
+  const _rnTitle=document.querySelector('#renameModal .modal-title');
+  if(_rnTitle)_rnTitle.textContent=isFolder?'Ordner umbenennen':'Datei umbenennen';
   document.getElementById('renameModal').style.display='flex';
   setTimeout(()=>{const inp=document.getElementById('renameInput');inp.focus();inp.select();},50);
 }
@@ -2288,31 +2537,37 @@ async function confirmRename(){
   const newFullPath=dir?`${dir}/${newBaseName}`:newBaseName;
   if(newFullPath===_renameTarget){closeRenameModal();return;}
   const targetName=_renameTarget;
+  const _rnIsFolder=_renameTargetIsFolder;
   closeRenameModal();
-  await _moveFile(targetName,newFullPath);
+  if(_rnIsFolder)await _moveFolder(targetName,newFullPath);
+  else await _moveFile(targetName,newFullPath);
 }
 
 /* ── Move via modal ── */
 let _moveModalTarget=null;
-async function openMoveModal(fullPath){
+let _moveModalIsFolder=false;
+async function openMoveModal(fullPath,type='file'){
   _moveModalTarget=fullPath;
+  _moveModalIsFolder=(type==='folder');
   const sel=document.getElementById('moveFolderSelect');
   if(!sel)return;
-  sel.innerHTML='<option value="">— Wurzelverzeichnis —</option>';
-  await _collectFolderOptions(sel,'',0);
+  sel.innerHTML='<option value="">— Root —</option>';
+  await _collectFolderOptions(sel,'',0,_moveModalIsFolder?fullPath:null);
   const currentDir=fullPath.includes('/')?fullPath.substring(0,fullPath.lastIndexOf('/')):'';
   Array.from(sel.options).forEach(opt=>{if(opt.value===currentDir)opt.disabled=true;});
   document.getElementById('moveModal').style.display='flex';
 }
-async function _collectFolderOptions(selectEl,path,depth){
+async function _collectFolderOptions(selectEl,path,depth,excludePath){
   const {data}=await _sb.storage.from(FILES_BUCKET).list(path,{limit:500});
   const folders=(data||[]).filter(f=>f.id===null&&f.name!=='.emptyFolderPlaceholder');
   for(const f of folders){
     const fullP=path?`${path}/${f.name}`:f.name;
+    // Skip the folder being moved and its descendants
+    if(excludePath&&(fullP===excludePath||fullP.startsWith(excludePath+'/')))continue;
     const indent='\u00a0\u00a0'.repeat(depth)+(depth?'└ ':'');
     const opt=document.createElement('option');opt.value=fullP;opt.textContent=indent+f.name;
     selectEl.appendChild(opt);
-    if(depth<4)await _collectFolderOptions(selectEl,fullP,depth+1);
+    if(depth<4)await _collectFolderOptions(selectEl,fullP,depth+1,excludePath);
   }
 }
 function closeMoveModal(){document.getElementById('moveModal').style.display='none';_moveModalTarget=null;}
@@ -2322,12 +2577,14 @@ document.addEventListener('keydown',ev=>{
 async function confirmMove(){
   const destFolder=document.getElementById('moveFolderSelect').value;
   if(!_moveModalTarget)return;
-  const fileName=_moveModalTarget.split('/').pop();
-  const newFullPath=destFolder?`${destFolder}/${fileName}`:fileName;
+  const itemName=_moveModalTarget.split('/').pop();
+  const newFullPath=destFolder?`${destFolder}/${itemName}`:itemName;
   if(newFullPath===_moveModalTarget){closeMoveModal();return;}
   const src=_moveModalTarget;
+  const isFolder=_moveModalIsFolder;
   closeMoveModal();
-  await _moveFile(src,newFullPath);
+  if(isFolder) await _moveFolder(src,newFullPath);
+  else await _moveFile(src,newFullPath);
 }
 
 
