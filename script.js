@@ -781,16 +781,30 @@ function openViewer(id, slideIdx=0){
   vEntry=JSON.parse(JSON.stringify(load().find(e=>e.id===id)));
   if(!vEntry)return;
   document.getElementById('viewerTitle').textContent=vEntry.titel;
-  // Render while still hidden to avoid flash of slide 1
   vScale=1; renderViewer();
-  // Scroll to target slide before making visible
-  if(slideIdx>0){
-    const blocks=document.querySelectorAll('#viewerInner .viewer-slide-block');
-    if(blocks[slideIdx])blocks[slideIdx].scrollIntoView({behavior:'auto',block:'start'});
-  }
   document.getElementById('viewerOverlay').classList.add('open');
-  // Fit scale after visible
-  requestAnimationFrame(()=>vFit());
+  // Fit + scroll AFTER the overlay is visible so layout/scroll positions are computed
+  requestAnimationFrame(()=>{
+    vFit();
+    requestAnimationFrame(()=>{
+      const scroll = document.getElementById('viewerScroll');
+      if(slideIdx === 0){
+        // First slide: always start at the very top
+        scroll.scrollTop = 0;
+      } else {
+        const blocks = document.querySelectorAll('#viewerInner .viewer-slide-block');
+        const block = blocks[slideIdx];
+        if(block){
+          // Use getBoundingClientRect so CSS transform scale is accounted for.
+          // Scroll so the block appears ~14px below the container top — enough
+          // room for the "Folie X" label above the actual slide canvas.
+          const blockRect = block.getBoundingClientRect();
+          const scrollRect = scroll.getBoundingClientRect();
+          scroll.scrollTop = scroll.scrollTop + blockRect.top - scrollRect.top - 14;
+        }
+      }
+    });
+  });
 }
 function closeViewer(){document.getElementById('viewerOverlay').classList.remove('open');vEntry=null;}
 
@@ -1234,8 +1248,11 @@ function buildInnerContent(el, readOnly, canRunSql=false){
     return wrap;
   }
   if(el.type==='image'){
-    if(el.src){const img=document.createElement('img');img.src=el.src;wrap.appendChild(img);}
-    else if(!readOnly){
+    const wrap=document.createElement('div'); wrap.className='el-img-wrap';
+    if(el.src){
+      const img=document.createElement('img'); img.src=el.src;
+      wrap.appendChild(img);
+    } else if(!readOnly){
       const ph=document.createElement('div'); ph.className='el-img-ph';
       ph.innerHTML=`<div style="opacity:.3;color:var(--text2)"><svg width="36" height="32" viewBox="0 0 18 16" fill="none" xmlns="http://www.w3.org/2000/svg"><rect x="1" y="1" width="16" height="14" rx="2" stroke="currentColor" stroke-width="1.4"/><circle cx="5.5" cy="5.5" r="1.5" fill="currentColor"/><path d="M1 11l4-4 3 3 2.5-2.5L16 13" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/></svg></div><div style="font-size:11px;color:var(--text3)">Klicken oder D&D</div>`;
       const fi=document.createElement('input'); fi.type='file'; fi.accept='image/*';
@@ -3290,6 +3307,10 @@ async function runSqlEl(elId, wrapDom){
       if(result.error)break; // stop on first error
     }
     const result=lastResult||{rows:[]};
+    // Infer correct column order — PostgreSQL JSONB alphabetises keys
+    if(!result.error&&result.rows&&result.rows.length){
+      result.columnOrder=_inferColumnOrder(stmts,result.rows);
+    }
     el.sqlResult=result;
     const res=wrapDom.querySelector('.el-sql-result');
     if(res)_renderSqlResult(res,result);
@@ -3374,6 +3395,67 @@ function highlightSql(raw){
   }).join('');
 }
 
+/* ── SQL Column Order Inference ──────────────────────────────────────────
+   PostgreSQL gibt JSONB zurück, wobei Schlüssel alphabetisch sortiert
+   werden — die ursprüngliche Spaltenreihenfolge geht verloren.
+   Diese Funktion rekonstruiert die gewünschte Reihenfolge durch Parsen:
+   • Explizites SELECT col1, col2 → genau diese Reihenfolge verwenden
+   • SELECT *                     → Reihenfolge aus CREATE TABLE lesen  */
+function _inferColumnOrder(stmts, rows){
+  if(!rows||!rows.length)return[];
+  const keys=Object.keys(rows[0]);
+  if(keys.length<=1)return keys;
+
+  const stripCmt=s=>s.replace(/--[^\n]*/g,'').replace(/\/\*[\s\S]*?\*\//g,'');
+
+  // Find the last SELECT statement in the block
+  const selStmt=[...stmts].reverse().find(s=>/^\s*SELECT\b/i.test(stripCmt(s)));
+  if(selStmt){
+    const clean=stripCmt(selStmt);
+    const m=clean.match(/^\s*SELECT\s+([\s\S]+?)\s+FROM\b/i);
+    if(m){
+      const colList=m[1].trim();
+      // Only process if no wildcard
+      if(!colList.includes('*')){
+        const ordered=[];
+        colList.split(',').forEach(c=>{
+          // Handle "expr AS alias" — take the last bare identifier as column name
+          const alias=c.trim().match(/(?:\bAS\s+)?([`"[\w]?[\w]+[`"\]]?)\s*$/i);
+          const name=(alias?alias[1]:c.trim()).replace(/[`"[\]]/g,'');
+          const k=keys.find(k=>k.toLowerCase()===name.toLowerCase());
+          if(k&&!ordered.includes(k))ordered.push(k);
+        });
+        // Append any remaining keys not matched (e.g. computed expressions)
+        keys.forEach(k=>{if(!ordered.includes(k))ordered.push(k);});
+        if(ordered.length)return ordered;
+      }
+    }
+  }
+
+  // For SELECT * — reconstruct order from CREATE TABLE in the same block
+  const fullSql=stmts.join(';');
+  const createMatch=stripCmt(fullSql).match(
+    /CREATE\s+TABLE(?:\s+IF\s+NOT\s+EXISTS)?\s+\w+\s*\(([\s\S]+?)\)\s*;/i
+  );
+  if(createMatch){
+    const ordered=[];
+    createMatch[1].split(',').forEach(line=>{
+      // Each line starts with the column name followed by its type
+      const m2=line.trim().match(/^[`"]?(\w+)[`"]?\s+\w/);
+      if(m2){
+        const k=keys.find(k=>k.toLowerCase()===m2[1].toLowerCase());
+        if(k&&!ordered.includes(k))ordered.push(k);
+      }
+    });
+    if(ordered.length){
+      keys.forEach(k=>{if(!ordered.includes(k))ordered.push(k);});
+      return ordered;
+    }
+  }
+
+  return keys; // fallback: alphabetical order as returned by JSONB
+}
+
 function _renderSqlResult(resDiv, result){
   if(!result){resDiv.innerHTML='';resDiv.style.display='none';return;}
   resDiv.style.display='block';
@@ -3383,7 +3465,7 @@ function _renderSqlResult(resDiv, result){
   }
   const rows=result.rows||[];
   if(!rows.length){resDiv.innerHTML='<div class="sql-res-empty">0 Zeilen zurückgegeben.</div>';return;}
-  const keys=Object.keys(rows[0]);
+  const keys=result.columnOrder||Object.keys(rows[0]);
   const thead=`<tr>${keys.map(k=>`<th>${esc(k)}</th>`).join('')}</tr>`;
   const tbody=rows.map(row=>`<tr>${keys.map(k=>{const v=row[k]==null?'<span style="opacity:.4;font-style:italic">NULL</span>':esc(String(row[k]));return`<td title="${esc(row[k]==null?'NULL':String(row[k]))}">${v}</td>`}).join('')}</tr>`).join('');
   resDiv.innerHTML=`<div class="sql-res-count">${rows.length} Zeile${rows.length!==1?'n':''} · ${keys.length} Spalte${keys.length!==1?'n':''}</div><div class="sql-res-table-wrap"><table class="sql-res-table"><thead>${thead}</thead><tbody>${tbody}</tbody></table></div>`;
@@ -3394,7 +3476,79 @@ function closeSqlModal(){
   if(modal)modal.style.display='none';
 }
 
-/* ════════ BOOT ════════ */
+/* ════════ PASTE (Ctrl+V / Cmd+V) IN EDITOR ════════
+   • Image in clipboard  → creates an image element at a sensible position
+   • Plain text          → creates a text element with the pasted content
+   Text elements that are actively focused handle their own paste — we only
+   intercept paste when the canvas / a non-editable element is focused.   */
+document.addEventListener('paste', ev => {
+  if (!document.getElementById('editorView').classList.contains('open')) return;
+
+  // Let contenteditable / input elements handle their own paste natively
+  const active = document.activeElement;
+  if (active && (
+    active.isContentEditable ||
+    active.contentEditable === 'true' ||
+    active.tagName === 'INPUT' ||
+    active.tagName === 'TEXTAREA' ||
+    active.tagName === 'SELECT'
+  )) return;
+
+  const items = ev.clipboardData?.items;
+  if (!items) return;
+
+  // ── Image ──────────────────────────────────────────────────────────
+  for (const item of items) {
+    if (item.type.startsWith('image/')) {
+      ev.preventDefault();
+      const file = item.getAsFile();
+      if (file) {
+        // Place near centre of slide, slightly offset so repeated pastes stack
+        const sz = slSz(curSlide()) || {w:960,h:540};
+        const x = Math.round(sz.w / 2 - 140);
+        const y = Math.round(sz.h / 2 - 100);
+        loadImgFile(file, null, x, y);
+      }
+      return;
+    }
+  }
+
+  // ── Plain text ─────────────────────────────────────────────────────
+  for (const item of items) {
+    if (item.type === 'text/plain') {
+      ev.preventDefault();
+      item.getAsString(text => {
+        if (!text.trim() || !edEntry) return;
+        const sl = curSlide(); if (!sl) return;
+        pushHistory('Text eingefügt');
+        const sz = slSz(sl), id = uid(), z = ++zMax;
+        // Convert plain text to safe HTML (preserve line breaks)
+        const safeHtml = text
+          .replace(/&/g, '&amp;')
+          .replace(/</g, '&lt;')
+          .replace(/>/g, '&gt;')
+          .replace(/\r\n|\r|\n/g, '<br>');
+        const el = {
+          id, type: 'text', z,
+          x: 60, y: 80, w: Math.min(500, sz.w - 120), h: 200,
+          html: safeHtml,
+          style: {
+            fontSize: 14, fontFamily: "'DM Sans',sans-serif", color: '#888077',
+            fontWeight: '400', textAlign: 'left', lineHeight: 1.75,
+            background: 'transparent', borderRadius: 0
+          }
+        };
+        sl.elements.push(el);
+        document.getElementById('slideCV').appendChild(buildElDOM(el));
+        selectEl(id);
+        renderSpanel();
+      });
+      return;
+    }
+  }
+});
+
+
 document.addEventListener('DOMContentLoaded',async ()=>{
   initCvAreaObserver();
   window.addEventListener('resize',()=>{
