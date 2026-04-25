@@ -180,7 +180,7 @@
       </div>
       <div class="topbar-hd-right" onclick="event.stopPropagation()">
         <span class="n-pill adm">
-          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+          <svg width="17" height="17" viewBox="0 0 26 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0"><circle cx="9" cy="6" r="3.5"/><path d="M2 20c0-3.87 3.13-7 7-7h1"/><circle cx="19" cy="16" r="2"/><path d="M19 13.5v.5M19 18v.5M16.73 14.73l.36.35M21.55 17.55l.36.35M15.5 16H16M22 16h.5M16.73 17.27l.36-.35M21.55 14.45l.36-.35"/></svg>
           Admin
         </span>
         <button class="btn-out" onclick="logout()">Abmelden</button>
@@ -206,7 +206,14 @@
           Notizen
         </button>
         <button id="modeBtnBackups" class="admin-mode-btn" onclick="switchAdminScreen('backups')">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <!-- back floppy -->
+            <path d="M17 23H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h10l4 4v11a2 2 0 0 1-2 2z" stroke-opacity=".4"/>
+            <!-- front floppy -->
+            <path d="M21 19H7a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h10l4 4v11a2 2 0 0 1-2 2z"/>
+            <polyline points="19 19 19 13 9 13 9 19"/>
+            <polyline points="9 2 9 6 17 6"/>
+          </svg>
           Backups
         </button>
         <button id="modeBtnEinstellungen" class="admin-mode-btn" onclick="switchAdminScreen('einstellungen')">
@@ -355,7 +362,7 @@
             Hochladen
           </button>
           <button id="btnCreateBackup" class="btn-backup-create" onclick="createBackup()">
-            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="20" height="14" rx="2"/><polyline points="8 21 12 17 16 21"/><line x1="12" y1="17" x2="12" y2="3"/></svg>
             Backup erstellen
           </button>
         </div>
@@ -367,8 +374,8 @@
     <!-- ─── Einstellungen Screen ─── -->
     <div id="adminSettingsSection" style="display:none">
       <div class="settings-card">
-        <div class="settings-card-title">
-          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" style="color:var(--gold)"><polyline points="6 9 12 15 18 9"/></svg>
+        <div class="settings-card-title" onclick="toggleSettingsCard(this)" style="cursor:pointer;user-select:none">
+          <svg class="settings-chevron" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" style="color:var(--gold);transition:transform .2s"><polyline points="6 9 12 15 18 9"/></svg>
           Quick Selection
         </div>
         <div class="settings-row">
@@ -433,12 +440,18 @@
         Zurücksetzen
       </button>
       <div style="display:flex;gap:3px;align-items:center">
-        <button class="ed-hist-btn" id="edUndoBtn" onclick="edUndo()" title="Rückgängig (Strg+Z)" disabled>
-          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7v6h6"/><path d="M21 17a9 9 0 0 0-9-9 9 9 0 0 0-6 2.3L3 13"/></svg>
-        </button>
-        <button class="ed-hist-btn" id="edRedoBtn" onclick="edRedo()" title="Wiederholen (Strg+Y)" disabled>
-          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 7v6h-6"/><path d="M3 17a9 9 0 0 1 9-9 9 9 0 0 1 6 2.3L21 13"/></svg>
-        </button>
+        <div class="ed-hist-wrap" id="edUndoWrap" onmouseenter="openHistDrop('edUndoWrap','edRedoWrap')" onmouseleave="_scheduleCloseHistDrops()">
+          <button class="ed-hist-btn" id="edUndoBtn" title="Rückgängig (Strg+Z)" onclick="event.stopPropagation();edUndo()" disabled>
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7v6h6"/><path d="M21 17a9 9 0 0 0-9-9 9 9 0 0 0-6 2.3L3 13"/></svg>
+          </button>
+          <div class="ed-hist-drop" id="edUndoDrop"></div>
+        </div>
+        <div class="ed-hist-wrap" id="edRedoWrap" onmouseenter="openHistDrop('edRedoWrap','edUndoWrap')" onmouseleave="_scheduleCloseHistDrops()">
+          <button class="ed-hist-btn" id="edRedoBtn" title="Wiederholen (Strg+Y)" onclick="event.stopPropagation();edRedo()" disabled>
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 7v6h-6"/><path d="M3 17a9 9 0 0 1 9-9 9 9 0 0 1 6 2.3L21 13"/></svg>
+          </button>
+          <div class="ed-hist-drop" id="edRedoDrop"></div>
+        </div>
       </div>
       <button class="ed-reset-btn" onclick="resetSlide()" title="Alle Elemente dieser Folie löschen">
         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></svg>
@@ -479,6 +492,7 @@
         <div class="sec-hdr open" onclick="toggleSec(this)"><span>Code &amp; Medien</span><span class="sec-chev">▾</span></div>
         <div class="sec-body">
           <button class="ins-btn" onclick="addEl('code')"><span class="ins-ico" style="font-family:monospace;font-size:10px">&lt;/&gt;</span><span class="ins-lbl"><strong>Code-Block</strong><small>Monospace</small></span></button>
+          <button class="ins-btn" onclick="addEl('sql')"><span class="ins-ico" style="font-family:monospace;font-size:10px;color:#a3e635">SQL</span><span class="ins-lbl"><strong>SQL-Block</strong><small>Ausführbare Abfrage</small></span></button>
           <button class="ins-btn" onclick="addEl('image')"><span class="ins-ico"><svg width="18" height="16" viewBox="0 0 18 16" fill="none" xmlns="http://www.w3.org/2000/svg"><rect x="1" y="1" width="16" height="14" rx="2" stroke="currentColor" stroke-width="1.4"/><circle cx="5.5" cy="5.5" r="1.5" fill="currentColor"/><path d="M1 11l4-4 3 3 2.5-2.5L16 13" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/></svg></span><span class="ins-lbl"><strong>Bild</strong><small>Upload oder D&amp;D</small></span></button>
         </div>
         <div class="sec-hdr open" onclick="toggleSec(this)"><span>Layout</span><span class="sec-chev">▾</span></div>
@@ -628,7 +642,7 @@
           </select>
           <div id="fmtSzInfo" class="fmt-hint"></div>
           <label class="fmt-lbl">Hintergrund</label>
-          <input type="color" class="fmt-inp fmt-color" id="sldBg" oninput="curSlide().slideBg=this.value;applySlideSize();renderSpanel()">
+          <input type="color" class="fmt-inp fmt-color" id="sldBg" oninput="pushHistoryDebounced('Folienfarbe geändert');curSlide().slideBg=this.value;applySlideSize();renderSpanel()">
           <label class="fmt-chk-lbl"><input type="checkbox" id="sldGrid" checked onchange="toggleGrid(this.checked)"> Punktraster</label>
           <button class="ed-reset-btn" style="width:100%;margin-top:8px;justify-content:center" onclick="resetSlide()">
             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></svg>

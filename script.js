@@ -109,9 +109,9 @@ let _origMeta=null;       // {titel,datum,q,tags} at editor open
 /* ── Undo / Redo ── */
 let _undoStack=[], _redoStack=[];
 const UNDO_MAX=60;
-function _snapElements(){const sl=curSlide();return sl?JSON.stringify(sl.elements):null;}
-function pushHistory(){
-  const snap=_snapElements(); if(!snap)return;
+function _snapElements(action){const sl=curSlide();return sl?JSON.stringify({elements:sl.elements,slideBg:sl.slideBg,action:action||''}):null;}
+function pushHistory(action){
+  const snap=_snapElements(action||''); if(!snap)return;
   _undoStack.push(snap);
   if(_undoStack.length>UNDO_MAX)_undoStack.shift();
   _redoStack=[];
@@ -120,30 +120,120 @@ function pushHistory(){
 }
 function _restoreElements(snap){
   const sl=curSlide(); if(!sl||!snap)return;
-  sl.elements=JSON.parse(snap);
-  deselectAll(); renderSlide(); renderSpanel(); _updateHistBtns();
+  const data=JSON.parse(snap);
+  if(Array.isArray(data)){sl.elements=data;}
+  else{sl.elements=data.elements||[];if(data.slideBg!==undefined){sl.slideBg=data.slideBg;}}
+  deselectAll(); renderSlide(); applySlideSize(); renderSpanel(); _updateHistBtns();
 }
 function edUndo(){
   if(!_undoStack.length)return;
-  const cur=_snapElements(); if(cur)_redoStack.push(cur);
+  const cur=_snapElements('Rückgängig gemacht'); if(cur)_redoStack.push(cur);
   _restoreElements(_undoStack.pop());
+  _closeHistDrops();
 }
 function edRedo(){
   if(!_redoStack.length)return;
-  const cur=_snapElements(); if(cur)_undoStack.push(cur);
+  const cur=_snapElements('Wiederholt'); if(cur)_undoStack.push(cur);
   _restoreElements(_redoStack.pop());
+  _closeHistDrops();
+}
+function _closeHistDrops(){
+  document.querySelectorAll('.ed-hist-wrap').forEach(w=>w.classList.remove('open'));
+}
+let _histDropCloseTimer=null;
+function _scheduleCloseHistDrops(){
+  clearTimeout(_histDropCloseTimer);
+  _histDropCloseTimer=setTimeout(_closeHistDrops,140);
+}
+function _cancelCloseHistDrops(){
+  clearTimeout(_histDropCloseTimer);
+}
+function toggleHistDrop(openId, closeOtherId){
+  const wrap=document.getElementById(openId);
+  const other=document.getElementById(closeOtherId);
+  if(!wrap)return;
+  const isDisabled=wrap.querySelector('.ed-hist-btn')?.disabled;
+  if(other)other.classList.remove('open');
+  if(isDisabled){wrap.classList.remove('open');return;}
+  wrap.classList.toggle('open');
+  // Also trigger single undo/redo when clicking the button area directly
+}
+function openHistDrop(openId, closeOtherId){
+  _cancelCloseHistDrops();
+  const wrap=document.getElementById(openId);
+  const other=document.getElementById(closeOtherId);
+  if(!wrap)return;
+  const isDisabled=wrap.querySelector('.ed-hist-btn')?.disabled;
+  if(other)other.classList.remove('open');
+  if(isDisabled){wrap.classList.remove('open');return;}
+  wrap.classList.add('open');
+}
+// Close dropdown when clicking outside
+document.addEventListener('click',function(e){
+  if(!e.target.closest('.ed-hist-wrap'))_closeHistDrops();
+});
+function _histLabel(snapStr){
+  try{
+    const data=JSON.parse(snapStr);
+    if(data.action)return data.action;
+    // Fallback: generic label
+    const els=Array.isArray(data)?data:data.elements||[];
+    return els.length+' Element'+(els.length!==1?'e':'');
+  }catch(e){return 'Änderung';}
+}
+function _histIcon(action){
+  if(!action)return'<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle cx="12" cy="12" r="9"/></svg>';
+  if(action.includes('Text'))return'<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M4 7h16M4 12h10M4 17h7"/></svg>';
+  if(action.includes('hinzugefügt'))return'<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>';
+  if(action.includes('gelöscht')||action.includes('geleert'))return'<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6"/></svg>';
+  if(action.includes('verschoben'))return'<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M5 9l-3 3 3 3M9 5l3-3 3 3M15 19l-3 3-3-3M19 9l3 3-3 3M2 12h20M12 2v20"/></svg>';
+  if(action.includes('skaliert')||action.includes('Größe'))return'<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7"/></svg>';
+  if(action.includes('Farbe')||action.includes('Stil')||action.includes('format'))return'<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle cx="12" cy="12" r="4"/><circle cx="12" cy="12" r="9" stroke-dasharray="2 2"/></svg>';
+  if(action.includes('Hintergrund')||action.includes('Folie'))return'<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><rect x="2" y="4" width="20" height="16" rx="2"/></svg>';
+  return'<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle cx="12" cy="12" r="3"/></svg>';
+}
+function _populateHistDrop(dropId,stack,isUndo){
+  const drop=document.getElementById(dropId); if(!drop)return;
+  const items=stack.slice().reverse().slice(0,14);
+  if(!items.length){drop.innerHTML='<div class="ed-hist-empty">Nichts zum '+(isUndo?'Rückgängig':'Wiederholen')+'</div>';return;}
+  drop.innerHTML=items.map((snap,i)=>{
+    const lbl=_histLabel(snap);
+    const ico=_histIcon(lbl);
+    const fn=isUndo?'edUndoTo':'edRedoTo';
+    const n=i+1;
+    return `<div class="ed-hist-drop-item" onmousedown="event.preventDefault();event.stopPropagation();${fn}(${n})">${ico}<span class="ed-hist-drop-lbl">${lbl}</span><span class="ed-hist-drop-n">${n}</span></div>`;
+  }).join('');
 }
 function _updateHistBtns(){
   const u=document.getElementById('edUndoBtn'), r=document.getElementById('edRedoBtn');
   if(u)u.disabled=!_undoStack.length;
   if(r)r.disabled=!_redoStack.length;
+  _populateHistDrop('edUndoDrop',_undoStack,true);
+  _populateHistDrop('edRedoDrop',_redoStack,false);
+}
+function edUndoTo(n){
+  if(!_undoStack.length)return;
+  n=Math.min(n,_undoStack.length);
+  const cur=_snapElements('Rückgängig gemacht'); if(cur)_redoStack.push(cur);
+  for(let i=1;i<n;i++){const c=_undoStack.pop();if(c)_redoStack.push(c);}
+  _restoreElements(_undoStack.pop());
+  _closeHistDrops();
+}
+function edRedoTo(n){
+  if(!_redoStack.length)return;
+  n=Math.min(n,_redoStack.length);
+  const cur=_snapElements('Wiederholt'); if(cur)_undoStack.push(cur);
+  for(let i=1;i<n;i++){const c=_redoStack.pop();if(c)_undoStack.push(c);}
+  _restoreElements(_redoStack.pop());
+  _closeHistDrops();
 }
 function _clearHistory(){_undoStack=[];_redoStack=[];_updateHistBtns();}
 /* Debounced push for continuous inputs (format panel sliders/numbers) */
-let _histDebTimer=null;
-function pushHistoryDebounced(){
+let _histDebTimer=null,_histDebAction='';
+function pushHistoryDebounced(action){
   clearTimeout(_histDebTimer);
-  _histDebTimer=setTimeout(pushHistory,400);
+  if(action)_histDebAction=action;
+  _histDebTimer=setTimeout(()=>{pushHistory(_histDebAction);_histDebAction='';},400);
 }
 
 /* Debounced slide-panel preview refresh — called after any element change */
@@ -397,8 +487,8 @@ function erShapeSVG(type,w,h,stroke,fill,sw,dashed){
   switch(type){
     case 'er-entity':     return `<rect x="${pad}" y="${pad}" width="${w-p}" height="${h-p}" fill="${f}" stroke="${s}" stroke-width="${p}" rx="2" ${da}/>`;
     case 'er-weak-entity':{const m=6;return `<rect x="${pad}" y="${pad}" width="${w-p}" height="${h-p}" fill="${f}" stroke="${s}" stroke-width="${p}" rx="2"/><rect x="${m}" y="${m}" width="${w-m*2}" height="${h-m*2}" fill="none" stroke="${s}" stroke-width="${Math.max(1,p-0.5)}" rx="1"/>`;}
-    case 'er-relation':   {const cx=w/2,cy=h/2;return `<polygon points="${cx},${pad} ${w-pad},${cy} ${cx},${h-pad} ${pad},${cy}" fill="${f}" stroke="${s}" stroke-width="${p}" ${da}/>`;}
-    case 'er-weak-relation':{const cx=w/2,cy=h/2,off=8;return `<polygon points="${cx},${pad} ${w-pad},${cy} ${cx},${h-pad} ${pad},${cy}" fill="${f}" stroke="${s}" stroke-width="${p}"/><polygon points="${cx},${off} ${w-off},${cy} ${cx},${h-off} ${off},${cy}" fill="none" stroke="${s}" stroke-width="${Math.max(1,p-0.5)}"/>`;}
+    case 'er-relation':   {const cx=w/2,cy=h/2;return `<polygon points="${cx},${pad} ${w-pad},${cy} ${cx},${h-pad} ${pad},${cy}" fill="${f}" stroke="${s}" stroke-width="${p}" stroke-linejoin="round" ${da}/>`;}
+    case 'er-weak-relation':{const cx=w/2,cy=h/2,off=8;return `<polygon points="${cx},${pad} ${w-pad},${cy} ${cx},${h-pad} ${pad},${cy}" fill="${f}" stroke="${s}" stroke-width="${p}" stroke-linejoin="round"/><polygon points="${cx},${off} ${w-off},${cy} ${cx},${h-off} ${off},${cy}" fill="none" stroke="${s}" stroke-width="${Math.max(1,p-0.5)}" stroke-linejoin="round"/>`;}
     case 'er-attribute':  return `<ellipse cx="${w/2}" cy="${h/2}" rx="${(w-p)/2}" ry="${(h-p)/2}" fill="${f}" stroke="${s}" stroke-width="${p}" ${da}/>`;
     case 'er-key-attribute': return `<ellipse cx="${w/2}" cy="${h/2}" rx="${(w-p)/2}" ry="${(h-p)/2}" fill="${f}" stroke="${s}" stroke-width="${p}"/>`;
     case 'er-multi-attribute':{const ir=6;return `<ellipse cx="${w/2}" cy="${h/2}" rx="${(w-p)/2}" ry="${(h-p)/2}" fill="${f}" stroke="${s}" stroke-width="${p}"/><ellipse cx="${w/2}" cy="${h/2}" rx="${(w-p)/2-ir}" ry="${(h-p)/2-ir}" fill="none" stroke="${s}" stroke-width="${Math.max(1,p-0.5)}"/>`;}
@@ -532,6 +622,19 @@ function mkThumb(slide, tw){
         inner=`<div style="background:rgba(232,160,48,.1);border:1px solid rgba(232,160,48,.2);color:#e8a030;border-radius:100px;padding:5px 14px;font-size:12px;font-family:monospace;display:inline-flex;align-items:center">${esc(el.text||'')}</div>`;
       } else if(el.type==='divider'){
         inner=`<div style="display:flex;align-items:center;height:100%;padding:0 8px"><hr style="border:none;border-top:2px solid rgba(232,160,48,.3);width:100%;margin:0"></div>`;
+      } else if(el.type==='sql'){
+        // Use buildInnerContent so thumbnail is pixel-identical to editor/viewer
+        const _tmpSql=document.createElement('div');
+        _tmpSql.style.cssText=`width:${ew}px;height:${eh}px;overflow:hidden;box-sizing:border-box;border-radius:${st.borderRadius||0}px`;
+        const _sqlDom=buildInnerContent(el,true,true);
+        _tmpSql.appendChild(_sqlDom);
+        // _renderSqlResult already called inside buildInnerContent if el.sqlResult exists,
+        // but el-sql-result starts display:none — force it visible if result present
+        if(el.sqlResult){
+          const _r=_tmpSql.querySelector('.el-sql-result');
+          if(_r)_r.style.display='block';
+        }
+        inner=_tmpSql.innerHTML;
       } else if(el.type==='image'&&el.src){
         inner=`<img src="${el.src}" style="width:100%;height:100%;object-fit:contain">`;
       } else if(el.type&&el.type.startsWith('er-')){
@@ -544,6 +647,12 @@ function mkThumb(slide, tw){
         const tdec=el.type==='er-key-attribute'?'underline':'none';
         inner=`<svg viewBox="0 0 ${ew} ${eh}" width="${ew}" height="${eh}" style="position:absolute;inset:0">${svg}</svg>`
              +`<div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:${fs}px;color:${tc};font-family:${ff};font-weight:${fw};text-align:center;text-decoration:${tdec};padding:4px;overflow:hidden">${esc(el.text||'')}</div>`;
+      } else if(el.type){
+        // Generic fallback: use buildInnerContent so future element types render automatically
+        const _tmp=document.createElement('div');
+        _tmp.style.cssText=`width:${ew}px;height:${eh}px;overflow:hidden;box-sizing:border-box`;
+        _tmp.appendChild(buildInnerContent(el,true));
+        inner=_tmp.innerHTML;
       }
     }
     return `<div style="position:absolute;${posStyle}">${inner}</div>`;
@@ -565,7 +674,7 @@ function entryCard(e, idx, isAdmin){
   const tw=880;
   const slideItems=slides.map((sl,si)=>{
     const lbl=esc(sl.title||`Folie ${si+1}`);
-    return `<div class="ec-slide-item" onclick="${isAdmin?`openEditor(${e.id},${si})`:`openViewer(${e.id})`}">
+    return `<div class="ec-slide-item" onclick="${isAdmin?`openEditor(${e.id},${si})`:`openViewer(${e.id},${si})`}">
       <div class="ec-slide-lbl">${lbl}</div>
       <div class="ec-slide-preview" style="line-height:0">
         ${mkThumb(sl,tw)}
@@ -668,12 +777,20 @@ function switchAdminScreen(screen){
 
 /* ════════ VIEWER ════════ */
 let vEntry=null;
-function openViewer(id){
+function openViewer(id, slideIdx=0){
   vEntry=JSON.parse(JSON.stringify(load().find(e=>e.id===id)));
   if(!vEntry)return;
   document.getElementById('viewerTitle').textContent=vEntry.titel;
+  // Render while still hidden to avoid flash of slide 1
+  vScale=1; renderViewer();
+  // Scroll to target slide before making visible
+  if(slideIdx>0){
+    const blocks=document.querySelectorAll('#viewerInner .viewer-slide-block');
+    if(blocks[slideIdx])blocks[slideIdx].scrollIntoView({behavior:'auto',block:'start'});
+  }
   document.getElementById('viewerOverlay').classList.add('open');
-  vScale=1; renderViewer(); setTimeout(vFit,60);
+  // Fit scale after visible
+  requestAnimationFrame(()=>vFit());
 }
 function closeViewer(){document.getElementById('viewerOverlay').classList.remove('open');vEntry=null;}
 
@@ -730,7 +847,7 @@ function renderViewer(){
         d.style.cssText=`left:${el.x||0}px;top:${el.y||0}px;width:${el.w||10}px;height:${Math.max(1,el.h||10)}px;z-index:${el.z||1};border-radius:${st.borderRadius||0}px`;
         if(st.background&&st.background!=='transparent')d.style.background=st.background;
         const inn2=document.createElement('div'); inn2.className='ro-in';
-        inn2.appendChild(buildInnerContent(el,true)); d.appendChild(inn2); wrap.appendChild(d);
+        inn2.appendChild(buildInnerContent(el,true,curRole==='lehrer')); d.appendChild(inn2); wrap.appendChild(d);
       }
     });
     block.appendChild(lbl); block.appendChild(wrap);
@@ -813,8 +930,12 @@ function closeEditor(){
 function resetSlide(){
   if(!edEntry)return;
   const sl=curSlide(); if(!sl)return;
+  if(!sl.elements||sl.elements.length===0){
+    // Slide already empty – nothing to clear, avoid cluttering undo stack
+    return;
+  }
   if(!confirm(`Alle Elemente von "${sl.title||'diese Folie'}" löschen?`))return;
-  pushHistory();
+  pushHistory('Folie geleert');
   sl.elements=[];
   deselectAll(); hideRTB();
   renderSlide(); renderSpanel();
@@ -998,9 +1119,9 @@ function buildElDOM(el){
   return wrap;
 }
 
-function typeLabel(t){return{title:'Überschrift',text:'Text',code:'Code',image:'Bild',divider:'Linie',badge:'Badge','er-entity':'Entität','er-weak-entity':'Schwache Entität','er-relation':'Beziehungstyp','er-weak-relation':'Schw. Beziehungstyp','er-attribute':'Attribut','er-key-attribute':'Schlüsselattr.','er-multi-attribute':'Mehrwertiger Attr.','er-derived-attr':'Abgel. Attribut','er-isa':'IS-A','er-line':'Verbindungslinie','er-cardinality':'Kardinalität'}[t]||t;}
+function typeLabel(t){return{title:'Überschrift',text:'Text',code:'Code',sql:'SQL',image:'Bild',divider:'Linie',badge:'Badge','er-entity':'Entität','er-weak-entity':'Schwache Entität','er-relation':'Beziehungstyp','er-weak-relation':'Schw. Beziehungstyp','er-attribute':'Attribut','er-key-attribute':'Schlüsselattr.','er-multi-attribute':'Mehrwertiger Attr.','er-derived-attr':'Abgel. Attribut','er-isa':'IS-A','er-line':'Verbindungslinie','er-cardinality':'Kardinalität'}[t]||t;}
 
-function buildInnerContent(el, readOnly){
+function buildInnerContent(el, readOnly, canRunSql=false){
   const st=el.style||{};
   if(el.type==='title'||el.type==='text'){
     const div=document.createElement('div'); div.className='el-text';
@@ -1013,9 +1134,14 @@ function buildInnerContent(el, readOnly){
       div.removeChild(div.firstChild);
     }
     if(!readOnly){
+      let _histPushed=false;
       div.addEventListener('mousedown',ev=>ev.stopPropagation());
-      div.addEventListener('focus',()=>{activeRTBEl=el.id;});
-      div.addEventListener('input',()=>{const e=getEl(el.id);if(e)e.html=div.innerHTML;_spRefresh();});
+      div.addEventListener('focus',()=>{activeRTBEl=el.id;_histPushed=false;});
+      div.addEventListener('blur',()=>{_histPushed=false;});
+      div.addEventListener('input',()=>{
+        if(!_histPushed){pushHistory('Text bearbeitet');_histPushed=true;}
+        const e=getEl(el.id);if(e)e.html=div.innerHTML;_spRefresh();
+      });
       div.addEventListener('mouseup',()=>{saveRange();setTimeout(posRTB,20);});
       div.addEventListener('keyup',()=>{saveRange();setTimeout(posRTB,20);});
     }
@@ -1026,13 +1152,88 @@ function buildInnerContent(el, readOnly){
     div.contentEditable=readOnly?'false':'true'; div.spellcheck=false;
     div.textContent=el.html||(el.text||'');
     if(!readOnly){
+      let _histPushed=false;
       div.addEventListener('mousedown',ev=>ev.stopPropagation());
-      div.addEventListener('input',()=>{const e=getEl(el.id);if(e)e.html=div.textContent;_spRefresh();});
+      div.addEventListener('focus',()=>{_histPushed=false;});
+      div.addEventListener('blur',()=>{_histPushed=false;});
+      div.addEventListener('input',()=>{
+        if(!_histPushed){pushHistory('Code bearbeitet');_histPushed=true;}
+        const e=getEl(el.id);if(e)e.html=div.textContent;_spRefresh();
+      });
     }
     return div;
   }
+  if(el.type==='sql'){
+    const wrap=document.createElement('div'); wrap.className='el-sql-wrap';
+    const st=el.style||{};
+    // Code area
+    const code=document.createElement('div'); code.className='el-code el-sql-code';
+    code.style.color=st.color||'#a3e635';
+    code.style.fontSize=(st.fontSize||13)+'px';
+    code.style.fontFamily=st.fontFamily||"'JetBrains Mono',monospace";
+    code.contentEditable=readOnly?'false':'true'; code.spellcheck=false;
+    // Apply syntax highlighting
+    const _applyHl=()=>{code.innerHTML=highlightSql(el.sql||'');};
+    _applyHl();
+    if(!readOnly){
+      let _histPushed=false;
+      code.addEventListener('mousedown',ev=>ev.stopPropagation());
+      // Tab key → insert 2 spaces
+      code.addEventListener('keydown',ev=>{
+        if(ev.key==='Tab'){
+          ev.preventDefault();ev.stopPropagation();
+          const off=getSqlCursor(code);
+          const t=(el.sql||'');
+          const nt=t.slice(0,off)+'  '+t.slice(off);
+          el.sql=nt;code.innerHTML=highlightSql(nt);setSqlCursor(code,off+2);
+        }
+      });
+      code.addEventListener('focus',()=>{_histPushed=false;});
+      code.addEventListener('blur',()=>{_histPushed=false;});
+      code.addEventListener('input',()=>{
+        if(!_histPushed){pushHistory('SQL bearbeitet');_histPushed=true;}
+        const off=getSqlCursor(code);
+        const t=code.textContent;
+        const e=getEl(el.id);if(e)e.sql=t;el.sql=t;
+        code.innerHTML=highlightSql(t);
+        setSqlCursor(code,off);
+        // Clear error/ok state while editing
+        const _sqlWrap=code.closest('.el-sql-wrap');
+        if(_sqlWrap)_sqlWrap.classList.remove('sql-state-err','sql-state-ok');
+      });
+    }
+    wrap.appendChild(code);
+    // Run/clear buttons: show for editors AND for lehrer (canRunSql)
+    if(!readOnly || canRunSql){
+      const btnRow=document.createElement('div'); btnRow.className='el-sql-btnrow';
+      const runBtn=document.createElement('button'); runBtn.className='el-sql-run';
+      runBtn.innerHTML='<svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"/></svg> Ausführen';
+      runBtn.addEventListener('mousedown',ev=>ev.stopPropagation());
+      runBtn.addEventListener('click',ev=>{ev.stopPropagation();runSqlEl(el.id,wrap);});
+      const clearBtn=document.createElement('button'); clearBtn.className='el-sql-clear';
+      clearBtn.innerHTML='<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/></svg> Leeren';
+      clearBtn.addEventListener('mousedown',ev=>ev.stopPropagation());
+      clearBtn.addEventListener('click',ev=>{
+        ev.stopPropagation();
+        const res=wrap.querySelector('.el-sql-result');
+        const ce=wrap.querySelector('.el-sql-code');
+        const e=getEl(el.id); if(e)delete e.sqlResult; el.sqlResult=undefined;
+        // Keep result area visible but show empty state
+        if(res)_renderSqlResult(res,{rows:[]});
+        wrap.classList.remove('sql-state-err','sql-state-ok');
+      });
+      btnRow.appendChild(runBtn);
+      btnRow.appendChild(clearBtn);
+      wrap.appendChild(btnRow);
+    }
+    // Result area
+    const res=document.createElement('div'); res.className='el-sql-result';
+    res.dataset.elid=el.id;
+    if(el.sqlResult){_renderSqlResult(res,el.sqlResult);}
+    wrap.appendChild(res);
+    return wrap;
+  }
   if(el.type==='image'){
-    const wrap=document.createElement('div'); wrap.className='el-img-wrap';
     if(el.src){const img=document.createElement('img');img.src=el.src;wrap.appendChild(img);}
     else if(!readOnly){
       const ph=document.createElement('div'); ph.className='el-img-ph';
@@ -1052,7 +1253,16 @@ function buildInnerContent(el, readOnly){
     const d=document.createElement('div');d.className='el-badge';
     const p=document.createElement('div');p.className='el-badge-inner';
     p.contentEditable=readOnly?'false':'true'; p.textContent=el.text||'Badge';
-    if(!readOnly){p.addEventListener('mousedown',ev=>ev.stopPropagation());p.addEventListener('input',()=>{const e=getEl(el.id);if(e)e.text=p.textContent;_spRefresh();});}
+    if(!readOnly){
+      let _histPushed=false;
+      p.addEventListener('mousedown',ev=>ev.stopPropagation());
+      p.addEventListener('focus',()=>{_histPushed=false;});
+      p.addEventListener('blur',()=>{_histPushed=false;});
+      p.addEventListener('input',()=>{
+        if(!_histPushed){pushHistory('Badge bearbeitet');_histPushed=true;}
+        const e=getEl(el.id);if(e)e.text=p.textContent;_spRefresh();
+      });
+    }
     d.appendChild(p);return d;
   }
   if(el.type&&el.type.startsWith('er-')){
@@ -1070,7 +1280,16 @@ function buildInnerContent(el, readOnly){
     if(el.type==='er-cardinality')txt.classList.add('el-er-cardinality');
     if(el.type==='er-key-attribute')txt.classList.add('key-attr');
     txt.contentEditable=readOnly?'false':'true'; txt.textContent=el.text||'';
-    if(!readOnly){txt.addEventListener('mousedown',ev=>ev.stopPropagation());txt.addEventListener('input',()=>{const e=getEl(el.id);if(e)e.text=txt.textContent;_spRefresh();});}
+    if(!readOnly){
+      let _histPushed=false;
+      txt.addEventListener('mousedown',ev=>ev.stopPropagation());
+      txt.addEventListener('focus',()=>{_histPushed=false;});
+      txt.addEventListener('blur',()=>{_histPushed=false;});
+      txt.addEventListener('input',()=>{
+        if(!_histPushed){pushHistory('ER-Text bearbeitet');_histPushed=true;}
+        const e=getEl(el.id);if(e)e.text=txt.textContent;_spRefresh();
+      });
+    }
     wrap.appendChild(txt);
     return wrap;
   }
@@ -1094,7 +1313,19 @@ function loadImgFile(file,elId,dropX,dropY){
 }
 
 /* ── Get / flush ── */
-function getEl(id){return(curSlide()?.elements||[]).find(e=>e.id===id);}
+function getEl(id){
+  // First check the active editor slide
+  const fromEditor=(curSlide()?.elements||[]).find(e=>e.id===id);
+  if(fromEditor)return fromEditor;
+  // Fallback: search all slides of vEntry (viewer/lehrer context)
+  if(vEntry){
+    for(const sl of vEntry.slides||[]){
+      const found=(sl.elements||[]).find(e=>e.id===id);
+      if(found)return found;
+    }
+  }
+  return undefined;
+}
 function flushEl(){
   if(!selElId)return; const el=getEl(selElId); if(!el)return;
   const dom=document.getElementById('sel_'+selElId); if(!dom)return;
@@ -1137,9 +1368,12 @@ function populateFmt(el){
   const isText=el.type==='title'||el.type==='text';
   const isER=el.type&&el.type.startsWith('er-')&&el.type!=='er-line'&&el.type!=='er-cardinality';
   const isLine=el.type==='er-line';
+  const isCode=el.type==='code';
   document.getElementById('fmtTextSec').style.display=isText?'block':'none';
   document.getElementById('fmtERSec').style.display=isER?'block':'none';
   document.getElementById('fmtLineSec').style.display=isLine?'block':'none';
+  const sqlSec=document.getElementById('fmtSqlSec');
+  if(sqlSec)sqlSec.style.display='none';
   if(isText){
     document.getElementById('fmtFont').value=st.fontFamily||"'DM Sans',sans-serif";
     document.getElementById('fmtSize').value=st.fontSize||14;
@@ -1184,7 +1418,8 @@ function refreshFP(el){
 
 function applyFmt(prop,val){
   if(!selElId)return; const el=getEl(selElId); if(!el)return;
-  pushHistoryDebounced();
+  const _fmtActions={fontFamily:'Schrift geändert',fontSize:'Schriftgröße geändert',color:'Textfarbe geändert',fontWeight:'Schriftstärke geändert',fontStyle:'Schriftstil geändert',textDecoration:'Textdekoration geändert',textAlign:'Textausrichtung geändert',lineHeight:'Zeilenabstand geändert',background:'Hintergrundfarbe geändert',borderRadius:'Eckenradius geändert'};
+  pushHistoryDebounced(_fmtActions[prop]||'Formatierung geändert');
   el.style=el.style||{}; el.style[prop]=val;
   const dom=document.getElementById('sel_'+selElId); if(!dom)return;
   if(prop==='borderRadius'){dom.style.borderRadius=val+'px';}
@@ -1197,7 +1432,7 @@ function applyFmt(prop,val){
 }
 function applyERSt(prop,val){
   if(!selElId)return; const el=getEl(selElId); if(!el)return;
-  pushHistoryDebounced();
+  pushHistoryDebounced('ER-Stil geändert');
   el.erStyle=el.erStyle||{}; el.erStyle[prop]=val;
   if(el.type==='er-line'){updateLineDom(el);_spRefresh();return;}
   updateERSVG(el); _spRefresh();
@@ -1210,7 +1445,8 @@ function setTransp(checked){
 }
 function applyPos(dim,val){
   if(!selElId)return; const el=getEl(selElId); if(!el)return;
-  pushHistoryDebounced();
+  const _posAction=(dim==='x'||dim==='y')?'Position geändert':'Größe geändert';
+  pushHistoryDebounced(_posAction);
   if(el.type==='er-line'){
     const b=lnBounds(el);
     if(dim==='x'){const dx=val-b.lx;el.x1+=dx;el.x2+=dx;}
@@ -1230,7 +1466,7 @@ function bringFwd(){if(!selElId)return;const el=getEl(selElId);if(!el)return;el.
 function sendBck(){if(!selElId)return;const el=getEl(selElId);if(!el)return;el.z=Math.max(1,(el.z||10)-5);const d=document.getElementById('sel_'+selElId);if(d)d.style.zIndex=el.z;}
 function deleteEl(id){
   if(!edEntry)return; const sl=curSlide(); if(!sl)return;
-  pushHistory();
+  pushHistory('Element gelöscht');
   sl.elements=sl.elements.filter(e=>e.id!==id);
   const dom=document.getElementById('sel_'+id); if(dom)dom.remove();
   if(selElId===id){selElId=null;document.getElementById('fmtEmpty').style.display='block';document.getElementById('fmtCtrl').style.display='none';}
@@ -1240,12 +1476,13 @@ function deleteEl(id){
 /* ════════ ADD ELEMENT ════════ */
 function addEl(type){
   if(!edEntry)return; const sl=curSlide(); if(!sl)return;
-  pushHistory();
+  pushHistory('Element hinzugefügt');
   const sz=slSz(sl), id=uid(), z=++zMax;
   let el={id,type,z,style:{}};
   if(type==='title') Object.assign(el,{x:40,y:28,w:Math.min(sz.w-80,880),h:66,html:'Neue Überschrift',style:{fontSize:34,fontFamily:"'Playfair Display',serif",color:'#e4ddd0',fontWeight:'900',textAlign:'left',lineHeight:1.2,background:'transparent',borderRadius:0}});
   else if(type==='text') Object.assign(el,{x:60,y:80,w:380,h:200,html:'Text …',style:{fontSize:14,fontFamily:"'DM Sans',sans-serif",color:'#888077',fontWeight:'400',textAlign:'left',lineHeight:1.75,background:'transparent',borderRadius:0}});
   else if(type==='code') Object.assign(el,{x:60,y:80,w:380,h:200,html:'// Code hier',style:{fontSize:13,fontFamily:"'JetBrains Mono',monospace",color:'#7dd3fc',background:'#030303',borderRadius:8}});
+  else if(type==='sql') Object.assign(el,{x:60,y:80,w:420,h:260,sql:'SELECT * FROM entries LIMIT 10;',sqlResult:null,style:{fontSize:13,fontFamily:"'JetBrains Mono',monospace",color:'#a3e635',background:'#030303',borderRadius:8}});
   else if(type==='image') Object.assign(el,{x:60,y:80,w:280,h:200,style:{background:'transparent',borderRadius:4}});
   else if(type==='divider') Object.assign(el,{x:40,y:Math.round(sz.h/2),w:Math.min(sz.w-80,880),h:4,style:{background:'transparent',borderRadius:0}});
   else if(type==='badge') Object.assign(el,{x:60,y:80,w:200,h:40,text:'Badge',style:{background:'transparent',borderRadius:0}});
@@ -1269,7 +1506,8 @@ function addEl(type){
 /* ════════ MOVEMENT STATE MACHINE ════════ */
 function startMove(elId,ev){
   const el=getEl(elId); if(!el)return;
-  pushHistory();
+  // Snapshot captured NOW (before move) but pushed to stack only if element actually moves (mouseup)
+  const snap=_snapElements('Element verschoben');
   // Render-Bug Fix: Endpunkt-Handles während Bewegung verstecken (CSS + JS)
   document.body.classList.add('er-element-moving');
   document.querySelectorAll('.er-line-pt').forEach(p=>{p.style.display='none';});
@@ -1290,27 +1528,27 @@ function startMove(elId,ev){
       if(b1>=0||b2>=0)lineBindings.push({lineId:line.id,pt1Idx:b1,pt2Idx:b2});
     });
   }
-  MS={type:'move',elId,sx:ev.clientX,sy:ev.clientY,data:{x:el.x||0,y:el.y||0},lineBindings};
+  MS={type:'move',elId,sx:ev.clientX,sy:ev.clientY,data:{x:el.x||0,y:el.y||0},lineBindings,snap};
   ev.preventDefault();
 }
 function startMoveLine(elId,ev){
   const el=getEl(elId); if(!el)return;
-  pushHistory();
-  MS={type:'move-line',elId,sx:ev.clientX,sy:ev.clientY,data:{x1:el.x1,y1:el.y1,x2:el.x2,y2:el.y2}};
+  const snap=_snapElements('Linie verschoben');
+  MS={type:'move-line',elId,sx:ev.clientX,sy:ev.clientY,data:{x1:el.x1,y1:el.y1,x2:el.x2,y2:el.y2},snap};
   ev.preventDefault();
 }
 function startResize(elId,ev){
   const el=getEl(elId); if(!el)return;
-  pushHistory();
+  const snap=_snapElements('Größe geändert');
   document.body.classList.add('er-element-moving');
-  MS={type:'resize',elId,sx:ev.clientX,sy:ev.clientY,data:{w:el.w||10,h:el.h||10}};
+  MS={type:'resize',elId,sx:ev.clientX,sy:ev.clientY,data:{w:el.w||10,h:el.h||10},snap};
   ev.preventDefault();
 }
 function startDragPt(lineId,ptNum,ev){
   const el=getEl(lineId); if(!el)return;
-  pushHistory();
+  const snap=_snapElements('Linienpunkt verschoben');
   MS={type:'drag-pt',elId:lineId,ptNum,sx:ev.clientX,sy:ev.clientY,
-      data:{x1:el.x1,y1:el.y1,x2:el.x2,y2:el.y2}};
+      data:{x1:el.x1,y1:el.y1,x2:el.x2,y2:el.y2},snap};
   ev.preventDefault();
   showConnDots(lineId);
 }
@@ -1528,13 +1766,12 @@ document.addEventListener('mouseup',()=>{
     else if(MS.type==='drag-pt'&&el)
       changed=(el.x1!==MS.data.x1||el.y1!==MS.data.y1||el.x2!==MS.data.x2||el.y2!==MS.data.y2);
     if(changed){
+      // Push the pre-drag snapshot now that we know something changed
+      if(MS.snap){_undoStack.push(MS.snap);if(_undoStack.length>UNDO_MAX)_undoStack.shift();_redoStack=[];_updateHistBtns();}
       if(MS.type!=='drag-pt'&&el)el.z=zMax;
       _spRefresh();
-    } else {
-      /* Nothing moved — discard the snapshot we pushed at drag start */
-      _undoStack.pop();
-      _updateHistBtns();
     }
+    // If nothing moved, snapshot is simply discarded — undo button never lit up
   }
   MS=null;hideGuides();hideConnDots();
 });
@@ -2754,7 +2991,7 @@ function renderBackupsList(backups){
     const count=(b.data?.entries||[]).length;
     const slides=(b.data?.entries||[]).reduce((a,e)=>a+(e.slides||[]).length,0);
     return `<div class="backup-item">
-      <div style="font-size:22px;flex-shrink:0;opacity:.6">💾</div>
+      <div style="flex-shrink:0;opacity:.6;display:flex;align-items:center"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg></div>
       <div class="backup-info">
         <div class="backup-label">${esc(b.label||'Backup')}</div>
         <div class="backup-meta">
@@ -2795,7 +3032,7 @@ async function createBackup(){
     if(error){alert('Backup-Fehler: '+error.message);return;}
     await loadBackups();
   }finally{
-    if(btn){btn.disabled=false;btn.innerHTML='<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg> Backup erstellen';}
+    if(btn){btn.disabled=false;btn.innerHTML='<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="20" height="14" rx="2"/><polyline points="8 21 12 17 16 21"/><line x1="12" y1="17" x2="12" y2="3"/></svg> Backup erstellen';}
   }
 }
 
@@ -2933,6 +3170,10 @@ function applySettings(){
   if(_settings.default_qs_phase){
     _qsPhaseOpen.lehrer=_settings.default_qs_phase;
     _qsPhaseOpen.admin=_settings.default_qs_phase;
+    // Auch die aktive Q-Phase im Forschungstagebuch (Lehrer-Ansicht) setzen
+    activeQ.lehrer=_settings.default_qs_phase;
+    buildQTabs('lehrer');
+    renderL();
   }
 }
 
@@ -2942,12 +3183,25 @@ function initSettingsUI(){
   document.getElementById('settingsSaveHint').textContent='';
 }
 
+function toggleSettingsCard(titleEl){
+  const card=titleEl.closest('.settings-card');
+  if(!card)return;
+  card.classList.toggle('collapsed');
+  const chevron=titleEl.querySelector('.settings-chevron');
+  if(chevron)chevron.style.transform=card.classList.contains('collapsed')?'rotate(-90deg)':'rotate(0deg)';
+}
+
 async function saveSettings(){
   const sel=document.getElementById('settingsDefaultQ');
   if(!sel)return;
   _settings.default_qs_phase=sel.value;
   applySettings();
   const hint=document.getElementById('settingsSaveHint');
+  // Lehrer hat keine Schreibrechte auf die settings-Tabelle → nur lokal anwenden
+  if(curRole!=='admin'){
+    if(hint){hint.textContent='✓ Angewendet (nur für diese Sitzung)';setTimeout(()=>{hint.textContent='';},2500);}
+    return;
+  }
   if(hint)hint.textContent='Speichern …';
   const {error}=await _sb.from('settings').upsert({id:1,default_qs_phase:_settings.default_qs_phase},{onConflict:'id'});
   if(hint)hint.textContent=error?'❌ Fehler beim Speichern':'✓ Gespeichert';
@@ -2956,6 +3210,188 @@ async function saveSettings(){
     buildQS('admin');
     setTimeout(()=>{if(hint)hint.textContent='';},2000);
   }
+}
+
+/* ════════════════════════════════════════════════════════════════
+   SQL ELEMENT — Eigener Element-Typ, der SQL-Abfragen ausführt.
+   Sicherheit:
+     • Die exec_sql() RPC-Funktion in Supabase läuft mit SECURITY DEFINER
+       und ist nur für Admin-User (JWT-E-Mail-Check) erreichbar.
+     • Im Client werden nur offensichtlich gefährliche Systemzugriffe
+       (pg_catalog, information_schema etc.) gewarnt — die eigentliche
+       Durchsetzung liegt beim Datenbankserver.
+   ════════════════════════════════════════════════════════════════ */
+
+/* Split raw SQL into individual statements, skipping comments and empty parts */
+function _splitSqlStmts(sql){
+  const stmts=[];
+  let cur='', inStr=false, strCh='';
+  let i=0;
+  while(i<sql.length){
+    const ch=sql[i];
+    if(!inStr&&ch==='-'&&sql[i+1]==='-'){
+      // line comment — consume until newline
+      while(i<sql.length&&sql[i]!=='\n'){i++;} continue;
+    }
+    if(!inStr&&ch==='/'&&sql[i+1]==='*'){
+      // block comment
+      i+=2; while(i<sql.length&&!(sql[i-1]==='*'&&sql[i]==='/')){i++;} i++; continue;
+    }
+    if(!inStr&&(ch==="'"||ch==='"')){inStr=true;strCh=ch;cur+=ch;}
+    else if(inStr&&ch===strCh){inStr=false;cur+=ch;}
+    else if(!inStr&&ch===';'){
+      const s=cur.trim(); if(s)stmts.push(s); cur='';
+    } else {cur+=ch;}
+    i++;
+  }
+  const s=cur.trim(); if(s)stmts.push(s);
+  return stmts;
+}
+
+function _sqlStateEl(wrapDom,cls){
+  const w=wrapDom?.querySelector('.el-sql-wrap')||wrapDom;
+  if(w){w.classList.remove('sql-state-err','sql-state-ok');w.classList.add(cls);}
+}
+function _sqlStateClear(wrapDom){
+  const w=wrapDom?.querySelector('.el-sql-wrap')||wrapDom;
+  if(w)w.classList.remove('sql-state-err','sql-state-ok');
+}
+
+async function runSqlEl(elId, wrapDom){
+  const el=getEl(elId); if(!el||el.type!=='sql')return;
+  const query=(el.sql||'').trim();
+  if(!query)return;
+  // Client-side guard: block direct system-table access
+  const lower=query.toLowerCase().replace(/--[^\n]*/g,'').replace(/\/\*[\s\S]*?\*\//g,'');
+  const danger=['pg_catalog','information_schema','pg_shadow','pg_authid'];
+  if(danger.some(d=>lower.includes(d))){
+    const res=wrapDom.querySelector('.el-sql-result');
+    if(res)_renderSqlResult(res,{error:'Direkte Systemtabellenabfragen sind nicht erlaubt.'});
+    _sqlStateEl(wrapDom,'sql-state-err');
+    return;
+  }
+  // Show loading state
+  const runBtn=wrapDom.querySelector('.el-sql-run');
+  const clearBtn=wrapDom.querySelector('.el-sql-clear');
+  const codeEl=wrapDom.querySelector('.el-sql-code');
+  if(runBtn){runBtn.disabled=true;runBtn.innerHTML='<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" class="sql-spin" style="display:inline-block"><path d="M12 2a10 10 0 0 1 10 10"/></svg> …';}
+  if(clearBtn)clearBtn.disabled=true;
+  if(codeEl)_sqlStateClear(wrapDom);
+  // Split into individual statements and run each separately.
+  // This lets multi-statement blocks (CREATE + INSERT + SELECT) work correctly:
+  // each DDL/DML auto-commits and its side-effects are visible to the next statement.
+  const stmts=_splitSqlStmts(query);
+  let lastResult=null;
+  try{
+    for(const stmt of stmts){
+      const{data,error}=await _sb.rpc('exec_sql',{query_text:stmt});
+      const result=error?{error:error.message}:{rows:Array.isArray(data)?data:(data?[data]:[])};
+      lastResult=result;
+      if(result.error)break; // stop on first error
+    }
+    const result=lastResult||{rows:[]};
+    el.sqlResult=result;
+    const res=wrapDom.querySelector('.el-sql-result');
+    if(res)_renderSqlResult(res,result);
+    if(codeEl){
+      if(result.error)_sqlStateEl(wrapDom,'sql-state-err');
+      else _sqlStateEl(wrapDom,'sql-state-ok');
+    }
+  }catch(e){
+    const res=wrapDom.querySelector('.el-sql-result');
+    if(res)_renderSqlResult(res,{error:e.message});
+    if(codeEl)_sqlStateEl(wrapDom,'sql-state-err');
+  }finally{
+    if(runBtn){runBtn.disabled=false;runBtn.innerHTML='<svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"/></svg> Ausführen';}
+    if(clearBtn)clearBtn.disabled=false;
+  }
+}
+
+/* ── SQL Cursor helpers (preserve caret through innerHTML rewrite) ── */
+function getSqlCursor(el){
+  const sel=window.getSelection();
+  if(!sel||!sel.rangeCount)return 0;
+  const r=sel.getRangeAt(0);
+  const pre=r.cloneRange();
+  pre.selectNodeContents(el);
+  pre.setEnd(r.endContainer,r.endOffset);
+  return pre.toString().length;
+}
+function setSqlCursor(el,offset){
+  const sel=window.getSelection();
+  if(!sel)return;
+  const r=document.createRange();
+  let chars=0,found=false;
+  function walk(node){
+    if(found)return;
+    if(node.nodeType===3){
+      const len=node.textContent.length;
+      if(chars+len>=offset){r.setStart(node,offset-chars);r.collapse(true);found=true;}
+      else chars+=len;
+    } else {for(const c of node.childNodes)walk(c);}
+  }
+  walk(el);
+  if(!found){r.selectNodeContents(el);r.collapse(false);}
+  sel.removeAllRanges();sel.addRange(r);
+}
+
+/* ── SQL Syntax Highlighter ── */
+function highlightSql(raw){
+  if(!raw)return '';
+  const segments=[];
+  let i=0;
+  while(i<raw.length){
+    if(raw[i]==='-'&&raw[i+1]==='-'){
+      const end=raw.indexOf('\n',i);
+      const seg=end===-1?raw.slice(i):raw.slice(i,end);
+      segments.push({t:'comment',v:seg}); i+=seg.length;
+    } else if(raw[i]==='/'&&raw[i+1]==='*'){
+      const end=raw.indexOf('*/',i+2);
+      const seg=end===-1?raw.slice(i):raw.slice(i,end+2);
+      segments.push({t:'comment',v:seg}); i+=seg.length;
+    } else if(raw[i]==="'"){
+      let j=i+1;
+      while(j<raw.length){if(raw[j]==="'"&&raw[j-1]!=='\\'){j++;break;}j++;}
+      segments.push({t:'string',v:raw.slice(i,j)}); i=j;
+    } else {
+      let j=i;
+      while(j<raw.length&&!(raw[j]==='-'&&raw[j+1]==='-')&&!(raw[j]==='/'&&raw[j+1]==='*')&&raw[j]!=="'")j++;
+      segments.push({t:'code',v:raw.slice(i,j)}); i=j;
+    }
+  }
+  const e=s=>s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  const KW=/\b(SELECT|FROM|WHERE|INSERT|INTO|UPDATE|DELETE|CREATE|DROP|ALTER|TABLE|INDEX|VIEW|DATABASE|JOIN|LEFT|RIGHT|INNER|OUTER|FULL|CROSS|ON|AS|AND|OR|NOT|IN|IS|NULL|LIKE|BETWEEN|ORDER|BY|GROUP|HAVING|LIMIT|OFFSET|DISTINCT|COUNT|SUM|AVG|MIN|MAX|UNION|ALL|WITH|VALUES|SET|PRIMARY|KEY|FOREIGN|REFERENCES|CONSTRAINT|DEFAULT|UNIQUE|CHECK|CASCADE|IF|EXISTS|RETURNING|TRUNCATE|BEGIN|COMMIT|ROLLBACK|USING)\b/gi;
+  const TY=/\b(INT|INTEGER|BIGINT|SMALLINT|FLOAT|DOUBLE|DECIMAL|NUMERIC|VARCHAR|CHAR|TEXT|BOOLEAN|BOOL|DATE|TIME|TIMESTAMP|SERIAL|BIGSERIAL|UUID|JSON|JSONB|REAL)\b/gi;
+  const NUM=/\b(\d+(?:\.\d+)?)\b/g;
+  return segments.map(seg=>{
+    if(seg.t==='comment')return`<span class="sql-hl-comment">${e(seg.v)}</span>`;
+    if(seg.t==='string')return`<span class="sql-hl-string">${e(seg.v)}</span>`;
+    let h=e(seg.v);
+    h=h.replace(KW,m=>`<span class="sql-hl-kw">${m}</span>`);
+    h=h.replace(TY,m=>`<span class="sql-hl-type">${m}</span>`);
+    h=h.replace(NUM,m=>`<span class="sql-hl-num">${m}</span>`);
+    return h;
+  }).join('');
+}
+
+function _renderSqlResult(resDiv, result){
+  if(!result){resDiv.innerHTML='';resDiv.style.display='none';return;}
+  resDiv.style.display='block';
+  if(result.error){
+    resDiv.innerHTML=`<div class="sql-res-err"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg><span>${esc(result.error).replace(/\n/g,'<br>')}</span></div>`;
+    return;
+  }
+  const rows=result.rows||[];
+  if(!rows.length){resDiv.innerHTML='<div class="sql-res-empty">0 Zeilen zurückgegeben.</div>';return;}
+  const keys=Object.keys(rows[0]);
+  const thead=`<tr>${keys.map(k=>`<th>${esc(k)}</th>`).join('')}</tr>`;
+  const tbody=rows.map(row=>`<tr>${keys.map(k=>{const v=row[k]==null?'<span style="opacity:.4;font-style:italic">NULL</span>':esc(String(row[k]));return`<td title="${esc(row[k]==null?'NULL':String(row[k]))}">${v}</td>`}).join('')}</tr>`).join('');
+  resDiv.innerHTML=`<div class="sql-res-count">${rows.length} Zeile${rows.length!==1?'n':''} · ${keys.length} Spalte${keys.length!==1?'n':''}</div><div class="sql-res-table-wrap"><table class="sql-res-table"><thead>${thead}</thead><tbody>${tbody}</tbody></table></div>`;
+}
+
+function closeSqlModal(){
+  const modal=document.getElementById('sqlResultModal');
+  if(modal)modal.style.display='none';
 }
 
 /* ════════ BOOT ════════ */
