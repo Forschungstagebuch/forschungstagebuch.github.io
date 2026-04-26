@@ -322,7 +322,8 @@ body::after{content:'';position:fixed;inset:0;pointer-events:none;z-index:9990;b
 .sel.selected .sel-rh{display:block}
 
 /* Element content */
-.el-text{width:100%;height:100%;outline:none;border:none;background:transparent;padding:6px 12px 6px 12px;word-break:break-word;cursor:text;overflow:auto;-webkit-user-modify:read-write;display:block;box-sizing:border-box}
+.el-text{width:100%;height:100%;outline:none;border:none;background:transparent;padding:6px 12px 6px 12px;word-break:break-word;cursor:text;overflow:auto;-webkit-user-modify:read-write;display:block;box-sizing:border-box;position:relative}
+.el-text.is-empty::before{content:attr(data-placeholder);opacity:.3;pointer-events:none;position:absolute;top:6px;left:12px;white-space:pre-wrap}
 /* Suppress browser-added top margins on first block element inside contenteditable */
 .el-text > *:first-child{margin-top:0!important;margin-block-start:0!important}
 .el-text p{margin:0}.el-text div:not([class]){margin:0}
@@ -365,10 +366,11 @@ body.er-element-moving .er-line-el.selected .er-line-pt{display:none!important;v
 .ro-in{position:absolute;inset:0;overflow:hidden;border-radius:inherit;pointer-events:auto;user-select:text}
 
 /* ══ RICH TEXT TOOLBAR ══ */
-.rtb{position:fixed;z-index:9000;background:var(--card2);border:1px solid var(--bd2);border-radius:8px;padding:4px 6px;display:none;align-items:center;gap:2px;box-shadow:0 8px 30px rgba(0,0,0,.7);flex-wrap:wrap;max-width:520px}
+.rtb{position:fixed;z-index:9000;background:var(--card2);border:1px solid var(--bd2);border-radius:8px;padding:4px 6px;display:none;align-items:center;gap:2px;box-shadow:0 8px 30px rgba(0,0,0,.7);flex-wrap:nowrap;overflow:visible}
 .rtb.vis{display:flex}
 .rtb-btn{background:none;border:none;color:var(--text2);cursor:pointer;padding:5px 7px;border-radius:5px;font-size:13px;font-family:inherit;transition:all .15s;line-height:1;display:flex;align-items:center;justify-content:center;gap:3px;flex-shrink:0}
 .rtb-btn:hover{background:var(--bg3);color:var(--text)}
+.rtb-btn.active{background:rgba(232,160,48,.18);color:var(--gold);border-radius:5px}
 /* Ensure italic renders correctly inside RTB buttons */
 .rtb-btn i{font-style:italic;font-family:'Georgia',serif}
 .rtb-div{width:1px;height:16px;background:var(--bd2);margin:0 2px;flex-shrink:0}

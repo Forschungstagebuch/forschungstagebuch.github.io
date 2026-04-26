@@ -813,13 +813,9 @@ function mkThumb(slide, tw){
       } else if(el.type==='image'&&el.src){
         inner=`<img src="${el.src}" style="width:100%;height:100%;object-fit:contain">`;
       } else if(el.type==='sym-arrow'){
-        const lx2=Math.min(el.x1,el.x2),ly2=Math.min(el.y1,el.y2);
-        const lw2=Math.abs(el.x2-el.x1)+2*ARR_PAD,lh2=Math.abs(el.y2-el.y1)+2*ARR_PAD;
-        posStyle=`left:${lx2-ARR_PAD}px;top:${ly2-ARR_PAD}px;width:${lw2}px;height:${Math.max(2,lh2)}px`;
-        const sx1a=el.x1-lx2+ARR_PAD,sy1a=el.y1-ly2+ARR_PAD,sx2a=el.x2-lx2+ARR_PAD,sy2a=el.y2-ly2+ARR_PAD;
-        const arS2=el.arrowStyle||{},sw2=arS2.strokeWidth||2,col2=arS2.stroke||'#e8a030';
-        const da2=arS2.dashed?`stroke-dasharray="${sw2*2.5} ${sw2*2}"`:'';
-        inner=`<svg style="position:absolute;inset:0;width:100%;height:100%;overflow:visible"><line x1="${sx1a}" y1="${sy1a}" x2="${sx2a}" y2="${sy2a}" stroke="${col2}" stroke-width="${sw2}" stroke-linecap="round" ${da2}/></svg>`;
+        const b2=arrBounds(el);
+        posStyle=`left:${b2.lx}px;top:${b2.ly}px;width:${b2.w}px;height:${Math.max(2,b2.h)}px`;
+        inner=`<svg viewBox="0 0 ${b2.w} ${b2.h}" style="position:absolute;inset:0;width:100%;height:100%;overflow:visible">${_arrowLineSVG(el)}</svg>`;
       } else if(el.type&&el.type.startsWith('sym-')&&el.type!=='sym-arrow'){
         const symS2=el.symStyle||{};
         const svg2=symShapeSVG(el.type,ew,eh,symS2.stroke,symS2.fill,symS2.strokeWidth||2,symS2.dashed);
@@ -1340,6 +1336,7 @@ function buildElDOM(el){
   wrap.id='sel_'+el.id; wrap.dataset.elid=el.id;
   wrap.style.cssText=`left:${el.x||0}px;top:${el.y||0}px;width:${el.w||100}px;height:${Math.max(1,el.h||30)}px;z-index:${el.z||10};border-radius:${st.borderRadius||0}px`;
   if(st.background&&st.background!=='transparent')wrap.style.background=st.background;
+  if(st.borderColor&&st.borderWidth&&st.borderWidth>0)wrap.style.boxShadow=`0 0 0 ${st.borderWidth}px ${st.borderColor}`;
 
   const bd=document.createElement('div'); bd.className='sel-bd'; wrap.appendChild(bd);
   // Wider overlay for easier clicking
@@ -1370,14 +1367,28 @@ function buildInnerContent(el, readOnly, canRunSql=false){
     if(div.firstChild&&div.firstChild.nodeName==='BR'&&div.childNodes.length>1){
       div.removeChild(div.firstChild);
     }
+    // Ghost text placeholder
+    const _phText=el.type==='title'?'Überschrift …':'Text …';
+    div.dataset.placeholder=_phText;
+    const _checkEmpty=()=>{const t=div.textContent||'';div.classList.toggle('is-empty',!t.trim());};
+    _checkEmpty();
     if(!readOnly){
       let _histPushed=false;
       div.addEventListener('mousedown',ev=>ev.stopPropagation());
       div.addEventListener('focus',()=>{activeRTBEl=el.id;_histPushed=false;});
-      div.addEventListener('blur',()=>{_histPushed=false;});
+      div.addEventListener('blur',()=>{_histPushed=false;_checkEmpty();});
       div.addEventListener('input',()=>{
         if(!_histPushed){pushHistory('Text bearbeitet');_histPushed=true;}
         const e=getEl(el.id);if(e)e.html=div.innerHTML;_spRefresh();
+        _checkEmpty();
+      });
+      div.addEventListener('paste',ev=>{
+        ev.preventDefault();ev.stopPropagation();
+        const html=ev.clipboardData?.getData('text/html')||'';
+        const plain=ev.clipboardData?.getData('text/plain')||'';
+        if(!plain&&!html)return;
+        _pendingPaste={html,plain,target:div,elId:el.id};
+        document.getElementById('pasteFmtModal').style.display='flex';
       });
       div.addEventListener('mouseup',()=>{saveRange();setTimeout(posRTB,20);});
       div.addEventListener('keyup',()=>{saveRange();setTimeout(posRTB,20);});
@@ -1642,8 +1653,15 @@ function populateFmt(el){
   if(isText){
     document.getElementById('fmtFont').value=st.fontFamily||"'DM Sans',sans-serif";
     document.getElementById('fmtSize').value=st.fontSize||14;
+    rtbCurrentSize=st.fontSize||14;
     document.getElementById('fmtColor').value=toHex(st.color||'#e4ddd0');
     document.getElementById('fmtLH').value=st.lineHeight||1.6;
+    const fmtTBC=document.getElementById('fmtTextBorderColor');
+    const fmtTBW=document.getElementById('fmtTextBorderWidth');
+    const fmtNB=document.getElementById('fmtTextNoBorder');
+    if(fmtTBC)fmtTBC.value=toHex(st.borderColor||'#888077');
+    if(fmtTBW)fmtTBW.value=st.borderWidth||0;
+    if(fmtNB)fmtNB.checked=!st.borderWidth||st.borderWidth===0;
   }
   if(isER){
     document.getElementById('fmtStroke').value=toHex(erS.stroke||'#e8a030');
@@ -1701,12 +1719,22 @@ function refreshFP(el){
 
 function applyFmt(prop,val){
   if(!selElId)return; const el=getEl(selElId); if(!el)return;
-  const _fmtActions={fontFamily:'Schrift geändert',fontSize:'Schriftgröße geändert',color:'Textfarbe geändert',fontWeight:'Schriftstärke geändert',fontStyle:'Schriftstil geändert',textDecoration:'Textdekoration geändert',textAlign:'Textausrichtung geändert',lineHeight:'Zeilenabstand geändert',background:'Hintergrundfarbe geändert',borderRadius:'Eckenradius geändert'};
+  const _fmtActions={fontFamily:'Schrift geändert',fontSize:'Schriftgröße geändert',color:'Textfarbe geändert',fontWeight:'Schriftstärke geändert',fontStyle:'Schriftstil geändert',textDecoration:'Textdekoration geändert',textAlign:'Textausrichtung geändert',lineHeight:'Zeilenabstand geändert',background:'Hintergrundfarbe geändert',borderRadius:'Eckenradius geändert',borderColor:'Rahmenfarbe geändert',borderWidth:'Rahmenbreite geändert'};
   pushHistoryDebounced(_fmtActions[prop]||'Formatierung geändert');
   el.style=el.style||{}; el.style[prop]=val;
   const dom=document.getElementById('sel_'+selElId); if(!dom)return;
   if(prop==='borderRadius'){dom.style.borderRadius=val+'px';}
   if(prop==='background'){dom.style.background=(!val||val==='transparent')?'':val;}
+  if(prop==='borderColor'||prop==='borderWidth'){
+    const bw=el.style.borderWidth||0;
+    const bc=el.style.borderColor||'#888077';
+    dom.style.boxShadow=bw>0?`0 0 0 ${bw}px ${bc}`:'';
+  }
+  if(prop==='fontSize'){
+    rtbCurrentSize=val;
+    const rtsv=document.getElementById('rtbSizeVal');if(rtsv)rtsv.value=val;
+    const fmtS=document.getElementById('fmtSize');if(fmtS)fmtS.value=val;
+  }
   const inn=dom.querySelector('.el-text');
   if(inn&&['fontFamily','fontSize','color','fontWeight','fontStyle','textDecoration','textAlign','lineHeight'].includes(prop)){
     if(prop==='fontSize')inn.style.fontSize=val+'px'; else inn.style[prop]=val;
@@ -1752,6 +1780,14 @@ function setTransp(checked){
   if(checked){el.style.background='transparent';const d=document.getElementById('sel_'+selElId);if(d)d.style.background='';}
   else applyFmt('background',document.getElementById('fmtBg').value);
 }
+function clearTextBorder(checked){
+  if(!selElId||!checked)return;
+  const el=getEl(selElId);if(!el)return;
+  el.style=el.style||{};el.style.borderWidth=0;
+  const dom=document.getElementById('sel_'+selElId);if(dom)dom.style.boxShadow='';
+  const fmtTBW=document.getElementById('fmtTextBorderWidth');if(fmtTBW)fmtTBW.value=0;
+  _spRefresh();
+}
 function applyPos(dim,val){
   if(!selElId)return; const el=getEl(selElId); if(!el)return;
   const _posAction=(dim==='x'||dim==='y')?'Position geändert':'Größe geändert';
@@ -1788,8 +1824,8 @@ function addEl(type){
   pushHistory('Element hinzugefügt');
   const sz=slSz(sl), id=uid(), z=++zMax;
   let el={id,type,z,style:{}};
-  if(type==='title') Object.assign(el,{x:40,y:28,w:Math.min(sz.w-80,880),h:66,html:'Neue Überschrift',style:{fontSize:34,fontFamily:"'Playfair Display',serif",color:'#e4ddd0',fontWeight:'900',textAlign:'left',lineHeight:1.2,background:'transparent',borderRadius:0}});
-  else if(type==='text') Object.assign(el,{x:60,y:80,w:380,h:200,html:'Text …',style:{fontSize:14,fontFamily:"'DM Sans',sans-serif",color:'#888077',fontWeight:'400',textAlign:'left',lineHeight:1.75,background:'transparent',borderRadius:0}});
+  if(type==='title') Object.assign(el,{x:40,y:28,w:Math.min(sz.w-80,880),h:66,html:'',style:{fontSize:34,fontFamily:"'Playfair Display',serif",color:'#e4ddd0',fontWeight:'900',textAlign:'left',lineHeight:1.2,background:'transparent',borderRadius:0}});
+  else if(type==='text') Object.assign(el,{x:60,y:80,w:380,h:200,html:'',style:{fontSize:14,fontFamily:"'DM Sans',sans-serif",color:'#888077',fontWeight:'400',textAlign:'left',lineHeight:1.75,background:'transparent',borderRadius:0}});
   else if(type==='code') Object.assign(el,{x:60,y:80,w:380,h:200,html:'// Code hier',style:{fontSize:13,fontFamily:"'JetBrains Mono',monospace",color:'#7dd3fc',background:'#030303',borderRadius:8}});
   else if(type==='sql') Object.assign(el,{x:60,y:80,w:420,h:260,sql:'SELECT * FROM entries LIMIT 10;',sqlResult:null,style:{fontSize:13,fontFamily:"'JetBrains Mono',monospace",color:'#a3e635',background:'#030303',borderRadius:8}});
   else if(type==='image') Object.assign(el,{x:60,y:80,w:280,h:200,style:{background:'transparent',borderRadius:4}});
@@ -2246,6 +2282,92 @@ function rfmt(cmd,val){
   setTimeout(posRTB,10);
 }
 
+let _rtbHLColor='#ffd966';
+
+function openRtbHL(){
+  saveRange();
+  document.getElementById('rtbHLPicker').click();
+}
+
+function setRtbHL(color){
+  _rtbHLColor=color;
+  const bar=document.getElementById('rtbHLBar');if(bar)bar.style.background=color;
+  const icon=document.getElementById('rtbHLIcon');if(icon)icon.style.background=color;
+  // Immediately apply the new color to the current selection (if any)
+  if(restoreRange()){
+    const sel=window.getSelection();
+    if(sel&&sel.rangeCount&&!sel.isCollapsed){
+      document.execCommand('styleWithCSS',false,true);
+      document.execCommand('hiliteColor',false,color);
+      syncSavedToEl();
+      saveRange();
+      setTimeout(posRTB,10);
+    }
+  }
+}
+
+function rfmtHighlight(){
+  if(!restoreRange())return;
+  const sel=window.getSelection();if(!sel||!sel.rangeCount)return;
+  const node=sel.anchorNode;
+  const ancEl=node?.nodeType===3?node.parentElement:node;
+  // Check if already highlighted with a background color (not the element bg)
+  const curBg=ancEl?window.getComputedStyle(ancEl).backgroundColor:'';
+  const isHL=curBg&&curBg!=='rgba(0, 0, 0, 0)'&&curBg!=='transparent';
+  document.execCommand('styleWithCSS',false,true);
+  document.execCommand('hiliteColor',false,isHL?'transparent':_rtbHLColor);
+  syncSavedToEl();saveRange();setTimeout(posRTB,10);
+}
+
+/* ════════ PASTE FORMAT DIALOG ════════ */
+let _pendingPaste=null;
+function pasteChoice(mode){
+  document.getElementById('pasteFmtModal').style.display='none';
+  if(!_pendingPaste||mode==='cancel'){_pendingPaste=null;return;}
+  const{html,plain,target,elId}=_pendingPaste;_pendingPaste=null;
+  if(!target.isConnected)return;
+  target.focus();
+  // Restore selection or place at end
+  const sel=window.getSelection();
+  if(sel&&sel.rangeCount){
+    const range=sel.getRangeAt(0);
+    range.deleteContents();
+    let lastNode=null;
+    if(mode==='plain'){
+      const lines=plain.split(/\r?\n/);
+      lines.forEach((line,i)=>{
+        if(i>0)range.insertNode(document.createElement('br'));
+        const tn=document.createTextNode(line);range.insertNode(tn);lastNode=tn;
+      });
+    } else {
+      const tmp=document.createElement('div');
+      tmp.innerHTML=html||plain.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/\r?\n/g,'<br>');
+      if(mode==='merge'){
+        tmp.querySelectorAll('[style]').forEach(el=>{
+          el.style.color='';el.style.fontFamily='';el.style.fontSize='';el.style.backgroundColor='';
+          if(!el.getAttribute('style').trim())el.removeAttribute('style');
+        });
+        // Strip font tags
+        tmp.querySelectorAll('font').forEach(f=>{
+          const span=document.createElement('span');
+          span.append(...Array.from(f.childNodes));f.replaceWith(span);
+        });
+      }
+      const frag=document.createDocumentFragment();
+      while(tmp.firstChild)frag.appendChild(tmp.firstChild);
+      lastNode=frag.lastChild;
+      range.insertNode(frag);
+    }
+    if(lastNode){
+      try{range.setStartAfter(lastNode);range.setEndAfter(lastNode);sel.removeAllRanges();sel.addRange(range);savedRange=range.cloneRange();}catch(e){}
+    }
+  }
+  pushHistory('Text eingefügt');
+  const e=getEl(elId);if(e)e.html=target.innerHTML;
+  target.classList.toggle('is-empty',!(target.textContent||'').trim());
+  _spRefresh();
+}
+
 /* Font picker */
 function toggleRtbDrop(id){
   const d=document.getElementById(id);
@@ -2281,6 +2403,7 @@ function rtbApplySize(sz){
   if(!sz||sz<1||sz>400)return;
   rtbCurrentSize=sz;
   document.getElementById('rtbSizeVal').value=sz;
+  const _fmtS=document.getElementById('fmtSize');if(_fmtS)_fmtS.value=sz;
   if(!restoreRange())return;
   const sel=window.getSelection();
   if(!sel||!sel.rangeCount)return;
@@ -2319,8 +2442,9 @@ function rtbApplySize(sz){
   }
 
   syncSavedToEl();
-  // Use longer delay so browser finishes DOM stabilisation before measuring rect
-  setTimeout(()=>{saveRange();posRTB();},30);
+  // Only call posRTB — savedRange is already correctly set above via newRange.cloneRange()
+  // Calling saveRange() here would overwrite it with whatever collapsed cursor the browser left
+  setTimeout(posRTB,30);
 }
 
 function rtbStepSize(delta){
@@ -2370,7 +2494,6 @@ function posRTB(){
   if(ancEl){
     const col=window.getComputedStyle(ancEl).color;
     if(col){
-      // Convert rgb(...) to hex for the color input
       const hex=rgbToHex(col);
       if(hex){
         document.getElementById('rtbColorA').style.color=hex;
@@ -2378,12 +2501,54 @@ function posRTB(){
         document.getElementById('rtbFg').value=hex;
       }
     }
-    // Read current font size
-    const fs=parseFloat(window.getComputedStyle(ancEl).fontSize);
-    if(fs){
-      rtbCurrentSize=Math.round(fs);
-      document.getElementById('rtbSizeVal').value=rtbCurrentSize;
+    // Read font size: walk up through spans with explicit font-size, not computed style
+    // (computed style reads the element-level size when anchor lands on the div itself)
+    {
+      let sizeNode=ancEl;
+      let foundFs=null;
+      while(sizeNode&&!sizeNode.classList?.contains('el-text')){
+        if(sizeNode.style&&sizeNode.style.fontSize){foundFs=parseFloat(sizeNode.style.fontSize);break;}
+        sizeNode=sizeNode.parentElement;
+      }
+      if(foundFs&&foundFs>0){
+        rtbCurrentSize=Math.round(foundFs);
+        document.getElementById('rtbSizeVal').value=rtbCurrentSize;
+        const fmtS=document.getElementById('fmtSize');if(fmtS)fmtS.value=rtbCurrentSize;
+      } else {
+        // Anchor is in unstyled text — keep rtbCurrentSize as-is, just display it
+        document.getElementById('rtbSizeVal').value=rtbCurrentSize;
+        const fmtS=document.getElementById('fmtSize');if(fmtS)fmtS.value=rtbCurrentSize;
+      }
     }
+    // Sync bold/italic/underline/strikethrough active states
+    const cmdMap={bold:'rtbBtnBold',italic:'rtbBtnItalic',underline:'rtbBtnUnder',strikeThrough:'rtbBtnStrike'};
+    for(const[cmd,id] of Object.entries(cmdMap)){
+      const btn=document.getElementById(id);
+      if(btn)btn.classList.toggle('active',document.queryCommandState(cmd));
+    }
+    // Sync highlight state
+    const hlBtn=document.getElementById('rtbBtnHL');
+    if(hlBtn){
+      const bg=window.getComputedStyle(ancEl).backgroundColor;
+      const isHL=bg&&bg!=='rgba(0, 0, 0, 0)'&&bg!=='transparent';
+      hlBtn.classList.toggle('active',!!isHL);
+      if(isHL){
+        const hlBar=document.getElementById('rtbHLBar');
+        if(hlBar)hlBar.style.background=bg;
+        // Sync picker + internal color state so next apply uses the same color
+        const hlHex=rgbToHex(bg);
+        if(hlHex){
+          _rtbHLColor=hlHex;
+          const picker=document.getElementById('rtbHLPicker');if(picker)picker.value=hlHex;
+        }
+      }
+    }
+    // Sync font label
+    const ff=window.getComputedStyle(ancEl).fontFamily||'';
+    const fontLabelMap=[['Calibri','Calibri'],['DM Sans','DM Sans'],['Playfair Display','Playfair'],['JetBrains Mono','Mono'],['Arial','Arial'],['Georgia','Georgia'],['Helvetica','Helvetica'],['Times New Roman','Times'],['Trebuchet','Trebuchet'],['Verdana','Verdana'],['Courier','Courier'],['Impact','Impact']];
+    const matched=fontLabelMap.find(([k])=>ff.toLowerCase().includes(k.toLowerCase()));
+    const lbl=document.getElementById('rtbFontLbl');
+    if(lbl)lbl.textContent=matched?matched[1]:'Schrift';
   }
 
   const rect=range.getBoundingClientRect(), tb=document.getElementById('rtb');

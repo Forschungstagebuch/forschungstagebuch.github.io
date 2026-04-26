@@ -25,10 +25,17 @@
 
 <!-- Rich text floating toolbar -->
 <div id="rtb" class="rtb">
-  <button class="rtb-btn" onmousedown="evDef(event)" onclick="rfmt('bold')" title="Fett"><b>B</b></button>
-  <button class="rtb-btn" onmousedown="evDef(event)" onclick="rfmt('italic')" title="Kursiv"><i style="font-style:italic;font-family:'Georgia',serif">I</i></button>
-  <button class="rtb-btn" onmousedown="evDef(event)" onclick="rfmt('underline')" title="Unterstreichen"><u>U</u></button>
-  <button class="rtb-btn" onmousedown="evDef(event)" onclick="rfmt('strikeThrough')" title="Durchstreichen"><s>S</s></button>
+  <button class="rtb-btn" id="rtbBtnBold" onmousedown="evDef(event)" onclick="rfmt('bold')" title="Fett"><b>B</b></button>
+  <button class="rtb-btn" id="rtbBtnItalic" onmousedown="evDef(event)" onclick="rfmt('italic')" title="Kursiv"><i style="font-style:italic;font-family:'Georgia',serif">I</i></button>
+  <button class="rtb-btn" id="rtbBtnUnder" onmousedown="evDef(event)" onclick="rfmt('underline')" title="Unterstreichen"><u>U</u></button>
+  <button class="rtb-btn" id="rtbBtnStrike" onmousedown="evDef(event)" onclick="rfmt('strikeThrough')" title="Durchstreichen"><s>S</s></button>
+  <button class="rtb-btn" id="rtbBtnHL" onmousedown="evDef(event)" onclick="rfmtHighlight()" title="Hervorheben"><span id="rtbHLIcon" style="background:#ffd966;color:#1a1a1a;border-radius:2px;padding:0 3px;font-weight:700;font-size:11px;line-height:1.6">A</span></button>
+  <div class="rtb-color-wrap" title="Markierfarbe">
+    <button class="rtb-btn rtb-color-btn" style="padding:4px 5px;min-width:20px" onmousedown="evDef(event)" onclick="openRtbHL()" title="Markierfarbe wählen">
+      <span class="rtb-color-bar" id="rtbHLBar" style="background:#ffd966;width:14px"></span>
+    </button>
+    <input type="color" id="rtbHLPicker" value="#ffd966" style="position:absolute;opacity:0;width:0;height:0;pointer-events:none" onchange="setRtbHL(this.value)">
+  </div>
   <div class="rtb-div"></div>
   <!-- Custom font picker (no focus steal) -->
   <div class="rtb-drop" id="rtbFontDrop">
@@ -36,6 +43,7 @@
       <span id="rtbFontLbl">Schrift</span><span class="rtb-chev">▾</span>
     </button>
     <div class="rtb-drop-menu" id="rtbFontMenu">
+      <div class="rtb-drop-item" onmousedown="evDef(event)" data-font="Calibri,sans-serif" data-label="Calibri" style="font-family:Calibri,sans-serif">Calibri</div>
       <div class="rtb-drop-item" onmousedown="evDef(event)" data-font="DM Sans,sans-serif" data-label="DM Sans" style="font-family:'DM Sans',sans-serif">DM Sans</div>
       <div class="rtb-drop-item" onmousedown="evDef(event)" data-font="Playfair Display,serif" data-label="Playfair" style="font-family:'Playfair Display',serif">Playfair Display</div>
       <div class="rtb-drop-item" onmousedown="evDef(event)" data-font="JetBrains Mono,monospace" data-label="Mono" style="font-family:'JetBrains Mono',monospace">JetBrains Mono</div>
@@ -552,6 +560,7 @@
             <div class="sec-body">
               <label class="fmt-lbl">Familie</label>
               <select class="fmt-inp" id="fmtFont" oninput="applyFmt('fontFamily',this.value)">
+                <option value="Calibri,sans-serif">Calibri</option>
                 <option value="'DM Sans',sans-serif">DM Sans</option>
                 <option value="'Playfair Display',serif">Playfair Display</option>
                 <option value="'JetBrains Mono',monospace">JetBrains Mono</option>
@@ -563,6 +572,12 @@
               <input type="color" class="fmt-inp fmt-color" id="fmtColor" oninput="applyFmt('color',this.value)">
               <label class="fmt-lbl">Zeilenabstand</label>
               <input type="number" class="fmt-inp" id="fmtLH" min="1" max="4" step="0.1" oninput="applyFmt('lineHeight',+this.value)">
+              <label class="fmt-lbl">Rahmenfarbe</label>
+              <div style="display:flex;gap:6px;align-items:center;margin-bottom:10px">
+                <input type="color" class="fmt-inp fmt-color" id="fmtTextBorderColor" oninput="applyFmt('borderColor',this.value)" style="margin-bottom:0;flex-shrink:0">
+                <input type="number" class="fmt-inp" id="fmtTextBorderWidth" min="0" max="20" step="0.5" oninput="applyFmt('borderWidth',+this.value)" style="width:52px;margin-bottom:0" placeholder="px">
+                <label class="fmt-chk-lbl" style="margin:0;white-space:nowrap"><input type="checkbox" id="fmtTextNoBorder" onchange="clearTextBorder(this.checked)"> Kein Rahmen</label>
+              </div>
               <div class="fmt-hint">Zum Formatieren von Textabschnitten: Text markieren → schwebende Toolbar benutzen</div>
             </div>
           </div>
@@ -768,5 +783,19 @@
 <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="script.js"></script>
+      <!-- Paste formatting dialog -->
+      <div class="modal-overlay" id="pasteFmtModal" style="display:none" onclick="if(event.target===this)pasteChoice('cancel')">
+        <div class="modal-box">
+          <div class="modal-title">Text einfügen</div>
+          <p style="color:var(--text2);font-size:13px;margin:0 0 16px">Wie soll die Formatierung des eingefügten Textes behandelt werden?</p>
+          <div class="modal-acts" style="flex-direction:column;gap:8px">
+            <button class="modal-btn-pri" onclick="pasteChoice('keep')">Formatierung übernehmen</button>
+            <button class="modal-btn-pri" onclick="pasteChoice('merge')">Zusammenführen (ohne Farbe/Schrift)</button>
+            <button class="modal-btn-sec" onclick="pasteChoice('plain')">Ohne Formatierung</button>
+            <button class="modal-btn-sec" onclick="pasteChoice('cancel')">Abbrechen</button>
+          </div>
+        </div>
+      </div>
+
 </body>
 </html>
