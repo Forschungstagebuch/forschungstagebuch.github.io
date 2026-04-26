@@ -30,6 +30,12 @@ const FMT = {
   'A4-hoch': {w:794,  h:1123, label:'A4 Hochformat'},
   'A3-quer': {w:1587, h:1123, label:'A3 Querformat'},
   'A3-hoch': {w:1123, h:1587, label:'A3 Hochformat'},
+  'wb-h':    {w:12000,h:540,  label:'Whiteboard Horizontal (∞ →)', wb:'h'},
+  'wb-v':    {w:960,  h:12000,label:'Whiteboard Vertikal (∞ ↕)',   wb:'v'},
+  'wb-inf':  {w:12000,h:12000,label:'Whiteboard Unbegrenzt (∞)',   wb:'both'},
+  'wb-h':    {w:12000, h:540,  label:'Whiteboard Horizontal (∞ →)', wb:'h'},
+  'wb-v':    {w:960,  h:12000, label:'Whiteboard Vertikal (∞ ↕)',  wb:'v'},
+  'wb-inf':  {w:12000, h:12000,label:'Whiteboard Unbegrenzt (∞)', wb:'both'},
 };
 
 /* ── ER ELEMENT DEFAULTS ── */
@@ -46,6 +52,31 @@ const ERD = {
   'er-cardinality':   {w:50, h:40, label:'Kardinalität',          stroke:'transparent',fill:'transparent'},
 };
 const SNAP_TH = 32; // snap threshold px — how close cursor must be to element border
+
+/* ── SYMBOL ELEMENT DEFAULTS ── */
+const SYMD = {
+  'sym-rect':        {w:160,h:80,  label:'Rechteck'},
+  'sym-rounded-rect':{w:160,h:80,  label:'Abg. Rechteck'},
+  'sym-circle':      {w:100,h:100, label:'Kreis'},
+  'sym-ellipse':     {w:160,h:90,  label:'Ellipse'},
+  'sym-triangle':    {w:120,h:100, label:'Dreieck'},
+  'sym-right-tri':   {w:120,h:100, label:'Rechtes Dreieck'},
+  'sym-diamond':     {w:140,h:100, label:'Raute'},
+  'sym-hexagon':     {w:140,h:100, label:'Sechseck'},
+  'sym-parallelogram':{w:160,h:80, label:'Parallelogramm'},
+  'sym-star':        {w:110,h:110, label:'Stern'},
+  'sym-cylinder':    {w:120,h:110, label:'Zylinder'},
+};
+const ARROW_END_TYPES = ['none','arrow','filled','open-dot','filled-dot','open-diamond','filled-diamond','bar'];
+const ARROW_END_LABELS = {'none':'Kein','arrow':'Pfeil (offen)','filled':'Pfeil (gefüllt)','open-dot':'Kreis (offen)','filled-dot':'Kreis (gefüllt)','open-diamond':'Raute (offen)','filled-diamond':'Raute (gefüllt)','bar':'Balken |'};
+
+/* ── SORT STATE ── */
+var _sortL = 'oldest', _sortA = 'oldest';
+function toggleSortL(){_sortL=(_sortL==='oldest'?'newest':'oldest');renderL();}
+function toggleSortA(){_sortA=(_sortA==='oldest'?'newest':'oldest');renderA();}
+function setSortL(v){_sortL=v;renderL();}
+function setSortA(v){_sortA=v;renderA();}
+
 
 /* ── DEFAULT DATA ── */
 const DEFS = [
@@ -403,7 +434,16 @@ function matches(e,q){
   return e.titel.toLowerCase().includes(q)||(e.tags||[]).some(t=>t.toLowerCase().includes(q))
     ||ds.includes(q)||ms.includes(q)||ml.includes(q)||e.datum.replace(/-/g,'.').includes(q);
 }
-function getList(q,s){return load().filter(e=>e.q===q&&matches(e,s)).sort((a,b)=>(a.pos??999)-(b.pos??999)||(new Date(b.datum)-new Date(a.datum)));}
+function getList(q,s,sort){
+  const srt=sort||'oldest';
+  return load().filter(e=>e.q===q&&matches(e,s)).sort((a,b)=>{
+    const da=new Date(a.datum), db=new Date(b.datum);
+    const dateDiff = srt==='newest' ? db-da : da-db;
+    if(dateDiff!==0) return dateDiff;
+    // Same date: tiebreak by pos (ascending always)
+    return (a.pos??999)-(b.pos??999);
+  });
+}
 function slSz(sl){return FMT[sl?.format||'16:9']||FMT['16:9'];}
 
 /* ════════ QUARTER TABS ════════ */
@@ -584,6 +624,141 @@ function updateLineDom(el){
   }
 }
 function mkSVGEl(tag){return document.createElementNS('http://www.w3.org/2000/svg',tag);}
+/* ════════ SYMBOL SHAPES SVG ════════ */
+function _ngonPts(n,cx,cy,r,a0){const p=[];for(let i=0;i<n;i++){const a=a0+(i*2*Math.PI/n);p.push(`${(cx+r*Math.cos(a)).toFixed(2)},${(cy+r*Math.sin(a)).toFixed(2)}`);}return p.join(' ');}
+function _starPts(n,cx,cy,ro,ri,a0){const p=[];for(let i=0;i<n*2;i++){const a=a0+(i*Math.PI/n);const r=i%2===0?ro:ri;p.push(`${(cx+r*Math.cos(a)).toFixed(2)},${(cy+r*Math.sin(a)).toFixed(2)}`);}return p.join(' ');}
+function symShapeSVG(type,w,h,stroke,fill,sw,dashed){
+  const s=stroke||'#e8a030',f=fill||'rgba(232,160,48,.09)',p=Math.max(0.5,sw||2);
+  const da=dashed?`stroke-dasharray="${p*2.5} ${p*2}"`:'';
+  const pad=p/2,cx=w/2,cy=h/2;
+  switch(type){
+    case 'sym-rect':return `<rect x="${pad}" y="${pad}" width="${w-p}" height="${h-p}" fill="${f}" stroke="${s}" stroke-width="${p}" ${da}/>`;
+    case 'sym-rounded-rect':{const rx=Math.min(w,h)*0.14;return `<rect x="${pad}" y="${pad}" width="${w-p}" height="${h-p}" fill="${f}" stroke="${s}" stroke-width="${p}" rx="${rx}" ${da}/>`;}
+    case 'sym-circle':{const r=Math.min(w,h)/2-pad;return `<ellipse cx="${cx}" cy="${cy}" rx="${r}" ry="${r}" fill="${f}" stroke="${s}" stroke-width="${p}" ${da}/>`;}
+    case 'sym-ellipse':return `<ellipse cx="${cx}" cy="${cy}" rx="${(w-p)/2}" ry="${(h-p)/2}" fill="${f}" stroke="${s}" stroke-width="${p}" ${da}/>`;
+    case 'sym-triangle':return `<polygon points="${cx},${pad} ${w-pad},${h-pad} ${pad},${h-pad}" fill="${f}" stroke="${s}" stroke-width="${p}" stroke-linejoin="round" ${da}/>`;
+    case 'sym-right-tri':return `<polygon points="${pad},${pad} ${w-pad},${h-pad} ${pad},${h-pad}" fill="${f}" stroke="${s}" stroke-width="${p}" stroke-linejoin="round" ${da}/>`;
+    case 'sym-diamond':return `<polygon points="${cx},${pad} ${w-pad},${cy} ${cx},${h-pad} ${pad},${cy}" fill="${f}" stroke="${s}" stroke-width="${p}" stroke-linejoin="round" ${da}/>`;
+    case 'sym-hexagon':{const pts=_ngonPts(6,cx,cy,Math.min(cx,cy)-pad,0);return `<polygon points="${pts}" fill="${f}" stroke="${s}" stroke-width="${p}" stroke-linejoin="round" ${da}/>`;}
+    case 'sym-parallelogram':{const off=w*0.2;return `<polygon points="${off+pad},${pad} ${w-pad},${pad} ${w-off-pad},${h-pad} ${pad},${h-pad}" fill="${f}" stroke="${s}" stroke-width="${p}" stroke-linejoin="round" ${da}/>`;}
+    case 'sym-star':{const ro=Math.min(cx,cy)-pad,ri=ro*0.42;const pts=_starPts(5,cx,cy,ro,ri,-Math.PI/2);return `<polygon points="${pts}" fill="${f}" stroke="${s}" stroke-width="${p}" stroke-linejoin="round" ${da}/>`;}
+    case 'sym-cylinder':{const ry=h*0.14;return `<ellipse cx="${cx}" cy="${pad+ry}" rx="${(w-p)/2}" ry="${ry}" fill="${f}" stroke="${s}" stroke-width="${p}"/><rect x="${pad}" y="${pad+ry}" width="${w-p}" height="${h-p-ry*2}" fill="${f}" stroke="none"/><line x1="${pad}" y1="${pad+ry}" x2="${pad}" y2="${h-pad-ry}" stroke="${s}" stroke-width="${p}"/><line x1="${w-pad}" y1="${pad+ry}" x2="${w-pad}" y2="${h-pad-ry}" stroke="${s}" stroke-width="${p}"/><ellipse cx="${cx}" cy="${h-pad-ry}" rx="${(w-p)/2}" ry="${ry}" fill="${f}" stroke="${s}" stroke-width="${p}"/>`;}
+    default:return '';
+  }
+}
+
+/* ════════ SYMBOL ARROW ════════ */
+const ARR_PAD=24;
+function _arrowMarkerId(elId,end,style){return `arm_${elId}_${end}_${style}`;}
+function _arrowMarkerSVG(id,endType,size,stroke,fill,sw){
+  const s2=size||8,col=stroke||'#e8a030',fc=fill||stroke||'#e8a030',lw=sw||2;
+  const ref=s2*0.5;
+  switch(endType){
+    case 'arrow':    return `<marker id="${id}" markerWidth="${s2}" markerHeight="${s2}" refX="${ref}" refY="${s2/2}" orient="auto"><polyline points="0,0 ${s2-lw*0.5},${s2/2} 0,${s2}" fill="none" stroke="${col}" stroke-width="${lw}" stroke-linejoin="round"/></marker>`;
+    case 'filled':   return `<marker id="${id}" markerWidth="${s2}" markerHeight="${s2}" refX="${s2-lw*0.5}" refY="${s2/2}" orient="auto"><polygon points="0,0 ${s2},${s2/2} 0,${s2}" fill="${fc}" stroke="none"/></marker>`;
+    case 'open-dot': return `<marker id="${id}" markerWidth="${s2}" markerHeight="${s2}" refX="${s2/2}" refY="${s2/2}" orient="auto"><circle cx="${s2/2}" cy="${s2/2}" r="${s2/2-lw*0.3}" fill="none" stroke="${col}" stroke-width="${lw}"/></marker>`;
+    case 'filled-dot':return `<marker id="${id}" markerWidth="${s2}" markerHeight="${s2}" refX="${s2/2}" refY="${s2/2}" orient="auto"><circle cx="${s2/2}" cy="${s2/2}" r="${s2/2-lw*0.3}" fill="${fc}" stroke="none"/></marker>`;
+    case 'open-diamond':{const hh=s2/2;return `<marker id="${id}" markerWidth="${s2}" markerHeight="${s2}" refX="${s2}" refY="${hh}" orient="auto"><polygon points="${lw},${hh} ${s2/2},${lw} ${s2-lw},${hh} ${s2/2},${s2-lw}" fill="none" stroke="${col}" stroke-width="${lw}" stroke-linejoin="round"/></marker>`;}
+    case 'filled-diamond':{const hh=s2/2;return `<marker id="${id}" markerWidth="${s2}" markerHeight="${s2}" refX="${s2-lw*0.5}" refY="${hh}" orient="auto"><polygon points="0,${hh} ${s2/2},0 ${s2},${hh} ${s2/2},${s2}" fill="${fc}" stroke="none"/></marker>`;}
+    case 'bar':      return `<marker id="${id}" markerWidth="${lw+4}" markerHeight="${s2}" refX="${(lw+4)/2}" refY="${s2/2}" orient="auto"><line x1="${(lw+4)/2}" y1="0" x2="${(lw+4)/2}" y2="${s2}" stroke="${col}" stroke-width="${lw}"/></marker>`;
+    default: return '';
+  }
+}
+function _arrowLineSVG(el){
+  const b=arrBounds(el),arS=el.arrowStyle||{};
+  const sx1=el.x1-b.lx,sy1=el.y1-b.ly,sx2=el.x2-b.lx,sy2=el.y2-b.ly;
+  const sw=arS.strokeWidth||2,col=arS.stroke||'#e8a030',sz=arS.markerSize||9;
+  const da=arS.dashed?`stroke-dasharray="${sw*2.5} ${sw*2}"`:'';
+  const sType=arS.startType||'none',eType=arS.endType||'filled';
+  const sid=_arrowMarkerId(el.id,'s',sType),eid=_arrowMarkerId(el.id,'e',eType);
+  const sMark=sType!=='none'?_arrowMarkerSVG(sid,sType,sz,col,col,sw):'';
+  const eMark=eType!=='none'?_arrowMarkerSVG(eid,eType,sz,col,col,sw):'';
+  const ms=sType!=='none'?`marker-start="url(#${sid})"`:'' ;
+  const me=eType!=='none'?`marker-end="url(#${eid})"`:'' ;
+  return `<defs>${sMark}${eMark}</defs><line x1="${sx1}" y1="${sy1}" x2="${sx2}" y2="${sy2}" stroke="${col}" stroke-width="${sw}" stroke-linecap="round" ${da} ${ms} ${me}/>`;
+}
+function arrBounds(el){
+  const lx=Math.min(el.x1,el.x2),ly=Math.min(el.y1,el.y2);
+  const rw=Math.abs(el.x2-el.x1)+2*ARR_PAD,rh=Math.abs(el.y2-el.y1)+2*ARR_PAD;
+  return{lx:lx-ARR_PAD,ly:ly-ARR_PAD,w:Math.max(2*ARR_PAD,rw),h:Math.max(2*ARR_PAD,rh)};
+}
+function buildArrowDom(el){
+  const b=arrBounds(el);
+  const wrap=document.createElement('div');
+  wrap.className='er-line-el sym-arrow-el';wrap.id='sel_'+el.id;wrap.dataset.elid=el.id;
+  wrap.style.cssText=`left:${b.lx}px;top:${b.ly}px;width:${b.w}px;height:${b.h}px;z-index:${el.z||5}`;
+  const svgVis=mkSVGEl('svg');svgVis.classList.add('er-line-vis');
+  svgVis.style.cssText='position:absolute;inset:0;width:100%;height:100%;pointer-events:none;overflow:visible';
+  svgVis.setAttribute('viewBox',`0 0 ${b.w} ${b.h}`);
+  svgVis.innerHTML=_arrowLineSVG(el);
+  wrap.appendChild(svgVis);
+  const svgHit=mkSVGEl('svg');svgHit.classList.add('er-line-hit');
+  svgHit.style.cssText='position:absolute;inset:0;width:100%;height:100%;overflow:visible';
+  svgHit.setAttribute('viewBox',`0 0 ${b.w} ${b.h}`);
+  const sx1=el.x1-b.lx,sy1=el.y1-b.ly,sx2=el.x2-b.lx,sy2=el.y2-b.ly;
+  const hitLine=mkSVGEl('line');
+  hitLine.setAttribute('x1',sx1);hitLine.setAttribute('y1',sy1);
+  hitLine.setAttribute('x2',sx2);hitLine.setAttribute('y2',sy2);
+  hitLine.setAttribute('stroke','transparent');hitLine.setAttribute('stroke-width','20');
+  hitLine.setAttribute('stroke-linecap','round');hitLine.style.cursor='move';
+  hitLine.addEventListener('mousedown',ev=>{ev.stopPropagation();selectLine(el.id);startMoveArrow(el.id,ev);});
+  svgHit.appendChild(hitLine);wrap.appendChild(svgHit);
+  [1,2].forEach(pn=>{
+    const pt=document.createElement('div');pt.className='er-line-pt';pt.dataset.pt=pn;
+    const px=pn===1?sx1:sx2,py=pn===1?sy1:sy2;
+    pt.style.left=px+'px';pt.style.top=py+'px';
+    pt.addEventListener('mousedown',ev=>{ev.preventDefault();ev.stopPropagation();startDragArrowPt(el.id,pn,ev);});
+    wrap.appendChild(pt);
+  });
+  return wrap;
+}
+function updateArrowDom(el){
+  const b=arrBounds(el);
+  const wrap=document.getElementById('sel_'+el.id);if(!wrap)return;
+  wrap.style.left=b.lx+'px';wrap.style.top=b.ly+'px';wrap.style.width=b.w+'px';wrap.style.height=b.h+'px';
+  const sx1=el.x1-b.lx,sy1=el.y1-b.ly,sx2=el.x2-b.lx,sy2=el.y2-b.ly;
+  const vis=wrap.querySelector('svg.er-line-vis');
+  if(vis){vis.setAttribute('viewBox',`0 0 ${b.w} ${b.h}`);vis.innerHTML=_arrowLineSVG(el);}
+  const hit=wrap.querySelector('svg.er-line-hit');
+  if(hit){hit.setAttribute('viewBox',`0 0 ${b.w} ${b.h}`);const hl=hit.querySelector('line');if(hl){hl.setAttribute('x1',sx1);hl.setAttribute('y1',sy1);hl.setAttribute('x2',sx2);hl.setAttribute('y2',sy2);}}
+  if(!document.body.classList.contains('er-element-moving')){
+    wrap.querySelectorAll('.er-line-pt').forEach(p=>{const pn=+p.dataset.pt;p.style.left=(pn===1?sx1:sx2)+'px';p.style.top=(pn===1?sy1:sy2)+'px';});
+  }
+}
+function startMoveArrow(elId,ev){
+  const el=getEl(elId);if(!el)return;
+  const snap=_snapElements('Pfeil verschoben');
+  MS={type:'move-arrow',elId,sx:ev.clientX,sy:ev.clientY,data:{x1:el.x1,y1:el.y1,x2:el.x2,y2:el.y2},snap};
+  ev.preventDefault();
+}
+function startDragArrowPt(lineId,ptNum,ev){
+  const el=getEl(lineId);if(!el)return;
+  const snap=_snapElements('Pfeil-Endpunkt verschoben');
+  MS={type:'drag-arrow-pt',elId:lineId,ptNum,sx:ev.clientX,sy:ev.clientY,data:{x1:el.x1,y1:el.y1,x2:el.x2,y2:el.y2},snap};
+  ev.preventDefault();
+  showConnDots(lineId);
+}
+
+/* ════════ WHITEBOARD HELPERS ════════ */
+function isWB(sl){return sl&&FMT[sl.format||'16:9']?.wb;}
+function wbBounds(slide){
+  const els=(slide||{}).elements||[];
+  if(!els.length)return{x:0,y:0,w:960,h:540};
+  let mnX=Infinity,mnY=Infinity,mxX=-Infinity,mxY=-Infinity;
+  els.forEach(el=>{
+    if(el.type==='er-line'||el.type==='sym-arrow'){
+      mnX=Math.min(mnX,el.x1,el.x2);mnY=Math.min(mnY,el.y1,el.y2);
+      mxX=Math.max(mxX,el.x1,el.x2);mxY=Math.max(mxY,el.y1,el.y2);
+    }else{
+      mnX=Math.min(mnX,el.x||0);mnY=Math.min(mnY,el.y||0);
+      mxX=Math.max(mxX,(el.x||0)+(el.w||0));mxY=Math.max(mxY,(el.y||0)+(el.h||0));
+    }
+  });
+  if(!isFinite(mnX))return{x:0,y:0,w:960,h:540};
+  const pad=60;
+  return{x:Math.max(0,mnX-pad),y:Math.max(0,mnY-pad),w:mxX-mnX+pad*2,h:mxY-mnY+pad*2};
+}
+
 
 /* ════════ THUMBNAIL GENERATOR ════════ */
 /* ════════ THUMBNAIL GENERATOR (CSS transform approach — no clipping) ════════ */
@@ -637,6 +812,20 @@ function mkThumb(slide, tw){
         inner=_tmpSql.innerHTML;
       } else if(el.type==='image'&&el.src){
         inner=`<img src="${el.src}" style="width:100%;height:100%;object-fit:contain">`;
+      } else if(el.type==='sym-arrow'){
+        const lx2=Math.min(el.x1,el.x2),ly2=Math.min(el.y1,el.y2);
+        const lw2=Math.abs(el.x2-el.x1)+2*ARR_PAD,lh2=Math.abs(el.y2-el.y1)+2*ARR_PAD;
+        posStyle=`left:${lx2-ARR_PAD}px;top:${ly2-ARR_PAD}px;width:${lw2}px;height:${Math.max(2,lh2)}px`;
+        const sx1a=el.x1-lx2+ARR_PAD,sy1a=el.y1-ly2+ARR_PAD,sx2a=el.x2-lx2+ARR_PAD,sy2a=el.y2-ly2+ARR_PAD;
+        const arS2=el.arrowStyle||{},sw2=arS2.strokeWidth||2,col2=arS2.stroke||'#e8a030';
+        const da2=arS2.dashed?`stroke-dasharray="${sw2*2.5} ${sw2*2}"`:'';
+        inner=`<svg style="position:absolute;inset:0;width:100%;height:100%;overflow:visible"><line x1="${sx1a}" y1="${sy1a}" x2="${sx2a}" y2="${sy2a}" stroke="${col2}" stroke-width="${sw2}" stroke-linecap="round" ${da2}/></svg>`;
+      } else if(el.type&&el.type.startsWith('sym-')&&el.type!=='sym-arrow'){
+        const symS2=el.symStyle||{};
+        const svg2=symShapeSVG(el.type,ew,eh,symS2.stroke,symS2.fill,symS2.strokeWidth||2,symS2.dashed);
+        const tc2=el.style?.color||'#e4ddd0';const fs2=el.style?.fontSize||13;
+        inner=`<svg viewBox="0 0 ${ew} ${eh}" width="${ew}" height="${ew}" style="position:absolute;inset:0">${svg2}</svg>`
+             +(el.text?`<div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:${fs2}px;color:${tc2};text-align:center;padding:4px;overflow:hidden">${esc(el.text)}</div>`:'');
       } else if(el.type&&el.type.startsWith('er-')){
         const erS=el.erStyle||{};
         const svg=erShapeSVG(el.type,ew,eh,erS.stroke,erS.fill,erS.strokeWidth||2,erS.dashed);
@@ -658,6 +847,16 @@ function mkThumb(slide, tw){
     return `<div style="position:absolute;${posStyle}">${inner}</div>`;
   }).join('');
 
+  // Whiteboard slides: crop to element bounding box
+  if(isWB(slide)){
+    const bb=wbBounds(slide);
+    const wsc=tw/bb.w, wph=Math.round(bb.h*wsc);
+    return `<div style="width:${tw}px;height:${wph}px;overflow:hidden;border-radius:4px;position:relative;flex-shrink:0;background:${bg}">
+      <div style="position:absolute;top:${(-bb.y*wsc).toFixed(1)}px;left:${(-bb.x*wsc).toFixed(1)}px;width:${sz.w}px;height:${sz.h}px;zoom:${wsc.toFixed(6)};transform-origin:top left;pointer-events:none">
+        ${items}
+      </div>
+    </div>`;
+  }
   // Use zoom (not transform:scale) so the inner div's layout size matches its visual size → no clipping
   return `<div style="width:${tw}px;height:${ph}px;overflow:hidden;border-radius:4px;position:relative;flex-shrink:0;background:${bg}">
     <div style="position:absolute;top:0;left:0;width:${sz.w}px;height:${sz.h}px;zoom:${sc.toFixed(6)};pointer-events:none">
@@ -708,19 +907,23 @@ function entryCard(e, idx, isAdmin){
 
 function renderL(){
   const q=activeQ.lehrer, s=document.getElementById('srL').value||'';
-  const list=getList(q,s), c=document.getElementById('entL');
+  const list=getList(q,s,_sortL), c=document.getElementById('entL');
   if(!list.length){c.innerHTML=`<div class="empty"><div class="empty-i">📓</div><h3>${s?'Keine Treffer':'Noch keine Einträge für '+q}</h3><p>${s?'Anderen Begriff versuchen.':'Noch nichts dokumentiert.'}</p></div>`;return;}
   let html='', lm='';
   list.forEach((e,i)=>{const m=fmtM(e.datum);if(m!==lm){html+=`<div class="month-sep">${m}</div>`;lm=m;}html+=entryCard(e,i,false);});
   c.innerHTML=html;
+  const _bL=document.getElementById('sortBtnL');
+  if(_bL&&_bL.value!==_sortL)_bL.value=_sortL;
 }
 function renderA(){
   const q=activeQ.admin, s=document.getElementById('srA').value||'';
-  const list=getList(q,s), c=document.getElementById('entA');
+  const list=getList(q,s,_sortA), c=document.getElementById('entA');
   if(!list.length){c.innerHTML=`<div class="empty"><div class="empty-i">📓</div><h3>${s?'Keine Treffer':'Keine Einträge für '+q}</h3><p>${s?'Anderen Begriff.':'Neuer Eintrag erstellen.'}</p></div>`;return;}
   let html='', lm='';
   list.forEach((e,i)=>{const m=fmtM(e.datum);if(m!==lm){html+=`<div class="month-sep">${m}</div>`;lm=m;}html+=entryCard(e,i,true);});
   c.innerHTML=html; initListDrag();
+  const _bA=document.getElementById('sortBtnA');
+  if(_bA&&_bA.value!==_sortA)_bA.value=_sortA;
 }
 
 /* list drag */
@@ -1064,14 +1267,33 @@ function renderSpanel(){
 function applySlideSize(){
   const sl=curSlide(); if(!sl)return;
   const sz=slSz(sl), slide=document.getElementById('slideCV');
+  const fmt=FMT[sl.format||'16:9']||FMT['16:9'];
   slide.style.width=sz.w+'px'; slide.style.height=sz.h+'px';
   slide.style.background=sl.slideBg||'#0c0c0c';
+  // Whiteboard: show grid pattern and remove hard clip
+  if(fmt.wb){
+    slide.classList.add('wb-mode');
+    slide.dataset.wbMode=fmt.wb;
+  } else {
+    slide.classList.remove('wb-mode');
+    delete slide.dataset.wbMode;
+  }
 }
 function fitSlide(){
   const area=document.getElementById('edCvArea'), sl=curSlide(); if(!sl)return;
   const sz=slSz(sl), aw=area.clientWidth, ah=area.clientHeight;
-  cvScale=Math.min((aw-80)/sz.w,(ah-80)/sz.h,1);
-  cvOffX=(aw-sz.w*cvScale)/2; cvOffY=(ah-sz.h*cvScale)/2;
+  if(isWB(sl)){
+    // For whiteboard: fit to content bounds, or show a nice starting region
+    const bb=wbBounds(sl);
+    const vw=Math.max(bb.w,960), vh=Math.max(bb.h,540);
+    cvScale=Math.min((aw-80)/vw,(ah-80)/vh,1);
+    // Center the content viewport: offset so bb.x,bb.y lands at the display center
+    cvOffX=(aw/2) - (bb.x + bb.w/2)*cvScale;
+    cvOffY=(ah/2) - (bb.y + bb.h/2)*cvScale;
+  } else {
+    cvScale=Math.min((aw-80)/sz.w,(ah-80)/sz.h,1);
+    cvOffX=(aw-sz.w*cvScale)/2; cvOffY=(ah-sz.h*cvScale)/2;
+  }
   applyTf();
 }
 function applyTf(){
@@ -1106,6 +1328,7 @@ function renderSlide(){
   const els=(curSlide()?.elements||[]).slice().sort((a,b)=>(a.z||0)-(b.z||0));
   els.forEach(el=>{
     if(el.type==='er-line') slide.appendChild(buildLineDom(el));
+    else if(el.type==='sym-arrow') slide.appendChild(buildArrowDom(el));
     else slide.appendChild(buildElDOM(el));
   });
 }
@@ -1133,7 +1356,7 @@ function buildElDOM(el){
   return wrap;
 }
 
-function typeLabel(t){return{title:'Überschrift',text:'Text',code:'Code',sql:'SQL',image:'Bild',divider:'Linie',badge:'Badge','er-entity':'Entität','er-weak-entity':'Schwache Entität','er-relation':'Beziehungstyp','er-weak-relation':'Schw. Beziehungstyp','er-attribute':'Attribut','er-key-attribute':'Schlüsselattr.','er-multi-attribute':'Mehrwertiger Attr.','er-derived-attr':'Abgel. Attribut','er-isa':'IS-A','er-line':'Verbindungslinie','er-cardinality':'Kardinalität'}[t]||t;}
+function typeLabel(t){return{title:'Überschrift',text:'Text',code:'Code',sql:'SQL',image:'Bild',divider:'Linie',badge:'Badge','er-entity':'Entität','er-weak-entity':'Schwache Entität','er-relation':'Beziehungstyp','er-weak-relation':'Schw. Beziehungstyp','er-attribute':'Attribut','er-key-attribute':'Schlüsselattr.','er-multi-attribute':'Mehrwertiger Attr.','er-derived-attr':'Abgel. Attribut','er-isa':'IS-A','er-line':'Verbindungslinie','er-cardinality':'Kardinalität','sym-rect':'Rechteck','sym-rounded-rect':'Abg. Rechteck','sym-circle':'Kreis','sym-ellipse':'Ellipse','sym-triangle':'Dreieck','sym-right-tri':'Rechtes Dreieck','sym-diamond':'Raute','sym-hexagon':'Sechseck','sym-parallelogram':'Parallelogramm','sym-star':'Stern','sym-cylinder':'Zylinder','sym-arrow':'Pfeil'}[t]||t;}
 
 function buildInnerContent(el, readOnly, canRunSql=false){
   const st=el.style||{};
@@ -1282,6 +1505,27 @@ function buildInnerContent(el, readOnly, canRunSql=false){
     }
     d.appendChild(p);return d;
   }
+  if(el.type&&el.type.startsWith('sym-')&&el.type!=='sym-arrow'){
+    const wrap=document.createElement('div'); wrap.className='el-sym-wrap';
+    const svg=mkSVGEl('svg'); svg.className='el-er-svg sym-s';
+    svg.setAttribute('viewBox',`0 0 ${el.w} ${el.h}`);
+    svg.setAttribute('preserveAspectRatio','none');
+    svg.style.cssText='position:absolute;inset:0;width:100%;height:100%;pointer-events:none;overflow:visible';
+    const symS=el.symStyle||{};
+    svg.innerHTML=symShapeSVG(el.type,el.w,el.h,symS.stroke,symS.fill,symS.strokeWidth,symS.dashed);
+    wrap.appendChild(svg);
+    const txt=document.createElement('div'); txt.className='el-sym-text';
+    txt.contentEditable=readOnly?'false':'true'; txt.textContent=el.text||'';
+    if(!readOnly){
+      let _histPushed=false;
+      txt.addEventListener('mousedown',ev=>ev.stopPropagation());
+      txt.addEventListener('focus',()=>{_histPushed=false;});
+      txt.addEventListener('blur',()=>{_histPushed=false;});
+      txt.addEventListener('input',()=>{if(!_histPushed){pushHistory('Symbol-Text bearbeitet');_histPushed=true;}const e=getEl(el.id);if(e)e.text=txt.textContent;_spRefresh();});
+    }
+    wrap.appendChild(txt);
+    return wrap;
+  }
   if(el.type&&el.type.startsWith('er-')){
     const wrap=document.createElement('div'); wrap.className='el-er-wrap';
     // SVG shape
@@ -1385,10 +1629,14 @@ function populateFmt(el){
   const isText=el.type==='title'||el.type==='text';
   const isER=el.type&&el.type.startsWith('er-')&&el.type!=='er-line'&&el.type!=='er-cardinality';
   const isLine=el.type==='er-line';
+  const isSym=el.type&&el.type.startsWith('sym-')&&el.type!=='sym-arrow';
+  const isArrow=el.type==='sym-arrow';
   const isCode=el.type==='code';
   document.getElementById('fmtTextSec').style.display=isText?'block':'none';
   document.getElementById('fmtERSec').style.display=isER?'block':'none';
   document.getElementById('fmtLineSec').style.display=isLine?'block':'none';
+  const symSec=document.getElementById('fmtSymSec'); if(symSec)symSec.style.display=isSym?'block':'none';
+  const arrowSec=document.getElementById('fmtArrowSec'); if(arrowSec)arrowSec.style.display=isArrow?'block':'none';
   const sqlSec=document.getElementById('fmtSqlSec');
   if(sqlSec)sqlSec.style.display='none';
   if(isText){
@@ -1407,6 +1655,24 @@ function populateFmt(el){
     document.getElementById('fmtLC').value=toHex(erS.stroke||'#888077');
     document.getElementById('fmtLSW').value=erS.strokeWidth||2;
     document.getElementById('fmtLDash').checked=!!erS.dashed;
+  }
+  if(isSym){
+    const symS=el.symStyle||{};
+    const symStroke=document.getElementById('fmtSymStroke');if(symStroke)symStroke.value=toHex(symS.stroke||'#e8a030');
+    const symFill=document.getElementById('fmtSymFill');if(symFill)symFill.value=toHex(symS.fill==='transparent'?'#000000':symS.fill||'#000000');
+    const symSW=document.getElementById('fmtSymSW');if(symSW)symSW.value=symS.strokeWidth||2;
+    const symDash=document.getElementById('fmtSymDash');if(symDash)symDash.checked=!!symS.dashed;
+    const symColor=document.getElementById('fmtSymColor');if(symColor)symColor.value=toHex(el.style?.color||'#e4ddd0');
+    const symFS=document.getElementById('fmtSymFontSize');if(symFS)symFS.value=el.style?.fontSize||13;
+  }
+  if(isArrow){
+    const arS=el.arrowStyle||{};
+    const arCol=document.getElementById('fmtArrowColor');if(arCol)arCol.value=toHex(arS.stroke||'#e8a030');
+    const arSW=document.getElementById('fmtArrowSW');if(arSW)arSW.value=arS.strokeWidth||2;
+    const arDash=document.getElementById('fmtArrowDash');if(arDash)arDash.checked=!!arS.dashed;
+    const arStart=document.getElementById('fmtArrowStart');if(arStart)arStart.value=arS.startType||'none';
+    const arEnd=document.getElementById('fmtArrowEnd');if(arEnd)arEnd.value=arS.endType||'filled';
+    const arSize=document.getElementById('fmtArrowSize');if(arSize)arSize.value=arS.markerSize||9;
   }
   const bg=st.background||'transparent';
   document.getElementById('fmtBgT').checked=!bg||bg==='transparent';
@@ -1453,6 +1719,32 @@ function applyERSt(prop,val){
   el.erStyle=el.erStyle||{}; el.erStyle[prop]=val;
   if(el.type==='er-line'){updateLineDom(el);_spRefresh();return;}
   updateERSVG(el); _spRefresh();
+}
+function applySymSt(prop,val){
+  if(!selElId)return; const el=getEl(selElId); if(!el)return;
+  pushHistoryDebounced('Symbol-Stil geändert');
+  el.symStyle=el.symStyle||{}; el.symStyle[prop]=val;
+  const dom=document.getElementById('sel_'+selElId); if(!dom)return;
+  const svg=dom.querySelector('svg.sym-s'); if(!svg)return;
+  const symS=el.symStyle;
+  svg.innerHTML=symShapeSVG(el.type,el.w,el.h,symS.stroke,symS.fill,symS.strokeWidth,symS.dashed);
+  _spRefresh();
+}
+function applySymTextSt(prop,val){
+  if(!selElId)return; const el=getEl(selElId); if(!el)return;
+  pushHistoryDebounced('Symbol-Text geändert');
+  el.style=el.style||{}; el.style[prop]=val;
+  const dom=document.getElementById('sel_'+selElId); if(!dom)return;
+  const txt=dom.querySelector('.el-sym-text'); if(!txt)return;
+  if(prop==='color')txt.style.color=val;
+  if(prop==='fontSize')txt.style.fontSize=val+'px';
+  _spRefresh();
+}
+function applyArrowSt(prop,val){
+  if(!selElId)return; const el=getEl(selElId); if(!el)return;
+  pushHistoryDebounced('Pfeil-Stil geändert');
+  el.arrowStyle=el.arrowStyle||{}; el.arrowStyle[prop]=val;
+  updateArrowDom(el); _spRefresh();
 }
 function setTransp(checked){
   if(!selElId)return; const el=getEl(selElId); if(!el)return;
@@ -1509,14 +1801,21 @@ function addEl(type){
   } else if(type==='er-cardinality'){
     const cx=Math.round(sz.w/2), cy=Math.round(sz.h/2);
     Object.assign(el,{x:cx-25,y:cy-20,w:50,h:40,text:'1',style:{fontSize:17,fontFamily:"'JetBrains Mono',monospace",color:'#e8a030',fontWeight:'700',textAlign:'center',lineHeight:1.2,background:'transparent',borderRadius:0},erStyle:{stroke:'transparent',fill:'transparent',strokeWidth:0,dashed:false}});
+  } else if(type==='sym-arrow'){
+    const cx=Math.round(sz.w/2),cy=Math.round(sz.h/2);
+    Object.assign(el,{x1:cx-100,y1:cy,x2:cx+100,y2:cy,arrowStyle:{stroke:'#e8a030',strokeWidth:2,dashed:false,startType:'none',endType:'filled',markerSize:9}});
+  } else if(type&&type.startsWith('sym-')){
+    const d=SYMD[type]||{},cx=Math.round(sz.w/2),cy=Math.round(sz.h/2);
+    Object.assign(el,{x:cx-Math.round((d.w||120)/2),y:cy-Math.round((d.h||80)/2),w:d.w||120,h:d.h||80,text:'',style:{background:'transparent',borderRadius:0,color:'#e4ddd0',fontSize:13,fontFamily:"'DM Sans',sans-serif"},symStyle:{stroke:'#e8a030',fill:'rgba(232,160,48,.09)',strokeWidth:2,dashed:false}});
   } else if(type&&type.startsWith('er-')){
     const d=ERD[type]||{}, cx=Math.round(sz.w/2), cy=Math.round(sz.h/2);
     Object.assign(el,{x:cx-Math.round((d.w||140)/2),y:cy-Math.round((d.h||60)/2),w:d.w||140,h:d.h||60,text:d.label||'',style:{background:'transparent',borderRadius:0},erStyle:{stroke:d.stroke||'#e8a030',fill:d.fill||'transparent',strokeWidth:2,dashed:false}});
   }
   sl.elements.push(el);
   if(type==='er-line') document.getElementById('slideCV').appendChild(buildLineDom(el));
+  else if(type==='sym-arrow') document.getElementById('slideCV').appendChild(buildArrowDom(el));
   else document.getElementById('slideCV').appendChild(buildElDOM(el));
-  if(type==='er-line') selectLine(id); else selectEl(id);
+  if(type==='er-line'||type==='sym-arrow') selectLine(id); else selectEl(id);
   renderSpanel();
 }
 
@@ -1670,7 +1969,7 @@ function findSnap(nx,ny,excludeId){
   let best=null, bd=SNAP_TH;
   const PREFER_TH=18; // radius within which center/corners override free-border
   sl.elements.forEach(el=>{
-    if(!el.type.startsWith('er-')||el.type==='er-line'||el.type==='er-cardinality'||el.id===excludeId)return;
+    if((!el.type.startsWith('er-')&&!el.type.startsWith('sym-'))||el.type==='er-line'||el.type==='er-cardinality'||el.type==='sym-arrow'||el.id===excludeId)return;
     // Gate: only consider elements whose border is within SNAP_TH
     const borderPt=projectOnBorder(el,nx,ny);
     const borderDist=Math.hypot(nx-borderPt.x,ny-borderPt.y);
@@ -1742,6 +2041,24 @@ document.addEventListener('mousemove',ev=>{
     el.x2=Math.round(MS.data.x2+dx); el.y2=Math.round(MS.data.y2+dy);
     updateLineDom(el); refreshFP(el);
   }
+  if(MS.type==='move-arrow'){
+    const el=getEl(MS.elId); if(!el)return;
+    el.x1=Math.round(MS.data.x1+dx); el.y1=Math.round(MS.data.y1+dy);
+    el.x2=Math.round(MS.data.x2+dx); el.y2=Math.round(MS.data.y2+dy);
+    updateArrowDom(el); refreshFP(el);
+  }
+  if(MS.type==='drag-arrow-pt'){
+    const el=getEl(MS.elId); if(!el)return;
+    const rect=document.getElementById('slideCV').getBoundingClientRect();
+    let nx=Math.round((ev.clientX-rect.left)/cvScale);
+    let ny=Math.round((ev.clientY-rect.top)/cvScale);
+    const snap=findSnap(nx,ny,MS.elId);
+    if(snap){nx=snap.x;ny=snap.y;}
+    if(MS.ptNum===1){el.x1=nx;el.y1=ny;}else{el.x2=nx;el.y2=ny;}
+    updateArrowDom(el); refreshFP(el);
+    const wrap=document.getElementById('sel_'+MS.elId);
+    if(wrap){wrap.querySelectorAll('.er-line-pt').forEach(p=>{p.classList.toggle('snapped',+p.dataset.pt===MS.ptNum&&!!snap);});}
+  }
 
   if(MS.type==='resize'){
     const el=getEl(MS.elId); if(!el)return;
@@ -1771,16 +2088,16 @@ document.addEventListener('mouseup',()=>{
   document.body.classList.remove('er-element-moving');
   // Restore CSS control over er-line endpoint handles (clear inline style set by startMove)
   document.querySelectorAll('.er-line-pt').forEach(p=>{p.style.display='';});
-  if(MS&&(MS.type==='move'||MS.type==='move-line'||MS.type==='resize'||MS.type==='drag-pt')){
+  if(MS&&(MS.type==='move'||MS.type==='move-line'||MS.type==='resize'||MS.type==='drag-pt'||MS.type==='move-arrow'||MS.type==='drag-arrow-pt')){
     const el=getEl(MS.elId);
     let changed=false;
     if(MS.type==='move'&&el)
       changed=(el.x!==MS.data.x||el.y!==MS.data.y);
-    else if(MS.type==='move-line'&&el)
+    else if((MS.type==='move-line'||MS.type==='move-arrow')&&el)
       changed=(el.x1!==MS.data.x1||el.y1!==MS.data.y1||el.x2!==MS.data.x2||el.y2!==MS.data.y2);
     else if(MS.type==='resize'&&el)
       changed=(el.w!==MS.data.w||el.h!==MS.data.h);
-    else if(MS.type==='drag-pt'&&el)
+    else if((MS.type==='drag-pt'||MS.type==='drag-arrow-pt')&&el)
       changed=(el.x1!==MS.data.x1||el.y1!==MS.data.y1||el.x2!==MS.data.x2||el.y2!==MS.data.y2);
     if(changed){
       // Push the pre-drag snapshot now that we know something changed
