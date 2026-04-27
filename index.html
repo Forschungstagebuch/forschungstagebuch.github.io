@@ -480,9 +480,9 @@
     </div>
   </div>
 
-  <div class="ed-body">
+  <div class="ed-body" id="edBody">
     <!-- Sidebar -->
-    <div class="ed-sb">
+    <div class="ed-sb" id="edSb">
       <div class="ed-tab-row">
         <button class="ed-tab act" id="etb-ins" onclick="edTab('ins')">
           <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
@@ -495,6 +495,9 @@
         <button class="ed-tab" id="etb-sld" onclick="edTab('sld')">
           <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
           Eintrag
+        </button>
+        <button class="ed-sb-collapse-btn" id="edSbCollapseBtn" onclick="toggleEdSb()" title="Seitenleiste einklappen">
+          <svg id="edSbCollapseIco" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
         </button>
       </div>
 
@@ -750,6 +753,10 @@
         </div>
       </div>
     </div><!-- /ed-sb -->
+    <!-- Sidebar expand strip (visible only when collapsed) -->
+    <div class="ed-sb-expand-strip" onclick="toggleEdSb()" title="Seitenleiste ausklappen">
+      <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+    </div>
 
     <!-- Slide panel -->
     <div class="sp-panel" id="spPanel">
@@ -758,11 +765,15 @@
         <div style="display:flex;align-items:center;gap:5px">
           <button class="sp-add" onclick="addSlide()" title="Neue Folie">+</button>
           <button class="sp-collapse-btn" id="spCollapseBtn" onclick="toggleSpPanel()" title="Panel einklappen">
-            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="15 18 9 12 15 6"/></svg>
+            <svg id="spCollapseIco" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="15 18 9 12 15 6"/></svg>
           </button>
         </div>
       </div>
       <div class="sp-list" id="spList"></div>
+    </div>
+    <!-- Slide panel expand strip (visible only when collapsed) -->
+    <div class="sp-expand-strip" id="spExpandStrip" onclick="toggleSpPanel()" title="Folien-Panel ausklappen">
+      <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
     </div>
 
     <!-- Canvas -->

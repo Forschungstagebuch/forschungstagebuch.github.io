@@ -1249,7 +1249,11 @@ function switchSlide(idx){
 }
 function toggleSpPanel(){
   const panel=document.getElementById('spPanel');
-  panel.classList.toggle('collapsed');
+  const ico=document.getElementById('spCollapseIco');
+  const collapsed=panel.classList.toggle('collapsed');
+  // Flip arrow: ‹ when open, › when collapsed
+  ico.setAttribute('points',collapsed?'9 18 15 12 9 6':'15 18 9 12 15 6');
+  setTimeout(()=>{ if(typeof fitSlide==='function') fitSlide(); },200);
 }
 // Continuously re-center slide as edCvArea resizes (covers panel animation + window resize)
 let _cvAreaRO=null;
@@ -2347,16 +2351,17 @@ document.addEventListener('mousemove',ev=>{
     const rect=document.getElementById('slideCV').getBoundingClientRect();
     let nx=Math.round((ev.clientX-rect.left)/cvScale);
     let ny=Math.round((ev.clientY-rect.top)/cvScale);
-    const snap=findSnap(nx,ny,MS.elId);
+    // Shift suppresses both element snapping and angle snapping
+    const snap=ev.shiftKey?null:findSnap(nx,ny,MS.elId);
     if(snap){nx=snap.x;ny=snap.y;}
-    else{
-      // Angle snap: magnetic within 15° of any 45° multiple; Shift forces snap regardless
+    else if(!ev.shiftKey){
+      // Angle snap: magnetic within 5° of any 45° multiple
       const ox=MS.ptNum===1?el.x2:el.x1, oy=MS.ptNum===1?el.y2:el.y1;
       const angle=Math.atan2(ny-oy,nx-ox);
       const snapAngle=Math.round(angle/(Math.PI/4))*(Math.PI/4);
       const angDiff=Math.abs(angle-snapAngle);
-      const SNAP_ANG_TH=Math.PI/12; // ~15° dead-zone
-      if(ev.shiftKey||angDiff<SNAP_ANG_TH){
+      const SNAP_ANG_TH=Math.PI/36; // ~5°
+      if(angDiff<SNAP_ANG_TH){
         const dist=Math.hypot(nx-ox,ny-oy);
         nx=Math.round(ox+dist*Math.cos(snapAngle));
         ny=Math.round(oy+dist*Math.sin(snapAngle));
@@ -2568,6 +2573,13 @@ function isEdit(t){return t.tagName==='INPUT'||t.tagName==='TEXTAREA'||t.tagName
 
 /* ════════ SIDEBAR TABS + COLLAPSIBLE ════════ */
 function edTab(name){['ins','fmt','sld'].forEach(n=>{document.getElementById('etb-'+n).classList.toggle('act',n===name);document.getElementById('ep-'+n).style.display=n===name?'block':'none';});}
+function toggleEdSb(){
+  const sb=document.getElementById('edSb');
+  const ico=document.getElementById('edSbCollapseIco');
+  const collapsed=sb.classList.toggle('collapsed');
+  ico.setAttribute('points',collapsed?'9 18 15 12 9 6':'15 18 9 12 15 6');
+  setTimeout(()=>{ if(typeof fitSlide==='function') fitSlide(); },200);
+}
 function toggleSec(hdr){
   hdr.classList.toggle('open');
   const body=hdr.nextElementSibling; if(!body)return;
