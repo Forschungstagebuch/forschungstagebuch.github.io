@@ -149,6 +149,9 @@ body::after{content:'';position:fixed;inset:0;pointer-events:none;z-index:9990;b
 /* Preview: mkThumb renders at fixed tw×ph px with zoom scaling */
 .ec-slide-preview{overflow:hidden;background:var(--card);line-height:0;font-size:0;display:block}
 .ec-slide-preview>div{display:block}
+/* Restore list indentation inside slide thumbnails (global reset removes it) */
+.ec-slide-preview ul,.ec-slide-preview ol,
+.sp-item-thumb ul,.sp-item-thumb ol{padding-left:22px;margin-top:2px;margin-bottom:2px;list-style-position:outside}
 .ec-slide-hint{position:absolute;inset:0;background:rgba(0,0,0,.45);display:flex;align-items:center;justify-content:center;font-size:12px;color:var(--text2);opacity:0;transition:opacity .2s;z-index:2}
 .ec-slide-item:hover .ec-slide-hint{opacity:1}
 
@@ -320,6 +323,8 @@ body::after{content:'';position:fixed;inset:0;pointer-events:none;z-index:9990;b
 /* Resize handle */
 .sel-rh{display:none;position:absolute;right:-5px;bottom:-5px;width:12px;height:12px;background:var(--gold);border-radius:3px;cursor:se-resize;z-index:13;box-shadow:0 2px 6px rgba(0,0,0,.5)}
 .sel.selected .sel-rh{display:block}
+.sel.multi-selected .sel-bd{border-color:rgba(232,160,48,.55);border-style:dashed}
+#lassoBox{position:fixed;border:1.5px dashed rgba(232,160,48,.8);background:rgba(232,160,48,.06);pointer-events:none;display:none;z-index:9999;box-sizing:border-box}
 
 /* Element content */
 .el-text{width:100%;height:100%;outline:none;border:none;background:transparent;padding:6px 12px 6px 12px;word-break:break-word;cursor:text;overflow:auto;-webkit-user-modify:read-write;display:block;box-sizing:border-box;position:relative}

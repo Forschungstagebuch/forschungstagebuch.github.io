@@ -122,6 +122,7 @@ const DEFS = [
 let curRole=null, activeQ={lehrer:'Q2',admin:'Q2'};
 let dragListSrc=null, pwVis=false;
 let edEntry=null, edSlideIdx=0, selElId=null, zMax=10;
+let _multiSel=new Set(); // IDs of shift-selected elements
 // Unified move state
 let MS=null; // {type:'move'|'resize'|'drag-pt', elId, sx,sy, data:{}}
 let cvScale=1, cvOffX=0, cvOffY=0;
@@ -544,6 +545,13 @@ function updateERSVG(el){
   const erS=el.erStyle||{};
   svg.innerHTML=erShapeSVG(el.type,el.w,el.h,erS.stroke,erS.fill,erS.strokeWidth,erS.dashed);
 }
+function updateSymSVG(el){
+  const dom=document.getElementById('sel_'+el.id);if(!dom)return;
+  const svg=dom.querySelector('svg.sym-s');if(!svg)return;
+  svg.setAttribute('viewBox',`0 0 ${el.w} ${el.h}`);
+  const symS=el.symStyle||{};
+  svg.innerHTML=symShapeSVG(el.type,el.w,el.h,symS.stroke,symS.fill,symS.strokeWidth,symS.dashed);
+}
 
 /* ════════ ER LINE ════════ */
 const ER_LINE_PAD=22;
@@ -649,20 +657,59 @@ function symShapeSVG(type,w,h,stroke,fill,sw,dashed){
 
 /* ════════ SYMBOL ARROW ════════ */
 const ARR_PAD=24;
-function _arrowMarkerId(elId,end,style){return `arm_${elId}_${end}_${style}`;}
-function _arrowMarkerSVG(id,endType,size,stroke,fill,sw){
-  const s2=size||8,col=stroke||'#e8a030',fc=fill||stroke||'#e8a030',lw=sw||2;
-  const ref=s2*0.5;
-  switch(endType){
-    case 'arrow':    return `<marker id="${id}" markerWidth="${s2}" markerHeight="${s2}" refX="${ref}" refY="${s2/2}" orient="auto"><polyline points="0,0 ${s2-lw*0.5},${s2/2} 0,${s2}" fill="none" stroke="${col}" stroke-width="${lw}" stroke-linejoin="round"/></marker>`;
-    case 'filled':   return `<marker id="${id}" markerWidth="${s2}" markerHeight="${s2}" refX="${s2-lw*0.5}" refY="${s2/2}" orient="auto"><polygon points="0,0 ${s2},${s2/2} 0,${s2}" fill="${fc}" stroke="none"/></marker>`;
-    case 'open-dot': return `<marker id="${id}" markerWidth="${s2}" markerHeight="${s2}" refX="${s2/2}" refY="${s2/2}" orient="auto"><circle cx="${s2/2}" cy="${s2/2}" r="${s2/2-lw*0.3}" fill="none" stroke="${col}" stroke-width="${lw}"/></marker>`;
-    case 'filled-dot':return `<marker id="${id}" markerWidth="${s2}" markerHeight="${s2}" refX="${s2/2}" refY="${s2/2}" orient="auto"><circle cx="${s2/2}" cy="${s2/2}" r="${s2/2-lw*0.3}" fill="${fc}" stroke="none"/></marker>`;
-    case 'open-diamond':{const hh=s2/2;return `<marker id="${id}" markerWidth="${s2}" markerHeight="${s2}" refX="${s2}" refY="${hh}" orient="auto"><polygon points="${lw},${hh} ${s2/2},${lw} ${s2-lw},${hh} ${s2/2},${s2-lw}" fill="none" stroke="${col}" stroke-width="${lw}" stroke-linejoin="round"/></marker>`;}
-    case 'filled-diamond':{const hh=s2/2;return `<marker id="${id}" markerWidth="${s2}" markerHeight="${s2}" refX="${s2-lw*0.5}" refY="${hh}" orient="auto"><polygon points="0,${hh} ${s2/2},0 ${s2},${hh} ${s2/2},${s2}" fill="${fc}" stroke="none"/></marker>`;}
-    case 'bar':      return `<marker id="${id}" markerWidth="${lw+4}" markerHeight="${s2}" refX="${(lw+4)/2}" refY="${s2/2}" orient="auto"><line x1="${(lw+4)/2}" y1="0" x2="${(lw+4)/2}" y2="${s2}" stroke="${col}" stroke-width="${lw}"/></marker>`;
+/* No <marker>/url(#id) — Chrome resolves url(#id) against the page URL which breaks
+   on GitHub Pages. Instead we draw arrowheads as plain geometry at the endpoints. */
+function _arrowHead(type, px, py, ang, sz, col, sw){
+  /* Rotated offset helper: from tip (px,py), displacement (dx along axis, dy perp) */
+  const R=(dx,dy)=>[px+Math.cos(ang)*dx-Math.sin(ang)*dy,
+                    py+Math.sin(ang)*dx+Math.cos(ang)*dy];
+  const s=sz, hs=s*0.5, lw=sw;
+  switch(type){
+    case 'filled':{
+      const [ax,ay]=R(0,0),[bx,by]=R(-s,-hs),[cx,cy]=R(-s,hs);
+      return `<polygon points="${ax},${ay} ${bx},${by} ${cx},${cy}" fill="${col}" stroke="none"/>`;
+    }
+    case 'arrow':{
+      const [ax,ay]=R(0,0),[bx,by]=R(-s,-hs),[cx,cy]=R(-s,hs);
+      return `<polyline points="${bx},${by} ${ax},${ay} ${cx},${cy}" fill="none" stroke="${col}" stroke-width="${lw}" stroke-linejoin="round" stroke-linecap="round"/>`;
+    }
+    case 'open-dot':{
+      const r=hs-lw*0.3,[cx2,cy2]=R(-hs,0);
+      return `<circle cx="${cx2}" cy="${cy2}" r="${r}" fill="none" stroke="${col}" stroke-width="${lw}"/>`;
+    }
+    case 'filled-dot':{
+      const r=hs-lw*0.3,[cx2,cy2]=R(-hs,0);
+      return `<circle cx="${cx2}" cy="${cy2}" r="${r}" fill="${col}" stroke="none"/>`;
+    }
+    case 'open-diamond':{
+      const [ax,ay]=R(0,0),[bx,by]=R(-hs,-hs),[cx,cy]=R(-s,0),[dx,dy]=R(-hs,hs);
+      return `<polygon points="${ax},${ay} ${bx},${by} ${cx},${cy} ${dx},${dy}" fill="none" stroke="${col}" stroke-width="${lw}" stroke-linejoin="round"/>`;
+    }
+    case 'filled-diamond':{
+      const [ax,ay]=R(0,0),[bx,by]=R(-hs,-hs),[cx,cy]=R(-s,0),[dx,dy]=R(-hs,hs);
+      return `<polygon points="${ax},${ay} ${bx},${by} ${cx},${cy} ${dx},${dy}" fill="${col}" stroke="none"/>`;
+    }
+    case 'bar':{
+      const [ax,ay]=R(0,-hs),[bx,by]=R(0,hs);
+      return `<line x1="${ax}" y1="${ay}" x2="${bx}" y2="${by}" stroke="${col}" stroke-width="${lw}" stroke-linecap="round"/>`;
+    }
     default: return '';
   }
+}
+/* How much to pull back the line endpoint so the shaft doesn't overdraw the head */
+function _arrowShrink(type,sz,sw){
+  if(type==='none') return 0;
+  if(type==='bar')  return sw+2;
+  if(type.includes('dot')) return sz*0.5;
+  return sz*0.8;
+}
+/* Build a fresh SVG element for arrow vis — uses geometry-based arrowheads,
+   no <marker>/url(#id) so it works correctly in Chrome on GitHub Pages. */
+function _buildArrowSVGEl(el, b){
+  const svgStr = _arrowLineSVG(el);
+  const div = document.createElement('div');
+  div.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" class="er-line-vis" style="position:absolute;inset:0;width:100%;height:100%;pointer-events:none;overflow:visible" viewBox="0 0 ${b.w} ${b.h}">${svgStr}</svg>`;
+  return div.firstChild;
 }
 function _arrowLineSVG(el){
   const b=arrBounds(el),arS=el.arrowStyle||{};
@@ -670,12 +717,14 @@ function _arrowLineSVG(el){
   const sw=arS.strokeWidth||2,col=arS.stroke||'#e8a030',sz=arS.markerSize||9;
   const da=arS.dashed?`stroke-dasharray="${sw*2.5} ${sw*2}"`:'';
   const sType=arS.startType||'none',eType=arS.endType||'filled';
-  const sid=_arrowMarkerId(el.id,'s',sType),eid=_arrowMarkerId(el.id,'e',eType);
-  const sMark=sType!=='none'?_arrowMarkerSVG(sid,sType,sz,col,col,sw):'';
-  const eMark=eType!=='none'?_arrowMarkerSVG(eid,eType,sz,col,col,sw):'';
-  const ms=sType!=='none'?`marker-start="url(#${sid})"`:'' ;
-  const me=eType!=='none'?`marker-end="url(#${eid})"`:'' ;
-  return `<defs>${sMark}${eMark}</defs><line x1="${sx1}" y1="${sy1}" x2="${sx2}" y2="${sy2}" stroke="${col}" stroke-width="${sw}" stroke-linecap="round" ${da} ${ms} ${me}/>`;
+  const ang=Math.atan2(sy2-sy1,sx2-sx1);
+  const shrinkS=_arrowShrink(sType,sz,sw),shrinkE=_arrowShrink(eType,sz,sw);
+  const lx1=sx1+Math.cos(ang)*shrinkS,ly1=sy1+Math.sin(ang)*shrinkS;
+  const lx2=sx2-Math.cos(ang)*shrinkE,ly2=sy2-Math.sin(ang)*shrinkE;
+  const line=`<line x1="${lx1}" y1="${ly1}" x2="${lx2}" y2="${ly2}" stroke="${col}" stroke-width="${sw}" stroke-linecap="round" ${da}/>`;
+  const startHead=sType!=='none'?_arrowHead(sType,sx1,sy1,ang+Math.PI,sz,col,sw):'';
+  const endHead  =eType!=='none'?_arrowHead(eType,sx2,sy2,ang,        sz,col,sw):'';
+  return `${line}${startHead}${endHead}`;
 }
 function arrBounds(el){
   const lx=Math.min(el.x1,el.x2),ly=Math.min(el.y1,el.y2);
@@ -687,10 +736,7 @@ function buildArrowDom(el){
   const wrap=document.createElement('div');
   wrap.className='er-line-el sym-arrow-el';wrap.id='sel_'+el.id;wrap.dataset.elid=el.id;
   wrap.style.cssText=`left:${b.lx}px;top:${b.ly}px;width:${b.w}px;height:${b.h}px;z-index:${el.z||5}`;
-  const svgVis=mkSVGEl('svg');svgVis.classList.add('er-line-vis');
-  svgVis.style.cssText='position:absolute;inset:0;width:100%;height:100%;pointer-events:none;overflow:visible';
-  svgVis.setAttribute('viewBox',`0 0 ${b.w} ${b.h}`);
-  svgVis.innerHTML=_arrowLineSVG(el);
+  const svgVis=_buildArrowSVGEl(el,b);
   wrap.appendChild(svgVis);
   const svgHit=mkSVGEl('svg');svgHit.classList.add('er-line-hit');
   svgHit.style.cssText='position:absolute;inset:0;width:100%;height:100%;overflow:visible';
@@ -718,7 +764,7 @@ function updateArrowDom(el){
   wrap.style.left=b.lx+'px';wrap.style.top=b.ly+'px';wrap.style.width=b.w+'px';wrap.style.height=b.h+'px';
   const sx1=el.x1-b.lx,sy1=el.y1-b.ly,sx2=el.x2-b.lx,sy2=el.y2-b.ly;
   const vis=wrap.querySelector('svg.er-line-vis');
-  if(vis){vis.setAttribute('viewBox',`0 0 ${b.w} ${b.h}`);vis.innerHTML=_arrowLineSVG(el);}
+  if(vis){const newVis=_buildArrowSVGEl(el,b);vis.parentNode.replaceChild(newVis,vis);}
   const hit=wrap.querySelector('svg.er-line-hit');
   if(hit){hit.setAttribute('viewBox',`0 0 ${b.w} ${b.h}`);const hl=hit.querySelector('line');if(hl){hl.setAttribute('x1',sx1);hl.setAttribute('y1',sy1);hl.setAttribute('x2',sx2);hl.setAttribute('y2',sy2);}}
   if(!document.body.classList.contains('er-element-moving')){
@@ -814,8 +860,10 @@ function mkThumb(slide, tw){
         inner=`<img src="${el.src}" style="width:100%;height:100%;object-fit:contain">`;
       } else if(el.type==='sym-arrow'){
         const b2=arrBounds(el);
-        posStyle=`left:${b2.lx}px;top:${b2.ly}px;width:${b2.w}px;height:${Math.max(2,b2.h)}px`;
-        inner=`<svg viewBox="0 0 ${b2.w} ${b2.h}" style="position:absolute;inset:0;width:100%;height:100%;overflow:visible">${_arrowLineSVG(el)}</svg>`;
+        posStyle=`left:${b2.lx}px;top:${b2.ly}px;width:${b2.w}px;height:${Math.max(2,b2.h)}px;overflow:visible`;
+        // Build via DOM for correct geometry-based arrowheads (no url(#id) needed)
+        const _svgEl=_buildArrowSVGEl(el,b2);
+        inner=_svgEl.outerHTML;
       } else if(el.type&&el.type.startsWith('sym-')&&el.type!=='sym-arrow'){
         const symS2=el.symStyle||{};
         const svg2=symShapeSVG(el.type,ew,eh,symS2.stroke,symS2.fill,symS2.strokeWidth||2,symS2.dashed);
@@ -1053,6 +1101,12 @@ function renderViewer(){
         const sx1=el.x1-b.lx,sy1=el.y1-b.ly,sx2=el.x2-b.lx,sy2=el.y2-b.ly;
         const sw=erS.strokeWidth||2; const da=erS.dashed?`stroke-dasharray="${sw*2.5} ${sw*2}"`:'';
         d.innerHTML=`<svg style="position:absolute;inset:0;width:100%;height:100%;overflow:visible"><line x1="${sx1}" y1="${sy1}" x2="${sx2}" y2="${sy2}" stroke="${erS.stroke||'#888077'}" stroke-width="${sw}" stroke-linecap="round" ${da}/></svg>`;
+        wrap.appendChild(d);
+      } else if(el.type==='sym-arrow'){
+        const b=arrBounds(el);
+        const d=document.createElement('div');
+        d.style.cssText=`position:absolute;left:${b.lx}px;top:${b.ly}px;width:${b.w}px;height:${b.h}px;z-index:${el.z||1};pointer-events:none;overflow:visible`;
+        d.appendChild(_buildArrowSVGEl(el,b));
         wrap.appendChild(d);
       } else {
         const st=el.style||{};
@@ -1306,7 +1360,19 @@ document.addEventListener('wheel',ev=>{
   cvOffX=mx-(mx-cvOffX)*d; cvOffY=my-(my-cvOffY)*d;
   cvScale=Math.max(.08,Math.min(4,cvScale*d)); applyTf();
 },{passive:false});
-function onCvDown(ev){if(ev.target===document.getElementById('edCvArea')){deselectAll();hideRTB();}}
+function onCvDown(ev){
+  const slideCV=document.getElementById('slideCV');
+  if(ev.target===document.getElementById('edCvArea')||ev.target===slideCV){
+    deselectAll();hideRTB();
+    // Start lasso if no modifier — plain background drag
+    const rect=slideCV?.getBoundingClientRect();
+    if(rect&&!ev.ctrlKey&&!ev.metaKey){
+      const lx=(ev.clientX-rect.left)/cvScale, ly=(ev.clientY-rect.top)/cvScale;
+      MS={type:'lasso',sx:ev.clientX,sy:ev.clientY,lx0:lx,ly0:ly,snap:null};
+      ev.preventDefault();
+    }
+  }
+}
 function onSlideBgDown(ev){if(ev.target===document.getElementById('slideCV')){deselectAll();hideRTB();}}
 function onCvDrop(ev){
   ev.preventDefault(); ev.stopPropagation();
@@ -1341,7 +1407,37 @@ function buildElDOM(el){
   const bd=document.createElement('div'); bd.className='sel-bd'; wrap.appendChild(bd);
   // Wider overlay for easier clicking
   const ov=document.createElement('div'); ov.className='sel-ov'; wrap.appendChild(ov);
-  ov.addEventListener('mousedown',ev=>{ev.stopPropagation();selectEl(el.id);startMove(el.id,ev);});
+  ov.addEventListener('mousedown',ev=>{
+    ev.stopPropagation();
+    if(ev.ctrlKey||ev.metaKey){
+      // Ctrl/Cmd+click: toggle this element in multi-selection
+      if(_multiSel.has(el.id)){
+        _multiSel.delete(el.id);
+        const d=document.getElementById('sel_'+el.id);
+        if(d)d.classList.remove('multi-selected');
+      } else {
+        // Also add the currently single-selected element if present
+        if(selElId&&!_multiSel.has(selElId)){
+          _multiSel.add(selElId);
+          const d=document.getElementById('sel_'+selElId);
+          if(d)d.classList.add('multi-selected');
+        }
+        _multiSel.add(el.id);
+        const d=document.getElementById('sel_'+el.id);
+        if(d)d.classList.add('multi-selected');
+        selElId=el.id; // keep as primary
+      }
+      return;
+    }
+    if(_multiSel.size>0&&_multiSel.has(el.id)){
+      // Click on a multi-selected element: start group move
+      startGroupMove(ev);
+      return;
+    }
+    _multiSel.forEach(id=>{const d=document.getElementById('sel_'+id);if(d)d.classList.remove('multi-selected');});
+    _multiSel.clear();
+    selectEl(el.id);startMove(el.id,ev);
+  });
   const bar=document.createElement('div'); bar.className='sel-bar'; wrap.appendChild(bar);
   bar.innerHTML=`<span class="sel-bar-grip">⠿⠿</span><span class="sel-bar-lbl">${typeLabel(el.type)}</span>`;
   const xb=document.createElement('button'); xb.className='sel-bar-x'; xb.textContent='×';
@@ -1359,7 +1455,7 @@ function buildInnerContent(el, readOnly, canRunSql=false){
   const st=el.style||{};
   if(el.type==='title'||el.type==='text'){
     const div=document.createElement('div'); div.className='el-text';
-    div.contentEditable=readOnly?'false':'true'; div.spellcheck=false;
+    div.contentEditable=readOnly?'false':'true'; div.spellcheck=!readOnly;
     div.style.cssText=`font-size:${st.fontSize||14}px;font-family:${st.fontFamily||"'DM Sans',sans-serif"};color:${st.color||'#e4ddd0'};font-weight:${st.fontWeight||400};font-style:${st.fontStyle||'normal'};text-decoration:${st.textDecoration||'none'};text-align:${st.textAlign||'left'};line-height:${st.lineHeight||1.6}`;
     // Set innerHTML AFTER style so browser doesn't re-wrap content
     div.innerHTML=el.html||'';
@@ -1392,6 +1488,25 @@ function buildInnerContent(el, readOnly, canRunSql=false){
       });
       div.addEventListener('mouseup',()=>{saveRange();setTimeout(posRTB,20);});
       div.addEventListener('keyup',()=>{saveRange();setTimeout(posRTB,20);});
+      // Tab key: indent/outdent list items; otherwise insert tab stop
+      div.addEventListener('keydown',ev=>{
+        if(ev.key!=='Tab')return;
+        const sel=window.getSelection();
+        if(!sel||!sel.rangeCount)return;
+        // Walk up from cursor to check if we're inside a list item
+        let node=sel.getRangeAt(0).startContainer;
+        let inList=false;
+        while(node&&node!==div){
+          if(node.nodeName==='LI'){inList=true;break;}
+          node=node.parentNode;
+        }
+        if(inList){
+          ev.preventDefault();ev.stopPropagation();
+          if(ev.shiftKey){document.execCommand('outdent');}
+          else{document.execCommand('indent');}
+          const e=getEl(el.id);if(e)e.html=div.innerHTML;_spRefresh();
+        }
+      });
     }
     return div;
   }
@@ -1625,6 +1740,8 @@ function selectLine(id){
 function deselectAll(){
   flushEl();
   document.querySelectorAll('.sel.selected,.er-line-el.selected').forEach(d=>d.classList.remove('selected'));
+  _multiSel.forEach(id=>{const d=document.getElementById('sel_'+id);if(d)d.classList.remove('multi-selected');});
+  _multiSel.clear();
   selElId=null;
   document.getElementById('fmtEmpty').style.display='block';
   document.getElementById('fmtCtrl').style.display='none';
@@ -1817,6 +1934,14 @@ function deleteEl(id){
   if(selElId===id){selElId=null;document.getElementById('fmtEmpty').style.display='block';document.getElementById('fmtCtrl').style.display='none';}
   renderSpanel();
 }
+function deleteElById(id){
+  // Like deleteEl but without its own pushHistory (caller manages snapshot)
+  if(!edEntry)return; const sl=curSlide(); if(!sl)return;
+  sl.elements=sl.elements.filter(e=>e.id!==id);
+  const dom=document.getElementById('sel_'+id); if(dom)dom.remove();
+  if(selElId===id){selElId=null;}
+  renderSpanel();
+}
 
 /* ════════ ADD ELEMENT ════════ */
 function addEl(type){
@@ -1856,6 +1981,15 @@ function addEl(type){
 }
 
 /* ════════ MOVEMENT STATE MACHINE ════════ */
+function startGroupMove(ev){
+  // Save initial positions of all multi-selected elements
+  const snap=_snapElements('Gruppe verschoben');
+  const initPositions={};
+  _multiSel.forEach(id=>{const el=getEl(id);if(el)initPositions[id]={x:el.x||0,y:el.y||0};});
+  document.body.classList.add('er-element-moving');
+  MS={type:'move-group',elIds:[..._multiSel],sx:ev.clientX,sy:ev.clientY,data:initPositions,snap};
+  ev.preventDefault();
+}
 function startMove(elId,ev){
   const el=getEl(elId); if(!el)return;
   // Snapshot captured NOW (before move) but pushed to stack only if element actually moves (mouseup)
@@ -1951,6 +2085,82 @@ function projectOnBorder(el, px, py){
     return {x:Math.round(best.x),y:Math.round(best.y)};
   }
 
+  // Sym shapes: ellipse
+  if(t==='sym-circle'||t==='sym-ellipse'){
+    const rx=w/2, ry=h/2;
+    const a=Math.atan2((py-cy)/ry,(px-cx)/rx);
+    return {x:Math.round(cx+rx*Math.cos(a)),y:Math.round(cy+ry*Math.sin(a))};
+  }
+  // Sym hexagon: 6-gon projection
+  if(t==='sym-hexagon'){
+    const r=Math.min(cx,cy)-1;
+    const verts6=[];for(let i=0;i<6;i++){const a=i*Math.PI/3;verts6.push({x:cx+r*Math.cos(a),y:cy+r*Math.sin(a)});}
+    let best=null,bd=Infinity;
+    for(let i=0;i<6;i++){const a=verts6[i],b=verts6[(i+1)%6];const p=closestPtOnSeg(a,b,{x:px,y:py});const d=Math.hypot(px-p.x,py-p.y);if(d<bd){bd=d;best=p;}}
+    return {x:Math.round(best.x),y:Math.round(best.y)};
+  }
+  // Sym parallelogram
+  if(t==='sym-parallelogram'){
+    const off=w*0.2,pad_=1;
+    const tl={x:off+pad_,y:pad_},tr={x:w-pad_,y:pad_},br={x:w-off-pad_,y:h-pad_},bl={x:pad_,y:h-pad_};
+    const edges=[[tl,tr],[tr,br],[br,bl],[bl,tl]];
+    let best=null,bd=Infinity;
+    edges.forEach(([a,b])=>{const p=closestPtOnSeg(a,b,{x:px,y:py});const d=Math.hypot(px-p.x,py-p.y);if(d<bd){bd=d;best=p;}});
+    return {x:Math.round(best.x),y:Math.round(best.y)};
+  }
+  // Sym right-triangle
+  if(t==='sym-right-tri'){
+    const pad_=1;
+    const tl={x:pad_,y:pad_},br={x:w-pad_,y:h-pad_},bl={x:pad_,y:h-pad_};
+    const edges=[[tl,br],[br,bl],[bl,tl]];
+    let best=null,bd=Infinity;
+    edges.forEach(([a,b])=>{const p=closestPtOnSeg(a,b,{x:px,y:py});const d=Math.hypot(px-p.x,py-p.y);if(d<bd){bd=d;best=p;}});
+    return {x:Math.round(best.x),y:Math.round(best.y)};
+  }
+  // Sym cylinder: treat as rounded rectangle (use top ellipse + sides)
+  if(t==='sym-cylinder'){
+    const ry2=h*0.14,pad_=1;
+    // Sides are vertical lines; top and bottom are ellipses — approximate with rect edges
+    const edges=[[{x:pad_,y:ry2},{x:pad_,y:h-pad_-ry2}],[{x:w-pad_,y:ry2},{x:w-pad_,y:h-pad_-ry2}]];
+    let best=null,bd=Infinity;
+    edges.forEach(([a,b])=>{const p=closestPtOnSeg(a,b,{x:px,y:py});const d=Math.hypot(px-p.x,py-p.y);if(d<bd){bd=d;best=p;}});
+    // Also check top and bottom ellipses
+    for(const [ecy2,ery2] of [[ry2,ry2],[h-pad_-ry2,ry2]]){
+      const a=Math.atan2((py-(y+ecy2))/(ery2||1),(px-cx)/((w/2-pad_)||1));
+      const ep={x:Math.round(cx+(w/2-pad_)*Math.cos(a)),y:Math.round(y+ecy2+ery2*Math.sin(a))};
+      const d=Math.hypot(px-ep.x,py-ep.y);if(d<bd){bd=d;best=ep;}
+    }
+    return best?{x:Math.round(best.x),y:Math.round(best.y)}:{x:Math.round(cx),y:Math.round(y)};
+  }
+  // Sym diamond
+  if(t==='sym-diamond'){
+    const top={x:cx,y:y},right={x:x+w,y:cy},bottom={x:cx,y:y+h},left={x:x,y:cy};
+    const edges=[[top,right],[right,bottom],[bottom,left],[left,top]];
+    let best=null,bd=Infinity;
+    edges.forEach(([a,b])=>{const p=closestPtOnSeg(a,b,{x:px,y:py});const d=Math.hypot(px-p.x,py-p.y);if(d<bd){bd=d;best=p;}});
+    return {x:Math.round(best.x),y:Math.round(best.y)};
+  }
+  // Sym triangle
+  if(t==='sym-triangle'){
+    const top={x:cx,y:y},bl={x:x,y:y+h},br={x:x+w,y:y+h};
+    const edges=[[top,bl],[top,br],[bl,br]];
+    let best=null,bd=Infinity;
+    edges.forEach(([a,b])=>{const p=closestPtOnSeg(a,b,{x:px,y:py});const d=Math.hypot(px-p.x,py-p.y);if(d<bd){bd=d;best=p;}});
+    return {x:Math.round(best.x),y:Math.round(best.y)};
+  }
+  // Sym star: project onto the nearest of the 10 star edges
+  if(t==='sym-star'){
+    const pad_=1,ro=Math.min(cx,cy)-pad_,ri=ro*0.42,n=5;
+    const verts=[];
+    for(let i=0;i<n*2;i++){const a=-Math.PI/2+(i*Math.PI/n);verts.push({x:cx+(i%2===0?ro:ri)*Math.cos(a),y:cy+(i%2===0?ro:ri)*Math.sin(a)});}
+    let best=null,bd=Infinity;
+    for(let i=0;i<verts.length;i++){
+      const a=verts[i],b=verts[(i+1)%verts.length];
+      const p=closestPtOnSeg(a,b,{x:px,y:py});const d=Math.hypot(px-p.x,py-p.y);
+      if(d<bd){bd=d;best=p;}
+    }
+    return {x:Math.round(best.x),y:Math.round(best.y)};
+  }
   // Rectangle (entity, weak-entity, etc.): project onto nearest of 4 edges
   const edges=[
     [{x,y},{x:x+w,y}],           // top
@@ -2005,7 +2215,9 @@ function findSnap(nx,ny,excludeId){
   let best=null, bd=SNAP_TH;
   const PREFER_TH=18; // radius within which center/corners override free-border
   sl.elements.forEach(el=>{
-    if((!el.type.startsWith('er-')&&!el.type.startsWith('sym-'))||el.type==='er-line'||el.type==='er-cardinality'||el.type==='sym-arrow'||el.id===excludeId)return;
+    // Exclude line/arrow types and self; allow all other elements including text, image etc.
+    if(el.type==='er-line'||el.type==='er-cardinality'||el.type==='sym-arrow'||el.id===excludeId)return;
+    if(el.x===undefined||el.y===undefined||!el.w||!el.h)return; // skip malformed/line elements
     // Gate: only consider elements whose border is within SNAP_TH
     const borderPt=projectOnBorder(el,nx,ny);
     const borderDist=Math.hypot(nx-borderPt.x,ny-borderPt.y);
@@ -2028,8 +2240,32 @@ function findSnap(nx,ny,excludeId){
         {x:Math.round((cx+x)/2),y:Math.round((y+y+h)/2)},
         {x:Math.round((cx+x+w)/2),y:Math.round((y+y+h)/2)},
         {x:cx,y:y+h});
+    } else if(t==='sym-star'){
+      // 5-point star: 5 outer tips + 5 inner notches + center
+      const ro2=Math.min(cx,cy)-1,ri2=ro2*0.42,n2=5;
+      for(let i=0;i<n2*2;i++){const a=-Math.PI/2+(i*Math.PI/n2);const r=i%2===0?ro2:ri2;preferred.push({x:Math.round(cx+r*Math.cos(a)),y:Math.round(cy+r*Math.sin(a))});}
+    } else if(t==='sym-hexagon'){
+      const r3=Math.min(cx,cy)-1;
+      for(let i=0;i<6;i++){const a=i*Math.PI/3;preferred.push({x:Math.round(cx+r3*Math.cos(a)),y:Math.round(cy+r3*Math.sin(a))});}
+      // midpoints
+      for(let i=0;i<6;i++){const a=(i+0.5)*Math.PI/3;preferred.push({x:Math.round(cx+r3*Math.cos(a)),y:Math.round(cy+r3*Math.sin(a))});}
+    } else if(t==='sym-parallelogram'){
+      const off3=w*0.2;
+      preferred.push({x:Math.round(off3),y:y},{x:x+w,y:y},{x:Math.round(x+w-off3),y:y+h},{x:x,y:y+h});
+      preferred.push({x:Math.round(cx+off3/2),y:y},{x:Math.round(cx-off3/2),y:y+h},{x:Math.round(off3/2),y:cy},{x:Math.round(x+w-off3/2),y:cy});
+    } else if(t==='sym-right-tri'){
+      preferred.push({x:x,y:y},{x:x+w,y:y+h},{x:x,y:y+h},{x:Math.round(x/2),y:Math.round((y+y+h)/2)},{x:Math.round((x+w+x)/2),y:y+h},{x:x,y:cy});
+    } else if(t==='sym-cylinder'){
+      const ry3=h*0.14;
+      preferred.push({x:cx,y:y},{x:cx,y:y+h},{x:x,y:Math.round(y+ry3)},{x:x+w,y:Math.round(y+ry3)},{x:x,y:Math.round(y+h-ry3)},{x:x+w,y:Math.round(y+h-ry3)});
+    } else if(t==='sym-circle'||t==='sym-ellipse'){
+      preferred.push({x:cx,y:y},{x:cx,y:y+h},{x:x,y:cy},{x:x+w,y:cy});
+    } else if(t==='sym-diamond'){
+      preferred.push({x:cx,y:y},{x:x+w,y:cy},{x:cx,y:y+h},{x:x,y:cy});
+    } else if(t==='sym-triangle'){
+      preferred.push({x:cx,y:y},{x:x,y:y+h},{x:x+w,y:y+h},{x:Math.round((cx+x)/2),y:Math.round((y+y+h)/2)},{x:Math.round((cx+x+w)/2),y:Math.round((y+y+h)/2)});
     } else {
-      // Rectangle: 4 corners + 4 edge midpoints
+      // Rectangle / text / image / etc.: 4 corners + 4 edge midpoints
       preferred.push(
         {x:x,y:y},{x:x+w,y:y},{x:x+w,y:y+h},{x:x,y:y+h},
         {x:cx,y:y},{x:cx,y:y+h},{x:x,y:cy},{x:x+w,y:cy}
@@ -2051,6 +2287,29 @@ document.addEventListener('mousemove',ev=>{
   if(!MS)return;
   const dx=(ev.clientX-MS.sx)/cvScale, dy=(ev.clientY-MS.sy)/cvScale;
 
+  if(MS.type==='lasso'){
+    const rect=document.getElementById('slideCV')?.getBoundingClientRect();if(!rect)return;
+    const lx1=MS.lx0,ly1=MS.ly0;
+    const lx2=(ev.clientX-rect.left)/cvScale,ly2=(ev.clientY-rect.top)/cvScale;
+    const lBox=document.getElementById('lassoBox');
+    if(lBox){
+      const sx1=rect.left+Math.min(lx1,lx2)*cvScale,sy1=rect.top+Math.min(ly1,ly2)*cvScale;
+      const sw2=Math.abs(lx2-lx1)*cvScale,sh2=Math.abs(ly2-ly1)*cvScale;
+      lBox.style.cssText=`display:block;left:${sx1}px;top:${sy1}px;width:${sw2}px;height:${sh2}px`;
+    }
+    MS._lx2=lx2;MS._ly2=ly2;
+    return;
+  }
+  if(MS.type==='move-group'){
+    MS.elIds.forEach(id=>{
+      const el=getEl(id);if(!el||!MS.data[id])return;
+      const nx=Math.round(MS.data[id].x+dx), ny=Math.round(MS.data[id].y+dy);
+      el.x=nx;el.y=ny;
+      const dom=document.getElementById('sel_'+id);
+      if(dom){dom.style.left=el.x+'px';dom.style.top=el.y+'px';}
+    });
+    return;
+  }
   if(MS.type==='move'){
     const el=getEl(MS.elId); if(!el)return;
     const nx=Math.round(MS.data.x+dx), ny=Math.round(MS.data.y+dy);
@@ -2090,6 +2349,19 @@ document.addEventListener('mousemove',ev=>{
     let ny=Math.round((ev.clientY-rect.top)/cvScale);
     const snap=findSnap(nx,ny,MS.elId);
     if(snap){nx=snap.x;ny=snap.y;}
+    else{
+      // Angle snap: magnetic within 15° of any 45° multiple; Shift forces snap regardless
+      const ox=MS.ptNum===1?el.x2:el.x1, oy=MS.ptNum===1?el.y2:el.y1;
+      const angle=Math.atan2(ny-oy,nx-ox);
+      const snapAngle=Math.round(angle/(Math.PI/4))*(Math.PI/4);
+      const angDiff=Math.abs(angle-snapAngle);
+      const SNAP_ANG_TH=Math.PI/12; // ~15° dead-zone
+      if(ev.shiftKey||angDiff<SNAP_ANG_TH){
+        const dist=Math.hypot(nx-ox,ny-oy);
+        nx=Math.round(ox+dist*Math.cos(snapAngle));
+        ny=Math.round(oy+dist*Math.sin(snapAngle));
+      }
+    }
     if(MS.ptNum===1){el.x1=nx;el.y1=ny;}else{el.x2=nx;el.y2=ny;}
     updateArrowDom(el); refreshFP(el);
     const wrap=document.getElementById('sel_'+MS.elId);
@@ -2098,11 +2370,38 @@ document.addEventListener('mousemove',ev=>{
 
   if(MS.type==='resize'){
     const el=getEl(MS.elId); if(!el)return;
-    el.w=Math.max(10,Math.round(MS.data.w+dx));
-    el.h=Math.max(2,Math.round(MS.data.h+dy));
+    const rawW=Math.max(10,Math.round(MS.data.w+dx));
+    const rawH=Math.max(2,Math.round(MS.data.h+dy));
+    // Snap size to other elements' dimensions and slide center
+    const sl2=curSlide();const sz2=slSz(sl2);
+    let sw2=rawW,sh2=rawH,bestX=SNAP,bestY=SNAP,guideX=null,guideY=null,cX='rgba(239,68,68,.85)',cY='rgba(239,68,68,.85)';
+    // Slide center alignment
+    const snapCenterW=Math.round(sz2.w/2-(el.x||0));
+    if(Math.abs(rawW-snapCenterW)<bestX){bestX=Math.abs(rawW-snapCenterW);sw2=snapCenterW;guideX=sz2.w/2;cX='rgba(59,130,246,.85)';}
+    // Other elements' edges
+    if(sl2)sl2.elements.forEach(oe=>{
+      if(oe.id===el.id||!oe.w)return;
+      // Match right edge to other right edges
+      const oRight=(oe.x||0)+(oe.w||0);const myRight=(el.x||0)+rawW;
+      const dR=Math.abs(myRight-oRight);if(dR<bestX){bestX=dR;sw2=oRight-(el.x||0);guideX=oRight;cX='rgba(239,68,68,.85)';}
+      // Match width
+      const dW=Math.abs(rawW-(oe.w||0));if(dW<bestX){bestX=dW;sw2=oe.w;guideX=(el.x||0)+oe.w/2;cX='rgba(239,68,68,.85)';}
+      const oBottom=(oe.y||0)+(oe.h||0);const myBottom=(el.y||0)+rawH;
+      const dB=Math.abs(myBottom-oBottom);if(dB<bestY){bestY=dB;sh2=oBottom-(el.y||0);guideY=oBottom;cY='rgba(239,68,68,.85)';}
+      const dH=Math.abs(rawH-(oe.h||0));if(dH<bestY){bestY=dH;sh2=oe.h;guideY=(el.y||0)+oe.h/2;cY='rgba(239,68,68,.85)';}
+    });
+    el.w=Math.max(10,sw2);el.h=Math.max(2,sh2);
     const dom=document.getElementById('sel_'+MS.elId);
     if(dom){dom.style.width=el.w+'px';dom.style.height=el.h+'px';}
+    // Show guides
+    const sRect2=document.getElementById('slideCV')?.getBoundingClientRect();
+    if(sRect2){
+      const gH=document.getElementById('gH'),gV=document.getElementById('gV');
+      if(guideY!==null){gH.style.display='block';gH.style.top=(sRect2.top+guideY*cvScale)+'px';gH.style.background=cY;gH.style.boxShadow=`0 0 4px ${cY}`;}else{gH.style.display='none';}
+      if(guideX!==null){gV.style.display='block';gV.style.left=(sRect2.left+guideX*cvScale)+'px';gV.style.background=cX;gV.style.boxShadow=`0 0 4px ${cX}`;}else{gV.style.display='none';}
+    }
     if(el.type&&el.type.startsWith('er-'))updateERSVG(el);
+    if(el.type&&el.type.startsWith('sym-')&&el.type!=='sym-arrow')updateSymSVG(el);
     refreshFP(el);
   }
 
@@ -2124,6 +2423,31 @@ document.addEventListener('mouseup',()=>{
   document.body.classList.remove('er-element-moving');
   // Restore CSS control over er-line endpoint handles (clear inline style set by startMove)
   document.querySelectorAll('.er-line-pt').forEach(p=>{p.style.display='';});
+  if(MS&&MS.type==='lasso'){
+    const lBox=document.getElementById('lassoBox');if(lBox)lBox.style.display='none';
+    const lx1=Math.min(MS.lx0,MS._lx2||MS.lx0),ly1=Math.min(MS.ly0,MS._ly2||MS.ly0);
+    const lx2=Math.max(MS.lx0,MS._lx2||MS.lx0),ly2=Math.max(MS.ly0,MS._ly2||MS.ly0);
+    if(lx2-lx1>4||ly2-ly1>4){ // only if dragged a meaningful distance
+      const sl=curSlide();
+      if(sl)sl.elements.forEach(el=>{
+        if(!el.x&&el.x!==0)return;
+        const ex=el.x||0,ey=el.y||0,ew=el.w||0,eh=el.h||0;
+        const inLasso=(ex<lx2&&ex+ew>lx1&&ey<ly2&&ey+eh>ly1);
+        if(inLasso){
+          _multiSel.add(el.id);
+          const d=document.getElementById('sel_'+el.id);if(d)d.classList.add('multi-selected');
+        }
+      });
+    }
+    MS=null;return;
+  }
+  if(MS&&MS.type==='move-group'){
+    // Check if anything actually moved
+    let changed=false;
+    MS.elIds.forEach(id=>{const el=getEl(id);if(el&&MS.data[id]&&(el.x!==MS.data[id].x||el.y!==MS.data[id].y))changed=true;});
+    if(changed&&MS.snap){_undoStack.push(MS.snap);if(_undoStack.length>UNDO_MAX)_undoStack.shift();_redoStack=[];_updateHistBtns();}
+    MS=null;hideGuides();hideConnDots();return;
+  }
   if(MS&&(MS.type==='move'||MS.type==='move-line'||MS.type==='resize'||MS.type==='drag-pt'||MS.type==='move-arrow'||MS.type==='drag-arrow-pt')){
     const el=getEl(MS.elId);
     let changed=false;
@@ -2216,7 +2540,16 @@ document.addEventListener('keydown',ev=>{
   // Undo / Redo
   if((ev.ctrlKey||ev.metaKey)&&!ev.shiftKey&&ev.key.toLowerCase()==='z'&&!isEdit(ev.target)){ev.preventDefault();edUndo();return;}
   if((ev.ctrlKey||ev.metaKey)&&(ev.key.toLowerCase()==='y'||(ev.shiftKey&&ev.key.toLowerCase()==='z'))&&!isEdit(ev.target)){ev.preventDefault();edRedo();return;}
-  if(ev.key==='Delete'&&selElId&&!isEdit(ev.target)){deleteEl(selElId);return;}
+  if(ev.key==='Delete'&&!isEdit(ev.target)){
+    if(_multiSel.size>0){
+      const snap=_snapElements('Gruppe gelöscht');
+      _multiSel.forEach(id=>deleteElById(id));
+      _multiSel.clear();
+      if(snap){_undoStack.push(snap);if(_undoStack.length>UNDO_MAX)_undoStack.shift();_redoStack=[];_updateHistBtns();}
+      return;
+    }
+    if(selElId){deleteEl(selElId);return;}
+  }
   if(selElId&&!isEdit(ev.target)&&['ArrowLeft','ArrowRight','ArrowUp','ArrowDown'].includes(ev.key)){
     ev.preventDefault(); const el=getEl(selElId); if(!el)return; const step=ev.shiftKey?10:1;
     if(el.type==='er-line'){
@@ -2266,7 +2599,7 @@ function syncSavedToEl(){
     const el=getEl(activeRTBEl);
     const dom=document.getElementById('sel_'+activeRTBEl);
     const ce=dom?.querySelector('.el-text');
-    if(el&&ce)el.html=ce.innerHTML;
+    if(el&&ce){el.html=ce.innerHTML;pushHistoryDebounced('Textformatierung geändert');}
   } else if(adminScreen==='notizen'){
     scheduleNoteSave();
   }
