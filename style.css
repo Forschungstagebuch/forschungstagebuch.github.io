@@ -152,6 +152,7 @@ body::after{content:'';position:fixed;inset:0;pointer-events:none;z-index:9990;b
 /* Restore list indentation inside slide thumbnails (global reset removes it) */
 .ec-slide-preview ul,.ec-slide-preview ol,
 .sp-item-thumb ul,.sp-item-thumb ol{padding-left:22px;margin-top:2px;margin-bottom:2px;list-style-position:outside}
+.sp-item-thumb ul ul,.sp-item-thumb ol ol{padding-left:16px;margin:0}
 .ec-slide-hint{position:absolute;inset:0;background:rgba(0,0,0,.45);display:flex;align-items:center;justify-content:center;font-size:12px;color:var(--text2);opacity:0;transition:opacity .2s;z-index:2}
 .ec-slide-item:hover .ec-slide-hint{opacity:1}
 
@@ -331,7 +332,18 @@ body::after{content:'';position:fixed;inset:0;pointer-events:none;z-index:9990;b
 .sel-rh{display:none;position:absolute;right:-5px;bottom:-5px;width:12px;height:12px;background:var(--gold);border-radius:3px;cursor:se-resize;z-index:13;box-shadow:0 2px 6px rgba(0,0,0,.5)}
 .sel.selected .sel-rh{display:block}
 .sel.multi-selected .sel-bd{border-color:rgba(232,160,48,.55);border-style:dashed}
+.er-line-el.multi-selected{outline:2px dashed rgba(232,160,48,.6);outline-offset:2px}
 #lassoBox{position:fixed;border:1.5px dashed rgba(232,160,48,.8);background:rgba(232,160,48,.06);pointer-events:none;display:none;z-index:9999;box-sizing:border-box}
+.fmt-multi-row{display:flex;align-items:center;gap:8px;padding:7px 10px;border-radius:7px;cursor:pointer;border:1px solid var(--bd2);margin-bottom:5px;transition:background .15s,border-color .15s;user-select:none}
+.fmt-multi-row:hover{background:var(--bg2);border-color:rgba(232,160,48,.3)}
+.fmt-multi-row.active{background:var(--gdim);border-color:rgba(232,160,48,.55)}
+.fmt-multi-icon{font-size:13px;width:18px;text-align:center;flex-shrink:0;color:var(--gold)}
+.fmt-multi-lbl{flex:1;font-size:12px;color:var(--text)}
+.fmt-multi-arr{font-size:13px;color:var(--text3);transition:color .15s}
+.fmt-multi-row.active .fmt-multi-arr{color:var(--gold)}
+#fmtMultiSub .sec-hdr{margin-top:0}
+#fmtCtrlSub{padding:0}
+
 
 /* Element content */
 .el-text{width:100%;height:100%;outline:none;border:none;background:transparent;padding:6px 12px 6px 12px;word-break:break-word;cursor:text;overflow:auto;-webkit-user-modify:read-write;display:block;box-sizing:border-box;position:relative}
@@ -340,6 +352,14 @@ body::after{content:'';position:fixed;inset:0;pointer-events:none;z-index:9990;b
 .el-text > *:first-child{margin-top:0!important;margin-block-start:0!important}
 .el-text p{margin:0}.el-text div:not([class]){margin:0}
 .el-text ul,.el-text ol{padding-left:22px;margin-top:2px;margin-bottom:2px}
+.el-text ul ul,.el-text ol ol,.el-text ul ol,.el-text ol ul{padding-left:20px;margin-top:0;margin-bottom:0}
+.el-text ul{list-style-type:disc}
+.el-text ul ul{list-style-type:circle}
+.el-text ul ul ul{list-style-type:square}
+.el-text ol{list-style-type:decimal}
+.el-text ol ol{list-style-type:lower-alpha}
+.el-text ol ol ol{list-style-type:lower-roman}
+.el-text li{margin:1px 0}
 /* Prevent extra gap from block-level wrappers browsers inject */
 .el-text > br:only-child{display:none}
 .el-code{width:100%;height:100%;outline:none;border:none;background:transparent;font-family:'JetBrains Mono',monospace;font-size:13px;color:#7dd3fc;padding:12px 14px;white-space:pre;overflow:auto;line-height:1.7;cursor:text}
@@ -735,3 +755,74 @@ select.fmt-inp option,select.fmt-inp optgroup{background:var(--bg1);color:var(--
   outline:none;
 }
 .srch-wrap input::placeholder{color:var(--text3);}
+/* ---- Spell checker ---- */
+.spell-layer{position:absolute;pointer-events:none;overflow:visible;z-index:20}
+.spell-u,.grammar-u{
+  position:absolute;pointer-events:auto;cursor:text;
+}
+.spell-u::after,.grammar-u::after{
+  content:'';position:absolute;left:0;right:0;bottom:0;height:3px;
+  background-size:7px 100%;transition:filter .12s;
+}
+.spell-u::after{
+  background:repeating-linear-gradient(90deg,transparent 0,transparent 2px,#ef4444 2px,#ef4444 4px,transparent 4px,transparent 5px,#ef4444 5px,#ef4444 7px);
+}
+.grammar-u::after{
+  background:repeating-linear-gradient(90deg,transparent 0,transparent 2px,#60a5fa 2px,#60a5fa 4px,transparent 4px,transparent 5px,#60a5fa 5px,#60a5fa 7px);
+}
+.spell-u:hover::after,.grammar-u:hover::after{filter:brightness(1.3)}
+
+/* Spell popup */
+#spellPopup{
+  position:fixed;z-index:9999;min-width:148px;max-width:210px;
+  background:#161210;border:1px solid rgba(232,160,48,.3);border-radius:9px;
+  box-shadow:0 10px 32px rgba(0,0,0,.75);padding:5px;
+  display:flex;flex-direction:column;gap:1px;
+}
+.sp-pop-word{font-size:10px;font-weight:700;padding:4px 9px 5px;border-bottom:1px solid rgba(255,255,255,.07);margin-bottom:2px;letter-spacing:.02em}
+.sp-pop-word-spell{color:#f87171}
+.sp-pop-word-grammar{color:#93c5fd}
+.sp-pop-msg{font-size:10.5px;color:var(--text3);padding:2px 9px 5px;line-height:1.4;border-bottom:1px solid rgba(255,255,255,.05);margin-bottom:2px}
+.sp-pop-sugg{background:none;border:none;text-align:left;padding:5px 10px;color:var(--text1);font-size:12.5px;cursor:pointer;border-radius:5px;transition:background .1s}
+.sp-pop-sugg:hover{background:rgba(232,160,48,.16);color:var(--gold)}
+.sp-pop-none{font-size:11px;color:var(--text3);padding:4px 10px}
+.sp-pop-sep{height:1px;background:rgba(255,255,255,.06);margin:3px 0}
+.sp-pop-add{background:none;border:none;text-align:left;padding:5px 10px;color:var(--text3);font-size:11px;cursor:pointer;border-radius:5px;transition:background .1s;display:flex;align-items:center;gap:6px}
+.sp-pop-add:hover{background:rgba(134,239,172,.08);color:#86efac}
+
+/* Dictionary modal */
+.dict-modal-box{width:380px;max-height:520px;display:flex;flex-direction:column}
+.dict-hint{font-size:11px;color:var(--text3);margin:0 0 10px;line-height:1.5}
+.dict-add-row{display:flex;gap:6px;align-items:center;margin-bottom:10px}
+.dict-word-list{flex:1;overflow-y:auto;display:flex;flex-direction:column;gap:3px;min-height:80px}
+.dict-word-list::-webkit-scrollbar{width:3px}.dict-word-list::-webkit-scrollbar-thumb{background:var(--bg4);border-radius:2px}
+.dict-row{display:flex;align-items:center;justify-content:space-between;padding:5px 8px;border-radius:5px;background:rgba(255,255,255,.04)}
+.dict-word{font-size:12px;color:var(--text1)}
+.dict-del{background:none;border:none;color:var(--text3);cursor:pointer;font-size:12px;padding:2px 5px;border-radius:3px;transition:color .12s}
+.dict-del:hover{color:#f87171}
+.dict-empty{font-size:11px;color:var(--text3);padding:12px 8px;text-align:center}
+
+/* Dictionary open button in Format panel */
+.dict-open-btn{width:100%;margin-top:6px;padding:6px 10px;background:rgba(255,255,255,.04);border:1px solid var(--bd);border-radius:6px;color:var(--text2);font-size:11px;cursor:pointer;display:flex;align-items:center;gap:7px;transition:background .15s,color .15s}
+.dict-open-btn:hover{background:rgba(232,160,48,.1);color:var(--gold)}
+
+/* ---- Editor status bar ---- */
+.ed-status-bar{
+  position:absolute;bottom:0;left:0;right:0;height:26px;
+  background:rgba(0,0,0,.72);backdrop-filter:blur(6px);
+  border-top:1px solid rgba(255,255,255,.07);
+  display:flex;align-items:center;justify-content:space-between;
+  padding:0 14px;pointer-events:auto;z-index:30;
+  font-family:'JetBrains Mono',monospace;font-size:10.5px;
+}
+.ed-status-words{display:flex;align-items:center;gap:5px;color:var(--text2)}
+.ed-status-dim{color:var(--text3)}
+.ed-status-sep{color:var(--text3);margin:0 2px}
+.ed-status-lang{display:flex;align-items:center;gap:4px}
+.ed-lang-btn{
+  background:none;border:none;font-family:'JetBrains Mono',monospace;
+  font-size:10.5px;color:var(--text3);cursor:pointer;padding:2px 5px;
+  border-radius:3px;transition:color .12s,background .12s;
+}
+.ed-lang-btn:hover{color:var(--text1);background:rgba(255,255,255,.07)}
+.ed-lang-btn.active{color:var(--gold);background:var(--gdim)}

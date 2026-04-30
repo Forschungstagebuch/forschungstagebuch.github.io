@@ -747,7 +747,11 @@ function buildArrowDom(el){
   hitLine.setAttribute('x2',sx2);hitLine.setAttribute('y2',sy2);
   hitLine.setAttribute('stroke','transparent');hitLine.setAttribute('stroke-width','20');
   hitLine.setAttribute('stroke-linecap','round');hitLine.style.cursor='move';
-  hitLine.addEventListener('mousedown',ev=>{ev.stopPropagation();selectLine(el.id);startMoveArrow(el.id,ev);});
+  hitLine.addEventListener('mousedown',ev=>{
+    ev.stopPropagation();
+    if(_multiSel.size>0&&_multiSel.has(el.id)){startGroupMove(ev);return;}
+    selectLine(el.id);startMoveArrow(el.id,ev);
+  });
   svgHit.appendChild(hitLine);wrap.appendChild(svgHit);
   [1,2].forEach(pn=>{
     const pt=document.createElement('div');pt.className='er-line-pt';pt.dataset.pt=pn;
@@ -831,7 +835,8 @@ function mkThumb(slide, tw){
       const ex=el.x||0, ey=el.y||0, ew=Math.max(1,el.w||10), eh=Math.max(1,el.h||10);
       const bgS=(st.background&&st.background!=='transparent')?`background:${st.background};`:'';
       const radS=st.borderRadius?`border-radius:${st.borderRadius}px;`:'';
-      posStyle=`left:${ex}px;top:${ey}px;width:${ew}px;height:${eh}px;overflow:hidden;${bgS}${radS}`;
+      const bdS=(st.borderWidth&&st.borderWidth>0&&st.borderColor)?`box-shadow:0 0 0 ${st.borderWidth}px ${st.borderColor};`:'';
+      posStyle=`left:${ex}px;top:${ey}px;width:${ew}px;height:${eh}px;overflow:hidden;${bgS}${radS}${bdS}`;
 
       if(el.type==='title'||el.type==='text'){
         // Render at natural size — text fully visible, no font scaling hacks needed
@@ -1175,6 +1180,10 @@ function openEditor(id, slideIdx=0){
   document.getElementById('editorView').classList.add('open');
   edTab('ins'); cvScale=1; cvOffX=0; cvOffY=0;
   populateSlideMeta(); renderSlide(); renderSpanel(); setTimeout(fitSlide,50);
+  SC.init(); // start loading dictionaries in background
+  setTimeout(updateWordCount, 200);
+  // Set initial language button state
+  setSpellLang('de-DE');
 }
 function curSlide(){return edEntry?.slides?.[edSlideIdx]||edEntry?.slides?.[0];}
 function hasChanges(){
@@ -1353,6 +1362,13 @@ function fitSlide(){
 function applyTf(){
   document.getElementById('slideCV').style.transform=`translate(${cvOffX}px,${cvOffY}px) scale(${cvScale})`;
   document.getElementById('edZoomPct').textContent=Math.round(cvScale*100)+'%';
+  // Re-render spell underlay positions after zoom/pan since they use getBoundingClientRect
+  clearTimeout(applyTf._scTimer);
+  applyTf._scTimer=setTimeout(()=>{
+    (curSlide()?.elements||[]).forEach(el=>{
+      if(el.type==='title'||el.type==='text') SC.renderLayer(el.id);
+    });
+  },120);
 }
 function toggleGrid(on){document.getElementById('slideCV').classList.toggle('grid-on',on);}
 document.addEventListener('wheel',ev=>{
@@ -1397,6 +1413,13 @@ function renderSlide(){
     else if(el.type==='sym-arrow') slide.appendChild(buildArrowDom(el));
     else slide.appendChild(buildElDOM(el));
   });
+  // Schedule spell check for all text elements after DOM is settled
+  setTimeout(()=>{
+    els.forEach(el=>{
+      if(el.type==='title'||el.type==='text') SC.scheduleCheck(el.id, 400);
+    });
+    updateWordCount();
+  }, 50);
 }
 
 /* ── Build element DOM ── */
@@ -1431,6 +1454,7 @@ function buildElDOM(el){
         if(d)d.classList.add('multi-selected');
         selElId=el.id; // keep as primary
       }
+      edTab('fmt');populateMultiFmt();
       return;
     }
     if(_multiSel.size>0&&_multiSel.has(el.id)){
@@ -1454,6 +1478,45 @@ function buildElDOM(el){
 }
 
 function typeLabel(t){return{title:'Überschrift',text:'Text',code:'Code',sql:'SQL',image:'Bild',divider:'Linie',badge:'Badge','er-entity':'Entität','er-weak-entity':'Schwache Entität','er-relation':'Beziehungstyp','er-weak-relation':'Schw. Beziehungstyp','er-attribute':'Attribut','er-key-attribute':'Schlüsselattr.','er-multi-attribute':'Mehrwertiger Attr.','er-derived-attr':'Abgel. Attribut','er-isa':'IS-A','er-line':'Verbindungslinie','er-cardinality':'Kardinalität','sym-rect':'Rechteck','sym-rounded-rect':'Abg. Rechteck','sym-circle':'Kreis','sym-ellipse':'Ellipse','sym-triangle':'Dreieck','sym-right-tri':'Rechtes Dreieck','sym-diamond':'Raute','sym-hexagon':'Sechseck','sym-parallelogram':'Parallelogramm','sym-star':'Stern','sym-cylinder':'Zylinder','sym-arrow':'Pfeil'}[t]||t;}
+
+function _closestLI(node, root){
+  while(node&&node!==root){if(node.nodeName==='LI')return node;node=node.parentNode;}
+  return null;
+}
+function _indentLI(li, root){
+  if(!li||li.nodeName!=='LI')return;
+  const parentList=li.parentNode; // <ul> or <ol>
+  if(!parentList)return;
+  const prevLI=li.previousElementSibling;
+  if(!prevLI||prevLI.nodeName!=='LI'){
+    // No previous sibling — already at start of list, can't indent further
+    return;
+  }
+  // Find or create a sub-list inside prevLI
+  let subList=prevLI.querySelector(':scope > ul, :scope > ol');
+  if(!subList){
+    subList=document.createElement(parentList.nodeName); // same tag as parent (ul/ol)
+    prevLI.appendChild(subList);
+  }
+  subList.appendChild(li);
+}
+function _outdentLI(li, root){
+  if(!li||li.nodeName!=='LI')return;
+  const parentList=li.parentNode; // <ul> or <ol> this LI lives in
+  if(!parentList)return;
+  const grandparentLI=parentList.parentNode; // might be <li> if nested
+  if(!grandparentLI||grandparentLI.nodeName!=='LI'){
+    // Already at top level — nothing to do
+    return;
+  }
+  const greatGrandparentList=grandparentLI.parentNode; // outer <ul>/<ol>
+  if(!greatGrandparentList)return;
+  // Insert li after grandparentLI in the outer list
+  const after=grandparentLI.nextSibling;
+  greatGrandparentList.insertBefore(li, after);
+  // Clean up empty sub-list if nothing left
+  if(parentList.children.length===0)parentList.remove();
+}
 
 function buildInnerContent(el, readOnly, canRunSql=false){
   const st=el.style||{};
@@ -1481,6 +1544,8 @@ function buildInnerContent(el, readOnly, canRunSql=false){
         if(!_histPushed){pushHistory('Text bearbeitet');_histPushed=true;}
         const e=getEl(el.id);if(e)e.html=div.innerHTML;_spRefresh();
         _checkEmpty();
+        SC.scheduleCheck(el.id);     // re-draw after debounce, keeps old underlines visible
+        updateWordCount();
       });
       div.addEventListener('paste',ev=>{
         ev.preventDefault();ev.stopPropagation();
@@ -1506,8 +1571,24 @@ function buildInnerContent(el, readOnly, canRunSql=false){
         }
         if(inList){
           ev.preventDefault();ev.stopPropagation();
-          if(ev.shiftKey){document.execCommand('outdent');}
-          else{document.execCommand('indent');}
+          // Collapse selection to only the LI items that are actually selected,
+          // so indent/outdent doesn't bleed into adjacent items.
+          const range=sel.getRangeAt(0);
+          const startLI=_closestLI(range.startContainer,div);
+          const endLI=_closestLI(range.endContainer,div);
+          if(startLI&&endLI&&startLI!==endLI){
+            // Multi-LI selection: indent each selected LI individually
+            const lis=[startLI];
+            let cur=startLI.nextElementSibling;
+            while(cur&&cur!==endLI.nextElementSibling){if(cur.nodeName==='LI')lis.push(cur);cur=cur.nextElementSibling;}
+            lis.forEach(li=>{
+              if(ev.shiftKey){_outdentLI(li,div);}
+              else{_indentLI(li,div);}
+            });
+          } else {
+            if(ev.shiftKey){_outdentLI(startLI||node,div);}
+            else{_indentLI(startLI||node,div);}
+          }
           const e=getEl(el.id);if(e)e.html=div.innerHTML;_spRefresh();
         }
       });
@@ -1732,13 +1813,16 @@ function selectEl(id){
   const dom=document.getElementById('sel_'+id);
   if(dom){dom.classList.add('selected');dom.style.zIndex=++zMax;}
   const el=getEl(id); if(!el)return;
+  const mc=document.getElementById('fmtMultiCtrl');if(mc)mc.style.display='none';
   edTab('fmt'); populateFmt(el);
+  if(el.type==='title'||el.type==='text') SC.scheduleCheck(id, 800);
 }
 function selectLine(id){
   deselectAll(); selElId=id;
   const dom=document.getElementById('sel_'+id);
   if(dom){dom.classList.add('selected');dom.style.zIndex=++zMax;}
   const el=getEl(id); if(!el)return;
+  const mc=document.getElementById('fmtMultiCtrl');if(mc)mc.style.display='none';
   edTab('fmt'); populateFmt(el);
 }
 function deselectAll(){
@@ -1749,7 +1833,224 @@ function deselectAll(){
   selElId=null;
   document.getElementById('fmtEmpty').style.display='block';
   document.getElementById('fmtCtrl').style.display='none';
+  const mc=document.getElementById('fmtMultiCtrl');if(mc)mc.style.display='none';
   hideConnDots();
+}
+
+/* ════════ MULTI-SELECTION FORMAT PANEL ════════ */
+function populateMultiFmt(){
+  const ids=[..._multiSel];
+  if(ids.length===0){deselectAll();return;}
+  document.getElementById('fmtEmpty').style.display='none';
+  document.getElementById('fmtCtrl').style.display='none';
+  let mc=document.getElementById('fmtMultiCtrl');
+  if(!mc){
+    mc=document.createElement('div');mc.id='fmtMultiCtrl';
+    document.getElementById('fmtCtrl').parentNode.appendChild(mc);
+  }
+  mc.style.display='block';
+  mc.innerHTML=`<div class="fmt-type-pill" style="margin-bottom:10px">${ids.length} Elemente ausgewählt</div>
+    <div style="font-size:11px;color:var(--text2);margin-bottom:8px">Element anklicken zum Bearbeiten:</div>
+    <div id="fmtMultiList"></div>
+    <div id="fmtMultiSub" style="margin-top:12px;border-top:1px solid var(--border);padding-top:12px;display:none"></div>`;
+  const list=mc.querySelector('#fmtMultiList');
+  ids.forEach(id=>{
+    const el=getEl(id); if(!el)return;
+    const row=document.createElement('div');
+    row.className='fmt-multi-row';
+    row.dataset.elid=id;
+    row.innerHTML=`<span class="fmt-multi-icon">${_multiTypeIcon(el.type)}</span><span class="fmt-multi-lbl">${typeLabel(el.type)}</span><span class="fmt-multi-arr">›</span>`;
+    row.addEventListener('click',()=>{
+      list.querySelectorAll('.fmt-multi-row').forEach(r=>r.classList.remove('active'));
+      row.classList.add('active');
+      _showMultiSub(el);
+    });
+    list.appendChild(row);
+  });
+}
+
+function _multiTypeIcon(type){
+  if(type==='title')return '𝐓';
+  if(type==='text')return '¶';
+  if(type==='image')return '🖼';
+  if(type==='code')return '<>';
+  if(type==='sym-arrow')return '↗';
+  if(type&&type.startsWith('er-'))return '◇';
+  if(type&&type.startsWith('sym-'))return '⬡';
+  return '▭';
+}
+
+function _showMultiSub(el){
+  const sub=document.getElementById('fmtMultiSub'); if(!sub)return;
+  sub.style.display='block';
+  // Temporarily set selElId so populateFmt controls work
+  const prev=selElId; selElId=el.id;
+  // Build a mini clone of fmtCtrl showing only relevant sections
+  sub.innerHTML=`<div style="font-size:11px;font-weight:600;color:var(--gold);margin-bottom:10px;text-transform:uppercase;letter-spacing:.04em">${typeLabel(el.type)}</div>`;
+  const clone=document.getElementById('fmtCtrl').cloneNode(true);
+  clone.id='fmtCtrlSub'; clone.style.display='block';
+  // Remove delete button and position controls from sub (not needed for individual config in group)
+  const delBtn=clone.querySelector('.btn-del-el'); if(delBtn)delBtn.remove();
+  sub.appendChild(clone);
+  // Now populate the cloned controls — we need to wire them to this element
+  _populateFmtInto(el, clone);
+  selElId=prev;
+}
+
+function _populateFmtInto(el, container){
+  const st=el.style||{}, erS=el.erStyle||{};
+  const isText=el.type==='title'||el.type==='text';
+  const isER=el.type&&el.type.startsWith('er-')&&el.type!=='er-line'&&el.type!=='er-cardinality';
+  const isLine=el.type==='er-line';
+  const isSym=el.type&&el.type.startsWith('sym-')&&el.type!=='sym-arrow';
+  const isArrow=el.type==='sym-arrow';
+  const pill=container.querySelector('#fmtTypePill');if(pill)pill.style.display='none';
+  const hide=id=>{const d=container.querySelector('#'+id);if(d)d.style.display='none';};
+  const show=id=>{const d=container.querySelector('#'+id);if(d)d.style.display='block';};
+  hide('fmtTextSec');hide('fmtERSec');hide('fmtLineSec');hide('fmtSymSec');hide('fmtArrowSec');
+  if(isText)show('fmtTextSec'); if(isER)show('fmtERSec'); if(isLine)show('fmtLineSec');
+  if(isSym)show('fmtSymSec'); if(isArrow)show('fmtArrowSec');
+  // Populate values
+  if(isText){
+    const f=container.querySelector('#fmtFont');if(f)f.value=st.fontFamily||"'DM Sans',sans-serif";
+    const s=container.querySelector('#fmtSize');if(s)s.value=st.fontSize||14;
+    const c=container.querySelector('#fmtColor');if(c)c.value=toHex(st.color||'#e4ddd0');
+    const lh=container.querySelector('#fmtLH');if(lh)lh.value=st.lineHeight||1.6;
+    const tbc=container.querySelector('#fmtTextBorderColor');if(tbc)tbc.value=toHex(st.borderColor||'#888077');
+    const tbw=container.querySelector('#fmtTextBorderWidth');if(tbw)tbw.value=st.borderWidth||0;
+    const nb=container.querySelector('#fmtTextNoBorder');if(nb)nb.checked=!st.borderWidth||st.borderWidth===0;
+  }
+  if(isER){
+    const sto=container.querySelector('#fmtStroke');if(sto)sto.value=toHex(erS.stroke||'#e8a030');
+    const fi=container.querySelector('#fmtFill');if(fi)fi.value=toHex(erS.fill==='transparent'?'#000000':erS.fill||'#000000');
+    const sw=container.querySelector('#fmtSW');if(sw)sw.value=erS.strokeWidth||2;
+    const da=container.querySelector('#fmtDash');if(da)da.checked=!!erS.dashed;
+  }
+  if(isLine){
+    const lc=container.querySelector('#fmtLC');if(lc)lc.value=toHex(erS.stroke||'#888077');
+    const lsw=container.querySelector('#fmtLSW');if(lsw)lsw.value=erS.strokeWidth||2;
+    const ld=container.querySelector('#fmtLDash');if(ld)ld.checked=!!erS.dashed;
+  }
+  if(isSym){
+    const symS=el.symStyle||{};
+    const ss=container.querySelector('#fmtSymStroke');if(ss)ss.value=toHex(symS.stroke||'#e8a030');
+    const sf=container.querySelector('#fmtSymFill');if(sf)sf.value=toHex(symS.fill==='transparent'?'#000000':symS.fill||'#000000');
+    const ssw=container.querySelector('#fmtSymSW');if(ssw)ssw.value=symS.strokeWidth||2;
+    const sd=container.querySelector('#fmtSymDash');if(sd)sd.checked=!!symS.dashed;
+    const sc=container.querySelector('#fmtSymColor');if(sc)sc.value=toHex(el.style?.color||'#e4ddd0');
+    const sfs=container.querySelector('#fmtSymFontSize');if(sfs)sfs.value=el.style?.fontSize||13;
+  }
+  if(isArrow){
+    const arS=el.arrowStyle||{};
+    const ac=container.querySelector('#fmtArrowColor');if(ac)ac.value=toHex(arS.stroke||'#e8a030');
+    const asw=container.querySelector('#fmtArrowSW');if(asw)asw.value=arS.strokeWidth||2;
+    const ad=container.querySelector('#fmtArrowDash');if(ad)ad.checked=!!arS.dashed;
+    const ast=container.querySelector('#fmtArrowStart');if(ast)ast.value=arS.startType||'none';
+    const aen=container.querySelector('#fmtArrowEnd');if(aen)aen.value=arS.endType||'filled';
+    const asz=container.querySelector('#fmtArrowSize');if(asz)asz.value=arS.markerSize||9;
+  }
+  const bg=st.background||'transparent';
+  const bgT=container.querySelector('#fmtBgT');if(bgT)bgT.checked=!bg||bg==='transparent';
+  const bgC=container.querySelector('#fmtBg');if(bgC)bgC.value=(!bg||bg==='transparent')?'#000000':toHex(bg);
+  const rad=container.querySelector('#fmtRad');if(rad)rad.value=st.borderRadius||0;
+  const radV=container.querySelector('#fmtRadV');if(radV)radV.textContent=st.borderRadius||0;
+  const radRow=container.querySelector('#fmtRadRow');if(radRow)radRow.style.display=(isER||isLine)?'none':'block';
+  // Populate position fields
+  if(isArrow){
+    const b=arrBounds(el);
+    const xi=container.querySelector('#fmtX');if(xi)xi.value=Math.round(b.lx);
+    const yi=container.querySelector('#fmtY');if(yi)yi.value=Math.round(b.ly);
+    const wi=container.querySelector('#fmtW');if(wi)wi.value=Math.round(b.w);
+    const hi=container.querySelector('#fmtH');if(hi)hi.value=Math.round(b.h);
+  } else if(isLine){
+    const b=lnBounds(el);
+    const xi=container.querySelector('#fmtX');if(xi)xi.value=Math.round(b.lx);
+    const yi=container.querySelector('#fmtY');if(yi)yi.value=Math.round(b.ly);
+    const wi=container.querySelector('#fmtW');if(wi)wi.value=Math.round(b.w);
+    const hi=container.querySelector('#fmtH');if(hi)hi.value=Math.round(b.h);
+  } else {
+    const xi=container.querySelector('#fmtX');if(xi)xi.value=Math.round(el.x||0);
+    const yi=container.querySelector('#fmtY');if(yi)yi.value=Math.round(el.y||0);
+    const wi=container.querySelector('#fmtW');if(wi)wi.value=Math.round(el.w||0);
+    const hi=container.querySelector('#fmtH');if(hi)hi.value=Math.round(el.h||0);
+  }
+  // Wire all inputs to apply changes to this specific element
+  _wireMultiSubInputs(container, el);
+}
+
+function _wireMultiSubInputs(container, el){
+  // Remove old oninput/onchange attrs from cloned nodes and add new listeners
+  const rewire=(sel, applyFn)=>{
+    const d=container.querySelector(sel); if(!d)return;
+    d.oninput=null; d.onchange=null;
+    d.addEventListener('input', ()=>applyFn(d));
+    d.addEventListener('change', ()=>applyFn(d));
+  };
+  const isText=el.type==='title'||el.type==='text';
+  const isER=el.type&&el.type.startsWith('er-')&&el.type!=='er-line'&&el.type!=='er-cardinality';
+  const isLine=el.type==='er-line';
+  const isSym=el.type&&el.type.startsWith('sym-')&&el.type!=='sym-arrow';
+  const isArrow=el.type==='sym-arrow';
+  const applyElStyle=(prop,val)=>{
+    pushHistoryDebounced('Gruppenformatierung geändert');
+    el.style=el.style||{}; el.style[prop]=val;
+    const dom=document.getElementById('sel_'+el.id);
+    if(dom){
+      if(prop==='borderRadius')dom.style.borderRadius=val+'px';
+      if(prop==='background')dom.style.background=(!val||val==='transparent')?'':val;
+      const inn=dom.querySelector('.el-text');
+      if(inn&&['fontFamily','fontSize','color','lineHeight'].includes(prop)){
+        if(prop==='fontSize')inn.style.fontSize=val+'px'; else inn.style[prop]=val;
+      }
+    }
+    _spRefresh();
+  };
+  if(isText){
+    rewire('#fmtFont', d=>applyElStyle('fontFamily',d.value));
+    rewire('#fmtSize', d=>applyElStyle('fontSize',+d.value));
+    rewire('#fmtColor', d=>applyElStyle('color',d.value));
+    rewire('#fmtLH', d=>applyElStyle('lineHeight',+d.value));
+    rewire('#fmtTextBorderColor', d=>applyElStyle('borderColor',d.value));
+    rewire('#fmtTextBorderWidth', d=>applyElStyle('borderWidth',+d.value));
+  }
+  if(isER){
+    rewire('#fmtStroke', d=>{pushHistoryDebounced('ER-Stil geändert');el.erStyle=el.erStyle||{};el.erStyle.stroke=d.value;updateERSVG(el);_spRefresh();});
+    rewire('#fmtFill', d=>{pushHistoryDebounced('ER-Stil geändert');el.erStyle=el.erStyle||{};el.erStyle.fill=d.value;updateERSVG(el);_spRefresh();});
+    rewire('#fmtSW', d=>{pushHistoryDebounced('ER-Stil geändert');el.erStyle=el.erStyle||{};el.erStyle.strokeWidth=+d.value;updateERSVG(el);_spRefresh();});
+    rewire('#fmtDash', d=>{pushHistoryDebounced('ER-Stil geändert');el.erStyle=el.erStyle||{};el.erStyle.dashed=d.checked;updateERSVG(el);_spRefresh();});
+  }
+  if(isLine){
+    rewire('#fmtLC', d=>{pushHistoryDebounced('Linienstil geändert');el.erStyle=el.erStyle||{};el.erStyle.stroke=d.value;updateLineDom(el);_spRefresh();});
+    rewire('#fmtLSW', d=>{pushHistoryDebounced('Linienstil geändert');el.erStyle=el.erStyle||{};el.erStyle.strokeWidth=+d.value;updateLineDom(el);_spRefresh();});
+    rewire('#fmtLDash', d=>{pushHistoryDebounced('Linienstil geändert');el.erStyle=el.erStyle||{};el.erStyle.dashed=d.checked;updateLineDom(el);_spRefresh();});
+  }
+  if(isSym){
+    rewire('#fmtSymStroke', d=>{pushHistoryDebounced('Symbol-Stil geändert');el.symStyle=el.symStyle||{};el.symStyle.stroke=d.value;updateSymSVG(el);_spRefresh();});
+    rewire('#fmtSymFill', d=>{pushHistoryDebounced('Symbol-Stil geändert');el.symStyle=el.symStyle||{};el.symStyle.fill=d.value;updateSymSVG(el);_spRefresh();});
+    rewire('#fmtSymSW', d=>{pushHistoryDebounced('Symbol-Stil geändert');el.symStyle=el.symStyle||{};el.symStyle.strokeWidth=+d.value;updateSymSVG(el);_spRefresh();});
+    rewire('#fmtSymDash', d=>{pushHistoryDebounced('Symbol-Stil geändert');el.symStyle=el.symStyle||{};el.symStyle.dashed=d.checked;updateSymSVG(el);_spRefresh();});
+    rewire('#fmtSymColor', d=>{applyElStyle('color',d.value);});
+    rewire('#fmtSymFontSize', d=>{applyElStyle('fontSize',+d.value);});
+  }
+  if(isArrow){
+    const applyArr=(prop,val)=>{pushHistoryDebounced('Pfeil-Stil geändert');el.arrowStyle=el.arrowStyle||{};el.arrowStyle[prop]=val;updateArrowDom(el);_spRefresh();};
+    rewire('#fmtArrowColor', d=>applyArr('stroke',d.value));
+    rewire('#fmtArrowSW', d=>applyArr('strokeWidth',+d.value));
+    rewire('#fmtArrowDash', d=>applyArr('dashed',d.checked));
+    rewire('#fmtArrowStart', d=>applyArr('startType',d.value));
+    rewire('#fmtArrowEnd', d=>applyArr('endType',d.value));
+    rewire('#fmtArrowSize', d=>applyArr('markerSize',+d.value));
+  }
+  // Background + radius for all
+  rewire('#fmtBg', d=>{applyElStyle('background',d.value);});
+  rewire('#fmtBgT', d=>{applyElStyle('background',d.checked?'transparent':document.getElementById('fmtBg').value);});
+  rewire('#fmtRad', d=>{applyElStyle('borderRadius',+d.value);const rv=container.querySelector('#fmtRadV');if(rv)rv.textContent=d.value;});
+  // Disable position inputs in sub (they'd conflict with group move)
+  ['#fmtX','#fmtY','#fmtW','#fmtH'].forEach(sel=>{
+    const d=container.querySelector(sel);if(d){d.disabled=true;d.title='Position in Gruppenauswahl nicht editierbar';}
+  });
+  // Disable align/order buttons
+  container.querySelectorAll('.fmt-tog').forEach(b=>{b.disabled=true;b.style.opacity='0.4';});
 }
 
 /* ════════ FORMAT PANEL ════════ */
@@ -1847,6 +2148,12 @@ function applyFmt(prop,val){
   if(prop==='borderRadius'){dom.style.borderRadius=val+'px';}
   if(prop==='background'){dom.style.background=(!val||val==='transparent')?'':val;}
   if(prop==='borderColor'||prop==='borderWidth'){
+    // Auto-activate border if color is being set and width is still 0
+    if(prop==='borderColor'&&!(el.style.borderWidth>0)){
+      el.style.borderWidth=1;
+      const fmtTBW=document.getElementById('fmtTextBorderWidth');if(fmtTBW)fmtTBW.value=1;
+      const fmtNB=document.getElementById('fmtTextNoBorder');if(fmtNB)fmtNB.checked=false;
+    }
     const bw=el.style.borderWidth||0;
     const bc=el.style.borderColor||'#888077';
     dom.style.boxShadow=bw>0?`0 0 0 ${bw}px ${bc}`:'';
@@ -1902,11 +2209,24 @@ function setTransp(checked){
   else applyFmt('background',document.getElementById('fmtBg').value);
 }
 function clearTextBorder(checked){
-  if(!selElId||!checked)return;
+  if(!selElId)return;
   const el=getEl(selElId);if(!el)return;
-  el.style=el.style||{};el.style.borderWidth=0;
-  const dom=document.getElementById('sel_'+selElId);if(dom)dom.style.boxShadow='';
-  const fmtTBW=document.getElementById('fmtTextBorderWidth');if(fmtTBW)fmtTBW.value=0;
+  el.style=el.style||{};
+  if(checked){
+    // Disable border: set width to 0, keep color stored
+    pushHistoryDebounced('Rahmen entfernt');
+    el.style.borderWidth=0;
+    const dom=document.getElementById('sel_'+selElId);if(dom)dom.style.boxShadow='';
+    const fmtTBW=document.getElementById('fmtTextBorderWidth');if(fmtTBW)fmtTBW.value=0;
+  } else {
+    // Re-enable border: restore to 1px if it was 0
+    pushHistoryDebounced('Rahmen aktiviert');
+    if(!(el.style.borderWidth>0))el.style.borderWidth=1;
+    const bw=el.style.borderWidth||1;
+    const bc=el.style.borderColor||'#888077';
+    const dom=document.getElementById('sel_'+selElId);if(dom)dom.style.boxShadow=`0 0 0 ${bw}px ${bc}`;
+    const fmtTBW=document.getElementById('fmtTextBorderWidth');if(fmtTBW)fmtTBW.value=bw;
+  }
   _spRefresh();
 }
 function applyPos(dim,val){
@@ -1989,7 +2309,14 @@ function startGroupMove(ev){
   // Save initial positions of all multi-selected elements
   const snap=_snapElements('Gruppe verschoben');
   const initPositions={};
-  _multiSel.forEach(id=>{const el=getEl(id);if(el)initPositions[id]={x:el.x||0,y:el.y||0};});
+  _multiSel.forEach(id=>{
+    const el=getEl(id);if(!el)return;
+    if(el.type==='sym-arrow'){
+      initPositions[id]={x1:el.x1,y1:el.y1,x2:el.x2,y2:el.y2};
+    } else {
+      initPositions[id]={x:el.x||0,y:el.y||0};
+    }
+  });
   document.body.classList.add('er-element-moving');
   MS={type:'move-group',elIds:[..._multiSel],sx:ev.clientX,sy:ev.clientY,data:initPositions,snap};
   ev.preventDefault();
@@ -2305,12 +2632,102 @@ document.addEventListener('mousemove',ev=>{
     return;
   }
   if(MS.type==='move-group'){
+    // ── Step 1: compute raw group bounding box after applying dx/dy ──
+    let gx1=Infinity,gy1=Infinity,gx2=-Infinity,gy2=-Infinity;
+    MS.elIds.forEach(id=>{
+      const d=MS.data[id]; if(!d)return;
+      const el=getEl(id); if(!el)return;
+      if(el.type==='sym-arrow'){
+        const bx1=Math.min(d.x1,d.x2)+dx, bx2=Math.max(d.x1,d.x2)+dx;
+        const by1=Math.min(d.y1,d.y2)+dy, by2=Math.max(d.y1,d.y2)+dy;
+        if(bx1<gx1)gx1=bx1; if(by1<gy1)gy1=by1;
+        if(bx2>gx2)gx2=bx2; if(by2>gy2)gy2=by2;
+      } else {
+        const ex=d.x+dx, ey=d.y+dy, ew=el.w||0, eh=el.h||0;
+        if(ex<gx1)gx1=ex; if(ey<gy1)gy1=ey;
+        if(ex+ew>gx2)gx2=ex+ew; if(ey+eh>gy2)gy2=ey+eh;
+      }
+    });
+    const gw=gx2-gx1, gh=gy2-gy1;
+    const gcx=gx1+gw/2, gcy=gy1+gh/2;
+
+    // ── Step 2: snap group bbox against slide + other elements ──
+    const sz=slSz(curSlide());
+    const scx=sz.w/2, scy=sz.h/2;
+    const groupIds=new Set(MS.elIds);
+    let bestX=SNAP, bestY=SNAP;
+    let snapDdx=0, snapDdy=0;
+    let guideX=null, guideY=null;
+    let colorX='rgba(239,68,68,.85)', colorY='rgba(239,68,68,.85)';
+
+    function chkX(rawEdge, snappedEdge, axis, isCenter){
+      const d=Math.abs(rawEdge-snappedEdge);
+      if(d<bestX){bestX=d; snapDdx=snappedEdge-rawEdge; guideX=axis; colorX=isCenter?'rgba(59,130,246,.85)':'rgba(239,68,68,.85)';}
+    }
+    function chkY(rawEdge, snappedEdge, axis, isCenter){
+      const d=Math.abs(rawEdge-snappedEdge);
+      if(d<bestY){bestY=d; snapDdy=snappedEdge-rawEdge; guideY=axis; colorY=isCenter?'rgba(59,130,246,.85)':'rgba(239,68,68,.85)';}
+    }
+
+    // Slide edges & center
+    chkX(gx1, 0,      0,      false);
+    chkX(gx2, sz.w,   sz.w,   false);
+    chkX(gcx, scx,    scx,    true);
+    chkY(gy1, 0,      0,      false);
+    chkY(gy2, sz.h,   sz.h,   false);
+    chkY(gcy, scy,    scy,    true);
+
+    // Other (non-group) elements
+    (curSlide()?.elements||[]).forEach(o=>{
+      if(groupIds.has(o.id)||!o.w||o.type==='er-line')return;
+      const ox=o.x||0, oy=o.y||0, ow=o.w||0, oh=o.h||0;
+      const ocx=ox+ow/2, ocy=oy+oh/2;
+      // group left/right/center-x vs other element left/right/center-x
+      chkX(gx1, ox,      ox,      false);
+      chkX(gx1, ox+ow,   ox+ow,   false);
+      chkX(gcx, ocx,     ocx,     true);
+      chkX(gx2, ox,      ox,      false);
+      chkX(gx2, ox+ow,   ox+ow,   false);
+      // group top/bottom/center-y vs other element top/bottom/center-y
+      chkY(gy1, oy,      oy,      false);
+      chkY(gy1, oy+oh,   oy+oh,   false);
+      chkY(gcy, ocy,     ocy,     true);
+      chkY(gy2, oy,      oy,      false);
+      chkY(gy2, oy+oh,   oy+oh,   false);
+    });
+
+    const snapDx=Math.round(dx+snapDdx), snapDy=Math.round(dy+snapDdy);
+
+    // ── Step 3: Show guide lines at correct slide-pixel position ──
+    const sRect=document.getElementById('slideCV')?.getBoundingClientRect();
+    const gH=document.getElementById('gH'), gV=document.getElementById('gV');
+    if(sRect){
+      if(guideY!==null){
+        gH.style.display='block';
+        gH.style.top=(sRect.top+guideY*cvScale)+'px';
+        gH.style.background=colorY; gH.style.boxShadow=`0 0 4px ${colorY}`;
+      } else { gH.style.display='none'; }
+      if(guideX!==null){
+        gV.style.display='block';
+        gV.style.left=(sRect.left+guideX*cvScale)+'px';
+        gV.style.background=colorX; gV.style.boxShadow=`0 0 4px ${colorX}`;
+      } else { gV.style.display='none'; }
+    }
+
+    // ── Step 4: Apply movement to all group elements ──
     MS.elIds.forEach(id=>{
       const el=getEl(id);if(!el||!MS.data[id])return;
-      const nx=Math.round(MS.data[id].x+dx), ny=Math.round(MS.data[id].y+dy);
-      el.x=nx;el.y=ny;
-      const dom=document.getElementById('sel_'+id);
-      if(dom){dom.style.left=el.x+'px';dom.style.top=el.y+'px';}
+      if(el.type==='sym-arrow'){
+        const d=MS.data[id];
+        el.x1=Math.round(d.x1+snapDx);el.y1=Math.round(d.y1+snapDy);
+        el.x2=Math.round(d.x2+snapDx);el.y2=Math.round(d.y2+snapDy);
+        updateArrowDom(el);
+      } else {
+        el.x=Math.round(MS.data[id].x+snapDx);
+        el.y=Math.round(MS.data[id].y+snapDy);
+        const dom=document.getElementById('sel_'+id);
+        if(dom){dom.style.left=el.x+'px';dom.style.top=el.y+'px';}
+      }
     });
     return;
   }
@@ -2435,21 +2852,36 @@ document.addEventListener('mouseup',()=>{
     if(lx2-lx1>4||ly2-ly1>4){ // only if dragged a meaningful distance
       const sl=curSlide();
       if(sl)sl.elements.forEach(el=>{
-        if(!el.x&&el.x!==0)return;
-        const ex=el.x||0,ey=el.y||0,ew=el.w||0,eh=el.h||0;
-        const inLasso=(ex<lx2&&ex+ew>lx1&&ey<ly2&&ey+eh>ly1);
+        if(el.type==='er-line')return; // er-lines not selectable via lasso
+        let inLasso=false;
+        if(el.type==='sym-arrow'){
+          const b=arrBounds(el);
+          inLasso=(b.lx<lx2&&b.lx+b.w>lx1&&b.ly<ly2&&b.ly+b.h>ly1);
+        } else {
+          if(!el.x&&el.x!==0)return;
+          const ex=el.x||0,ey=el.y||0,ew=el.w||0,eh=el.h||0;
+          inLasso=(ex<lx2&&ex+ew>lx1&&ey<ly2&&ey+eh>ly1);
+        }
         if(inLasso){
           _multiSel.add(el.id);
           const d=document.getElementById('sel_'+el.id);if(d)d.classList.add('multi-selected');
         }
       });
+      if(_multiSel.size>0){edTab('fmt');populateMultiFmt();}
     }
     MS=null;return;
   }
   if(MS&&MS.type==='move-group'){
     // Check if anything actually moved
     let changed=false;
-    MS.elIds.forEach(id=>{const el=getEl(id);if(el&&MS.data[id]&&(el.x!==MS.data[id].x||el.y!==MS.data[id].y))changed=true;});
+    MS.elIds.forEach(id=>{
+      const el=getEl(id);if(!el||!MS.data[id])return;
+      if(el.type==='sym-arrow'){
+        if(el.x1!==MS.data[id].x1||el.y1!==MS.data[id].y1)changed=true;
+      } else {
+        if(el.x!==MS.data[id].x||el.y!==MS.data[id].y)changed=true;
+      }
+    });
     if(changed&&MS.snap){_undoStack.push(MS.snap);if(_undoStack.length>UNDO_MAX)_undoStack.shift();_redoStack=[];_updateHistBtns();}
     MS=null;hideGuides();hideConnDots();return;
   }
@@ -2499,9 +2931,9 @@ function trySnapEl(el,nx,ny){
   checkX(Math.round(scx-ew/2),scx,true);
   checkY(Math.round(scy-eh/2),scy,true);
 
-  /* Other elements */
+  /* Other elements — exclude self and all currently multi-selected group members */
   (curSlide()?.elements||[]).forEach(o=>{
-    if(o.id===selElId||!o.w||o.type==='er-line')return;
+    if(o.id===selElId||_multiSel.has(o.id)||!o.w||o.type==='er-line')return;
     const ox=o.x||0,oy=o.y||0,ow=o.w||0,oh=o.h||0;
     const ocx=ox+ow/2,ocy=oy+oh/2;
     checkX(ox,           ox,    false);
@@ -4375,6 +4807,392 @@ document.addEventListener('paste', ev => {
   }
 });
 
+
+// =====================================================================
+// SPELL CHECKER (nspell + dictionary-de + dictionary-en-gb)
+// =====================================================================
+const SC = (() => {
+  // LanguageTool Public API — handles German compound words + grammar
+  const LT_API = 'https://api.languagetool.org/v2/check';
+  const _custom = new Set(JSON.parse(localStorage.getItem('spellCustomDict') || '[]'));
+  const _timers  = new Map(); // elId → debounce timer
+  const _cache   = new Map(); // text → LT response
+  const _drawn   = new Map(); // elId → last rendered match-fingerprint
+  let _lang = 'de-DE';        // or 'en-GB'
+
+  // --- LanguageTool call ---
+  // Levenshtein distance — filter absurd suggestions
+  function _lev(a, b) {
+    const m = a.length, n = b.length;
+    const dp = Array.from({length: m+1}, (_, i) => [i, ...Array(n).fill(0)]);
+    for (let j = 0; j <= n; j++) dp[0][j] = j;
+    for (let i = 1; i <= m; i++)
+      for (let j = 1; j <= n; j++)
+        dp[i][j] = a[i-1]===b[j-1] ? dp[i-1][j-1]
+          : 1 + Math.min(dp[i-1][j], dp[i][j-1], dp[i-1][j-1]);
+    return dp[m][n];
+  }
+
+  // Only keep a suggestion if it's plausible (not wildly different from original)
+  function _filterSuggs(original, replacements) {
+    if (!replacements.length) return [];
+    const orig = original.toLowerCase();
+    return replacements.filter(r => {
+      const rep = r.toLowerCase();
+      const dist = _lev(orig, rep);
+      // Short words: max 2 edits. Longer words: max 35% of length, capped at 5.
+      const maxDist = orig.length <= 5 ? 2 : Math.min(5, Math.floor(orig.length * 0.35));
+      return dist <= maxDist;
+    });
+  }
+
+  // Cache version — bump to bust all in-memory cached LT results
+  const _CACHE_VER = 'v5';
+
+  async function _ltCheck(text) {
+    if (!text.trim()) return [];
+    const key = _CACHE_VER + _lang + '\0' + text;
+    if (_cache.has(key)) return _cache.get(key);
+    try {
+      const body = new URLSearchParams({
+        text,
+        language: _lang,
+        // Blacklist noisy categories — do NOT use enabledOnly, it breaks German rule IDs
+        disabledCategories: [
+          'STYLE',            // purely stylistic
+          'REDUNDANCY',       // "redundant" false positives
+          'COLLOQUIALISMS',   // informal-but-valid language
+          'GENDER_NEUTRALITY',// gendering suggestions
+          'TYPOGRAPHY',       // quote marks, dashes
+        ].join(','),
+        disabledRules: [
+          'WHITESPACE_RULE',
+          'UPPERCASE_SENTENCE_START',
+          'COMMA_PARENTHESIS_WHITESPACE',
+          'WORD_REPEAT_BEGINNING_RULE',
+          'TOO_LONG_SENTENCE',
+          'SENTENCE_FRAGMENT',
+        ].join(','),
+      });
+      const r = await fetch(LT_API, { method:'POST',
+        headers:{'Content-Type':'application/x-www-form-urlencoded'},
+        body });
+      if (!r.ok) return [];
+      const data = await r.json();
+      const matches = (data.matches || []).filter(m => {
+        const surface = m.context?.text?.slice(m.context.offset, m.context.offset + m.context.length) || '';
+        // Skip custom dictionary words
+        if (_custom.has(surface) || _custom.has(surface.toLowerCase())) return false;
+
+        const isSpell = m.rule?.issueType === 'misspelling' || m.rule?.category?.id === 'TYPOS';
+        const reps = (m.replacements || []).map(r => r.value);
+
+        if (isSpell) {
+          // Spelling: Levenshtein filter — no plausible suggestion = valid compound → skip
+          const good = _filterSuggs(surface, reps);
+          if (!good.length) return false;
+          m.replacements = good.map(v => ({ value: v }));
+        } else {
+          // Grammar: only discard if every suggestion is absurdly different
+          // (catches "Reihenfolge"→"Pest" while allowing "soll"→"sollte")
+          if (reps.length) {
+            const absurd = reps.every(r => {
+              const d = _lev(surface.toLowerCase(), r.toLowerCase());
+              return d > Math.max(surface.length * 0.7, 4);
+            });
+            if (absurd) return false;
+            m.replacements = reps.map(v => ({ value: v }));
+          }
+        }
+        return true;
+      });
+      _cache.set(key, matches);
+      return matches;
+    } catch { return []; }
+  }
+
+  function setLang(l) { _lang = l; _cache.clear(); }
+
+  function addWord(word) {
+    _custom.add(word.trim());
+    localStorage.setItem('spellCustomDict', JSON.stringify([..._custom]));
+    _cache.clear();
+    document.querySelectorAll('.el-text[contenteditable="true"]').forEach(ce => {
+      const elId = ce.closest('[data-elid]')?.dataset?.elid;
+      if (elId) scheduleCheck(elId, 0);
+    });
+    renderDictModal();
+  }
+
+  function removeWord(word) {
+    _custom.delete(word);
+    localStorage.setItem('spellCustomDict', JSON.stringify([..._custom]));
+    _cache.clear();
+    document.querySelectorAll('.el-text[contenteditable="true"]').forEach(ce => {
+      const elId = ce.closest('[data-elid]')?.dataset?.elid;
+      if (elId) scheduleCheck(elId, 0);
+    });
+    renderDictModal();
+  }
+
+  function getCustom() { return [..._custom].sort(); }
+
+  // --- Build a flat node-map once; use it for BOTH text extraction and offset resolution ---
+  // Returns { text: string, map: [{node, start, end}] }
+  function _buildNodeMap(root) {
+    const BLOCK = new Set(['p','div','li','h1','h2','h3','h4','h5','h6','blockquote','pre']);
+    const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT | NodeFilter.SHOW_ELEMENT);
+    let text = '';
+    const map = []; // {node: TextNode, start, end}
+    let node;
+    while ((node = walker.nextNode())) {
+      if (node.nodeType === Node.ELEMENT_NODE) {
+        const tag = node.tagName.toLowerCase();
+        if (tag === 'br') {
+          text += '\n';
+        } else if (BLOCK.has(tag) && text.length > 0 && !text.endsWith('\n')) {
+          text += '\n';
+        }
+      } else {
+        // TEXT_NODE
+        const start = text.length;
+        text += node.textContent;
+        map.push({ node, start, end: text.length });
+      }
+    }
+    return { text, map };
+  }
+
+  function _mapResolve(map, charIdx) {
+    for (const entry of map) {
+      if (charIdx >= entry.start && charIdx <= entry.end) {
+        return { node: entry.node, offset: charIdx - entry.start };
+      }
+    }
+    // Fallback: return end of last entry
+    const last = map[map.length - 1];
+    return last ? { node: last.node, offset: last.end - last.start } : null;
+  }
+
+  // --- Render underlines for an element ---
+  async function renderLayer(elId) {
+    const dom = document.getElementById('sel_' + elId); if (!dom) return;
+    const ce  = dom.querySelector('.el-text');            if (!ce)  return;
+
+    let layer = dom.querySelector('.spell-layer');
+    if (!layer) {
+      layer = document.createElement('div');
+      layer.className = 'spell-layer';
+      dom.appendChild(layer);
+    }
+
+    const { text, map } = _buildNodeMap(ce);
+    if (!text.trim()) { layer.innerHTML = ''; _drawn.delete(elId); return; }
+
+    const matches = await _ltCheck(text);
+
+    // Recheck DOM is still there after async
+    if (!document.getElementById('sel_' + elId)) return;
+
+    // Fingerprint: offsets + lengths + rule IDs — skip full redraw if nothing changed
+    const fp = matches.map(m => `${m.offset}:${m.length}:${m.rule?.id}`).join('|');
+    if (_drawn.get(elId) === fp) return;
+    _drawn.set(elId, fp);
+
+    layer.innerHTML = '';
+    if (!matches.length) return;
+
+    const scale   = typeof cvScale !== 'undefined' ? cvScale : 1;
+    const ceRect  = ce.getBoundingClientRect();
+    const domRect = dom.getBoundingClientRect();
+
+    layer.style.left   = Math.round((ceRect.left - domRect.left) / scale) + 'px';
+    layer.style.top    = Math.round((ceRect.top  - domRect.top)  / scale) + 'px';
+    layer.style.width  = Math.round(ceRect.width  / scale) + 'px';
+    layer.style.height = Math.round(ceRect.height / scale) + 'px';
+
+    for (const m of matches) {
+      const start = _mapResolve(map, m.offset);
+      const end   = _mapResolve(map, m.offset + m.length);
+      if (!start || !end) continue;
+
+      const range = document.createRange();
+      try { range.setStart(start.node, start.offset); range.setEnd(end.node, end.offset); }
+      catch { continue; }
+
+      const wr = range.getBoundingClientRect();
+      if (!wr.width) continue;
+
+      // Spelling = red, Grammar = blue
+      const isSpell = m.rule?.issueType === 'misspelling' || m.rule?.category?.id === 'TYPOS';
+      const left   = Math.round((wr.left  - ceRect.left) / scale);
+      const top    = Math.round((wr.top   - ceRect.top)  / scale);
+      const width  = Math.round(wr.width  / scale);
+      const height = Math.round(wr.height / scale);
+
+      const u = document.createElement('span');
+      u.className = 'spell-u' + (isSpell ? '' : ' grammar-u');
+      u.style.cssText = `left:${left}px;top:${top}px;width:${width}px;height:${height}px`;
+      u.dataset.word = text.slice(m.offset, m.offset + m.length);
+
+      const replacements = (m.replacements || []).slice(0, 6).map(r => r.value);
+      const message = m.message || '';
+
+      u.addEventListener('mouseenter', () => {
+        schedulePopup(u.dataset.word, replacements, message, isSpell, range.cloneRange(), u, elId);
+      });
+
+      layer.appendChild(u);
+    }
+  }
+
+  function scheduleCheck(elId, delay = 800) {
+    if (_timers.has(elId)) clearTimeout(_timers.get(elId));
+    _timers.set(elId, setTimeout(() => { _timers.delete(elId); renderLayer(elId); }, delay));
+  }
+
+  function clearLayer(elId) {
+    const dom = document.getElementById('sel_' + elId); if (!dom) return;
+    const layer = dom.querySelector('.spell-layer'); if (layer) layer.innerHTML = '';
+    _drawn.delete(elId);
+  }
+
+  // --- Popup ---
+  let _hoverTimer = null;
+
+  function schedulePopup(word, replacements, message, isSpell, range, triggerEl, elId) {
+    if (_hoverTimer) clearTimeout(_hoverTimer);
+    _hoverTimer = setTimeout(() => showPopup(word, replacements, message, isSpell, range, triggerEl, elId), 180);
+  }
+
+  function hidePopup() {
+    document.getElementById('spellPopup').style.display = 'none';
+  }
+
+  function showPopup(word, replacements, message, isSpell, range, triggerEl, elId) {
+    hidePopup();
+    const pop = document.getElementById('spellPopup');
+    const colorCls = isSpell ? 'sp-pop-word-spell' : 'sp-pop-word-grammar';
+
+    pop.innerHTML = `
+      <div class="sp-pop-word ${colorCls}">${escHtml(word)}</div>
+      ${message ? `<div class="sp-pop-msg">${escHtml(message)}</div>` : ''}
+      ${replacements.length
+        ? replacements.map(s => `<button class="sp-pop-sugg" data-s="${escHtml(s)}">${escHtml(s)}</button>`).join('')
+        : '<span class="sp-pop-none">Keine Vorschläge</span>'}
+      <div class="sp-pop-sep"></div>
+      <button class="sp-pop-add" data-w="${escHtml(word)}">
+        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>
+        Zum Wörterbuch</button>`;
+
+    pop.querySelectorAll('.sp-pop-sugg').forEach(btn => {
+      btn.addEventListener('click', () => {
+        replaceMisspelled(btn.dataset.s, range.cloneRange(), elId);
+        hidePopup();
+      });
+    });
+    pop.querySelector('.sp-pop-add').addEventListener('click', () => {
+      addWord(word); hidePopup();
+    });
+
+    const ur = triggerEl.getBoundingClientRect();
+    const vw = window.innerWidth, vh = window.innerHeight;
+    pop.style.display = 'block';
+    const pw = pop.offsetWidth || 190, ph = pop.offsetHeight || 200;
+    let px = ur.left, py = ur.bottom + 6;
+    if (px + pw > vw - 8) px = vw - pw - 8;
+    if (py + ph > vh - 8) py = ur.top - ph - 4;
+    pop.style.left = Math.max(4, px) + 'px';
+    pop.style.top  = Math.max(4, py) + 'px';
+  }
+
+  function replaceMisspelled(replacement, range, elId) {
+    try {
+      const sel = window.getSelection();
+      sel.removeAllRanges();
+      sel.addRange(range);
+      document.execCommand('insertText', false, replacement);
+      const el = typeof getEl === 'function' ? getEl(elId) : null;
+      const ce = document.getElementById('sel_' + elId)?.querySelector('.el-text');
+      if (el && ce) el.html = ce.innerHTML;
+      _cache.clear();
+      scheduleCheck(elId, 300);
+    } catch(e) { console.warn('Replace failed:', e); }
+  }
+
+  function escHtml(s) {
+    return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  }
+
+  // --- Custom dictionary modal ---
+  function renderDictModal() {
+    const list = document.getElementById('dictWordList'); if (!list) return;
+    const words = getCustom();
+    list.innerHTML = words.length
+      ? words.map(w => `<div class="dict-row"><span class="dict-word">${escHtml(w)}</span><button class="dict-del" data-w="${escHtml(w)}" title="Entfernen">✕</button></div>`).join('')
+      : '<div class="dict-empty">Noch keine eigenen Wörter</div>';
+    list.querySelectorAll('.dict-del').forEach(btn => {
+      btn.addEventListener('click', () => removeWord(btn.dataset.w));
+    });
+  }
+
+  function openDictModal() { renderDictModal(); document.getElementById('dictModal').style.display = 'flex'; }
+  function closeDictModal() { document.getElementById('dictModal').style.display = 'none'; }
+
+  // Close popup on any mousedown — use capture so el-text's stopPropagation doesn't block it
+  document.addEventListener('mousedown', ev => {
+    if (!ev.target.closest('#spellPopup')) hidePopup();
+  }, true);
+
+  // No init() needed — API is called per-check
+  function init() {
+    document.querySelectorAll('.el-text[contenteditable="true"]').forEach(ce => {
+      const elId = ce.closest('[data-elid]')?.dataset?.elid;
+      if (elId) scheduleCheck(elId, 600);
+    });
+  }
+
+  return { init, addWord, removeWord, getCustom, renderLayer, scheduleCheck, clearLayer,
+           hidePopup, setLang, openDictModal, closeDictModal, renderDictModal };
+})();
+
+
+function setSpellLang(lang){
+  SC.setLang(lang);
+  document.getElementById('edLangDe')?.classList.toggle('active', lang==='de-DE');
+  document.getElementById('edLangEn')?.classList.toggle('active', lang==='en-GB');
+  // Re-check all visible text elements with new language
+  (curSlide()?.elements||[]).forEach(el=>{
+    if(el.type==='title'||el.type==='text'){ SC.clearLayer(el.id); SC.scheduleCheck(el.id,200); }
+  });
+}
+
+function _countWords(str){
+  return (str.match(/[\wäöüÄÖÜß]+/gu)||[]).length;
+}
+
+function updateWordCount(){
+  const slideEl=document.getElementById('edWordSlide');
+  const entryEl=document.getElementById('edWordEntry');
+  if(!slideEl||!entryEl||!edEntry)return;
+  // Slide word count
+  const slide=curSlide();
+  let slideWords=0;
+  (slide?.elements||[]).forEach(el=>{
+    const dom=document.getElementById('sel_'+el.id);
+    const ce=dom?.querySelector('.el-text');
+    if(ce) slideWords+=_countWords(ce.innerText||'');
+  });
+  slideEl.textContent=slideWords;
+  // Entry word count (all slides)
+  let entryWords=0;
+  (edEntry.slides||[]).forEach(sl=>{
+    (sl.elements||[]).forEach(el=>{
+      if(el.html) entryWords+=_countWords(new DOMParser().parseFromString(el.html,'text/html').body.innerText||'');
+    });
+  });
+  entryEl.textContent=entryWords;
+}
 
 document.addEventListener('DOMContentLoaded',async ()=>{
   initCvAreaObserver();

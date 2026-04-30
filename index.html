@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; connect-src https://*.supabase.co; img-src 'self' data: blob: https://*.supabase.co; object-src 'none'; base-uri 'self';">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; connect-src https://*.supabase.co https://cdn.jsdelivr.net https://api.languagetool.org; img-src 'self' data: blob: https://*.supabase.co; object-src 'none'; base-uri 'self';">
 <meta name="referrer" content="no-referrer">
 <title>Forschungstagebuch — Informatik</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -582,6 +582,10 @@
                 <label class="fmt-chk-lbl" style="margin:0;white-space:nowrap"><input type="checkbox" id="fmtTextNoBorder" onchange="clearTextBorder(this.checked)"> Kein Rahmen</label>
               </div>
               <div class="fmt-hint">Zum Formatieren von Textabschnitten: Text markieren → schwebende Toolbar benutzen</div>
+              <button class="dict-open-btn" onclick="SC.openDictModal()" title="Eigenes Wörterbuch öffnen">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>
+                Eigenes Wörterbuch
+              </button>
             </div>
           </div>
 
@@ -781,6 +785,21 @@
          ondragover="evDef(event)" ondrop="onCvDrop(event)"
          onmousedown="onCvDown(event)">
       <div class="slide-cv grid-on" id="slideCV" onmousedown="onSlideBgDown(event)"></div>
+      <!-- Status bar -->
+      <div class="ed-status-bar" id="edStatusBar">
+        <div class="ed-status-words">
+          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="15" y2="12"/><line x1="3" y1="18" x2="18" y2="18"/></svg>
+          <span id="edWordSlide">0</span> <span class="ed-status-dim">Wörter (Folie)</span>
+          <span class="ed-status-sep">·</span>
+          <span id="edWordEntry">0</span> <span class="ed-status-dim">Wörter (Eintrag)</span>
+        </div>
+        <div class="ed-status-lang">
+          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>
+          <button class="ed-lang-btn" id="edLangDe" onclick="setSpellLang('de-DE')" title="Deutsch">DE</button>
+          <span class="ed-status-dim">/</span>
+          <button class="ed-lang-btn" id="edLangEn" onclick="setSpellLang('en-GB')" title="Britisches Englisch">EN</button>
+        </div>
+      </div>
     </div>
   </div>
 </div>
@@ -811,6 +830,25 @@
       <svg id="arrow-defs-root" style="position:absolute;width:0;height:0;overflow:hidden;pointer-events:none"><defs id="arrow-defs-inner"></defs></svg>
       <!-- Lasso selection box -->
       <div id="lassoBox"></div>
+      <!-- Spell check suggestion popup -->
+      <div id="spellPopup" style="display:none"></div>
+      <!-- Custom dictionary modal -->
+      <div id="dictModal" class="modal-overlay" style="display:none" onclick="if(event.target===this)SC.closeDictModal()">
+        <div class="modal-box dict-modal-box">
+          <div class="modal-hd">
+            <span>Eigenes Wörterbuch</span>
+            <button class="modal-close" onclick="SC.closeDictModal()">✕</button>
+          </div>
+          <p class="dict-hint">Wörter hier werden in Deutsch und Britischem Englisch als korrekt erkannt.</p>
+          <div class="dict-add-row">
+            <input id="dictAddInp" class="fmt-inp" placeholder="Neues Wort …" style="flex:1;margin:0"
+              onkeydown="if(event.key==='Enter'){SC.addWord(document.getElementById('dictAddInp').value);document.getElementById('dictAddInp').value='';}">
+            <button class="sp-add" style="width:auto;padding:0 12px;border-radius:6px"
+              onclick="SC.addWord(document.getElementById('dictAddInp').value);document.getElementById('dictAddInp').value=''">+</button>
+          </div>
+          <div id="dictWordList" class="dict-word-list"></div>
+        </div>
+      </div>
 
 </body>
 </html>
