@@ -843,7 +843,7 @@ function mkThumb(slide, tw){
       const ex=el.x||0, ey=el.y||0, ew=Math.max(1,el.w||10), eh=Math.max(1,el.h||10);
       const bgS=(st.background&&st.background!=='transparent')?`background:${st.background};`:'';
       const radS=st.borderRadius?`border-radius:${st.borderRadius}px;`:'';
-      const bdS=(st.borderWidth&&st.borderWidth>0&&st.borderColor)?`box-shadow:0 0 0 ${st.borderWidth}px ${st.borderColor};`:'';
+      const bdS=(st.borderWidth&&st.borderWidth>0)?`border:${st.borderWidth}px solid ${st.borderColor||'#888077'};box-sizing:border-box;`:'';
       posStyle=`left:${ex}px;top:${ey}px;width:${ew}px;height:${eh}px;overflow:hidden;${bgS}${radS}${bdS}`;
 
       if(el.type==='title'||el.type==='text'){
@@ -881,7 +881,7 @@ function mkThumb(slide, tw){
         const symS2=el.symStyle||{};
         const svg2=symShapeSVG(el.type,ew,eh,symS2.stroke,symS2.fill,symS2.strokeWidth||2,symS2.dashed);
         const tc2=el.style?.color||'#e4ddd0';const fs2=el.style?.fontSize||13;
-        inner=`<svg viewBox="0 0 ${ew} ${eh}" width="${ew}" height="${ew}" style="position:absolute;inset:0">${svg2}</svg>`
+        inner=`<svg viewBox="0 0 ${ew} ${eh}" width="${ew}" height="${eh}" style="position:absolute;inset:0">${svg2}</svg>`
              +(el.text?`<div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:${fs2}px;color:${tc2};text-align:center;padding:4px;overflow:hidden">${esc(el.text)}</div>`:'');
       } else if(el.type&&el.type.startsWith('er-')){
         const erS=el.erStyle||{};
@@ -926,8 +926,10 @@ function mkThumb(slide, tw){
 function entryCard(e, idx, isAdmin){
   const tags=(e.tags||[]).map(t=>`<span class="tag">${esc(t)}</span>`).join('');
   const slides=e.slides||[];
-  // tw = width of the rendered preview — 880px matches card inner width (~1000px max-width - padding)
-  const tw=880;
+  // tw = width of the rendered preview
+  // Lehrer: .ec padding left+right = 24+24px → 928-48 = 880px
+  // Admin:  .ec.adm-pad padding left=42px, right=24px → 928-66 = 862px
+  const tw = isAdmin ? 862 : 880;
   const slideItems=slides.map((sl,si)=>{
     const lbl=esc(sl.title||`Folie ${si+1}`);
     return `<div class="ec-slide-item" onclick="${isAdmin?`openEditor(${e.id},${si})`:`openViewer(${e.id},${si})`}">
@@ -1126,7 +1128,7 @@ function renderViewer(){
         const d=document.createElement('div'); d.className='ro-el';
         d.style.cssText=`left:${el.x||0}px;top:${el.y||0}px;width:${el.w||10}px;height:${Math.max(1,el.h||10)}px;z-index:${el.z||1};border-radius:${st.borderRadius||0}px`;
         if(st.background&&st.background!=='transparent')d.style.background=st.background;
-        if(st.borderWidth&&st.borderWidth>0&&st.borderColor)d.style.boxShadow=`0 0 0 ${st.borderWidth}px ${st.borderColor}`;
+        if(st.borderWidth&&st.borderWidth>0)d.style.border=`${st.borderWidth}px solid ${st.borderColor||'#888077'}`;
         const inn2=document.createElement('div'); inn2.className='ro-in';
         inn2.appendChild(buildInnerContent(el,true,curRole==='lehrer')); d.appendChild(inn2); wrap.appendChild(d);
       }
@@ -1436,9 +1438,11 @@ function buildElDOM(el){
   const st=el.style||{};
   const wrap=document.createElement('div'); wrap.className='sel';
   wrap.id='sel_'+el.id; wrap.dataset.elid=el.id;
-  wrap.style.cssText=`left:${el.x||0}px;top:${el.y||0}px;width:${el.w||100}px;height:${Math.max(1,el.h||30)}px;z-index:${el.z||10};border-radius:${st.borderRadius||0}px`;
+  wrap.style.cssText=`left:${el.x||0}px;top:${el.y||0}px;width:${el.w||100}px;height:${Math.max(1,el.h||30)}px;z-index:${el.z||10};border-radius:${st.borderRadius||0}px;box-sizing:border-box`;
   if(st.background&&st.background!=='transparent')wrap.style.background=st.background;
-  if(st.borderColor&&st.borderWidth&&st.borderWidth>0)wrap.style.boxShadow=`0 0 0 ${st.borderWidth}px ${st.borderColor}`;
+  wrap.style.boxShadow='';
+  if(st.borderWidth&&st.borderWidth>0)wrap.style.border=`${st.borderWidth}px solid ${st.borderColor||'#888077'}`;
+  else wrap.style.border='';
 
   const bd=document.createElement('div'); bd.className='sel-bd'; wrap.appendChild(bd);
   // Wider overlay for easier clicking
@@ -2010,6 +2014,17 @@ function _wireMultiSubInputs(container, el){
     if(dom){
       if(prop==='borderRadius')dom.style.borderRadius=val+'px';
       if(prop==='background')dom.style.background=(!val||val==='transparent')?'':val;
+      if(prop==='borderColor'||prop==='borderWidth'){
+        if(prop==='borderColor'&&!(el.style.borderWidth>0)){
+          el.style.borderWidth=1;
+          const fmtTBW=container.querySelector('#fmtTextBorderWidth');if(fmtTBW)fmtTBW.value=1;
+          const fmtNBCb2=container.querySelector('#fmtTextNoBorder');if(fmtNBCb2)fmtNBCb2.checked=false;_noBorderActive=false;
+        }
+        const bw=el.style.borderWidth||0;
+        const bc=el.style.borderColor||'#888077';
+        dom.style.boxShadow='';
+        dom.style.border=bw>0?`${bw}px solid ${bc}`:'';
+      }
       const inn=dom.querySelector('.el-text');
       if(inn&&['fontFamily','fontSize','color','lineHeight'].includes(prop)){
         if(prop==='fontSize')inn.style.fontSize=val+'px'; else inn.style[prop]=val;
@@ -2161,15 +2176,19 @@ function applyFmt(prop,val){
   if(prop==='borderRadius'){dom.style.borderRadius=val+'px';}
   if(prop==='background'){dom.style.background=(!val||val==='transparent')?'':val;}
   if(prop==='borderColor'||prop==='borderWidth'){
-    // Auto-activate border if color is being set and width is still 0
     if(prop==='borderColor'&&!(el.style.borderWidth>0)){
       el.style.borderWidth=1;
       const fmtTBW=document.getElementById('fmtTextBorderWidth');if(fmtTBW)fmtTBW.value=1;
       const fmtNBCb2=document.getElementById('fmtTextNoBorder');if(fmtNBCb2)fmtNBCb2.checked=false;_noBorderActive=false;
     }
+    if(prop==='borderWidth'&&val>0&&!el.style.borderColor){
+      el.style.borderColor='#888077';
+      const fmtTBC=document.getElementById('fmtTextBorderColor');if(fmtTBC)fmtTBC.value='#888077';
+    }
     const bw=el.style.borderWidth||0;
     const bc=el.style.borderColor||'#888077';
-    dom.style.boxShadow=bw>0?`0 0 0 ${bw}px ${bc}`:'';
+    dom.style.boxShadow='';
+    dom.style.border=bw>0?`${bw}px solid ${bc}`:'';
   }
   if(prop==='fontSize'){
     rtbCurrentSize=val;
@@ -2232,13 +2251,13 @@ function clearTextBorder(disable){
   if(_noBorderActive){
     pushHistoryDebounced('Rahmen entfernt');
     el.style.borderWidth=0;
-    const dom=document.getElementById('sel_'+selElId);if(dom)dom.style.boxShadow='';
+    const dom=document.getElementById('sel_'+selElId);if(dom){dom.style.border='';dom.style.boxShadow='';}
     const fmtTBW=document.getElementById('fmtTextBorderWidth');if(fmtTBW)fmtTBW.value=0;
   } else {
     pushHistoryDebounced('Rahmen aktiviert');
     if(!(el.style.borderWidth>0))el.style.borderWidth=1;
     const bw=el.style.borderWidth||1, bc=el.style.borderColor||'#888077';
-    const dom=document.getElementById('sel_'+selElId);if(dom)dom.style.boxShadow=`0 0 0 ${bw}px ${bc}`;
+    const dom=document.getElementById('sel_'+selElId);if(dom){dom.style.boxShadow='';dom.style.border=`${bw}px solid ${bc}`;}
     const fmtTBW=document.getElementById('fmtTextBorderWidth');if(fmtTBW)fmtTBW.value=bw;
   }
   _spRefresh();
@@ -2595,7 +2614,7 @@ function projectOnBorder(el, px, py){
   }
   // Sym hexagon: 6-gon projection
   if(t==='sym-hexagon'){
-    const r=Math.min(cx,cy)-1;
+    const r=Math.min(w/2,h/2)-1;
     const verts6=[];for(let i=0;i<6;i++){const a=i*Math.PI/3;verts6.push({x:cx+r*Math.cos(a),y:cy+r*Math.sin(a)});}
     let best=null,bd=Infinity;
     for(let i=0;i<6;i++){const a=verts6[i],b=verts6[(i+1)%6];const p=closestPtOnSeg(a,b,{x:px,y:py});const d=Math.hypot(px-p.x,py-p.y);if(d<bd){bd=d;best=p;}}
@@ -2604,7 +2623,7 @@ function projectOnBorder(el, px, py){
   // Sym parallelogram
   if(t==='sym-parallelogram'){
     const off=w*0.2,pad_=1;
-    const tl={x:off+pad_,y:pad_},tr={x:w-pad_,y:pad_},br={x:w-off-pad_,y:h-pad_},bl={x:pad_,y:h-pad_};
+    const tl={x:x+off+pad_,y:y+pad_},tr={x:x+w-pad_,y:y+pad_},br={x:x+w-off-pad_,y:y+h-pad_},bl={x:x+pad_,y:y+h-pad_};
     const edges=[[tl,tr],[tr,br],[br,bl],[bl,tl]];
     let best=null,bd=Infinity;
     edges.forEach(([a,b])=>{const p=closestPtOnSeg(a,b,{x:px,y:py});const d=Math.hypot(px-p.x,py-p.y);if(d<bd){bd=d;best=p;}});
@@ -2613,7 +2632,7 @@ function projectOnBorder(el, px, py){
   // Sym right-triangle
   if(t==='sym-right-tri'){
     const pad_=1;
-    const tl={x:pad_,y:pad_},br={x:w-pad_,y:h-pad_},bl={x:pad_,y:h-pad_};
+    const tl={x:x+pad_,y:y+pad_},br={x:x+w-pad_,y:y+h-pad_},bl={x:x+pad_,y:y+h-pad_};
     const edges=[[tl,br],[br,bl],[bl,tl]];
     let best=null,bd=Infinity;
     edges.forEach(([a,b])=>{const p=closestPtOnSeg(a,b,{x:px,y:py});const d=Math.hypot(px-p.x,py-p.y);if(d<bd){bd=d;best=p;}});
@@ -2623,13 +2642,13 @@ function projectOnBorder(el, px, py){
   if(t==='sym-cylinder'){
     const ry2=h*0.14,pad_=1;
     // Sides are vertical lines; top and bottom are ellipses — approximate with rect edges
-    const edges=[[{x:pad_,y:ry2},{x:pad_,y:h-pad_-ry2}],[{x:w-pad_,y:ry2},{x:w-pad_,y:h-pad_-ry2}]];
+    const edges=[[{x:x+pad_,y:y+ry2},{x:x+pad_,y:y+h-pad_-ry2}],[{x:x+w-pad_,y:y+ry2},{x:x+w-pad_,y:y+h-pad_-ry2}]];
     let best=null,bd=Infinity;
     edges.forEach(([a,b])=>{const p=closestPtOnSeg(a,b,{x:px,y:py});const d=Math.hypot(px-p.x,py-p.y);if(d<bd){bd=d;best=p;}});
     // Also check top and bottom ellipses
-    for(const [ecy2,ery2] of [[ry2,ry2],[h-pad_-ry2,ry2]]){
-      const a=Math.atan2((py-(y+ecy2))/(ery2||1),(px-cx)/((w/2-pad_)||1));
-      const ep={x:Math.round(cx+(w/2-pad_)*Math.cos(a)),y:Math.round(y+ecy2+ery2*Math.sin(a))};
+    for(const [ecy2,ery2] of [[y+ry2,ry2],[y+h-pad_-ry2,ry2]]){
+      const a=Math.atan2((py-ecy2)/(ery2||1),(px-cx)/((w/2-pad_)||1));
+      const ep={x:Math.round(cx+(w/2-pad_)*Math.cos(a)),y:Math.round(ecy2+ery2*Math.sin(a))};
       const d=Math.hypot(px-ep.x,py-ep.y);if(d<bd){bd=d;best=ep;}
     }
     return best?{x:Math.round(best.x),y:Math.round(best.y)}:{x:Math.round(cx),y:Math.round(y)};
@@ -2652,7 +2671,7 @@ function projectOnBorder(el, px, py){
   }
   // Sym star: project onto the nearest of the 10 star edges
   if(t==='sym-star'){
-    const pad_=1,ro=Math.min(cx,cy)-pad_,ri=ro*0.42,n=5;
+    const pad_=1,ro=Math.min(w/2,h/2)-pad_,ri=ro*0.42,n=5;
     const verts=[];
     for(let i=0;i<n*2;i++){const a=-Math.PI/2+(i*Math.PI/n);verts.push({x:cx+(i%2===0?ro:ri)*Math.cos(a),y:cy+(i%2===0?ro:ri)*Math.sin(a)});}
     let best=null,bd=Infinity;
@@ -2717,8 +2736,14 @@ function findSnap(nx,ny,excludeId){
   let best=null, bd=SNAP_TH;
   const PREFER_TH=18; // radius within which center/corners override free-border
   sl.elements.forEach(el=>{
-    // Exclude line/arrow types and self; allow all other elements including text, image etc.
-    if(el.type==='er-line'||el.type==='er-cardinality'||el.type==='sym-arrow'||el.id===excludeId)return;
+    // Exclude only cardinality lines and self
+    if(el.type==='er-line'||el.type==='er-cardinality'||el.id===excludeId)return;
+    // sym-arrow: snap to endpoints + midpoint only
+    if(el.type==='sym-arrow'){
+      const pts=[{x:el.x1,y:el.y1},{x:el.x2,y:el.y2},{x:Math.round((el.x1+el.x2)/2),y:Math.round((el.y1+el.y2)/2)}];
+      for(const pt of pts){const d=Math.hypot(nx-pt.x,ny-pt.y);if(d<bd){bd=d;best=pt;}}
+      return;
+    }
     if(el.x===undefined||el.y===undefined||!el.w||!el.h)return; // skip malformed/line elements
     // Gate: only consider elements whose border is within SNAP_TH
     const borderPt=projectOnBorder(el,nx,ny);
@@ -2744,19 +2769,21 @@ function findSnap(nx,ny,excludeId){
         {x:cx,y:y+h});
     } else if(t==='sym-star'){
       // 5-point star: 5 outer tips + 5 inner notches + center
-      const ro2=Math.min(cx,cy)-1,ri2=ro2*0.42,n2=5;
+      const ro2=Math.min(w/2,h/2)-1,ri2=ro2*0.42,n2=5;
       for(let i=0;i<n2*2;i++){const a=-Math.PI/2+(i*Math.PI/n2);const r=i%2===0?ro2:ri2;preferred.push({x:Math.round(cx+r*Math.cos(a)),y:Math.round(cy+r*Math.sin(a))});}
     } else if(t==='sym-hexagon'){
-      const r3=Math.min(cx,cy)-1;
+      const r3=Math.min(w/2,h/2)-1;
       for(let i=0;i<6;i++){const a=i*Math.PI/3;preferred.push({x:Math.round(cx+r3*Math.cos(a)),y:Math.round(cy+r3*Math.sin(a))});}
-      // midpoints
-      for(let i=0;i<6;i++){const a=(i+0.5)*Math.PI/3;preferred.push({x:Math.round(cx+r3*Math.cos(a)),y:Math.round(cy+r3*Math.sin(a))});}
+      // true edge midpoints: apothem = r3*cos(π/6)
+      const ap=r3*Math.cos(Math.PI/6);
+      for(let i=0;i<6;i++){const a=(i+0.5)*Math.PI/3;preferred.push({x:Math.round(cx+ap*Math.cos(a)),y:Math.round(cy+ap*Math.sin(a))});}
     } else if(t==='sym-parallelogram'){
       const off3=w*0.2;
-      preferred.push({x:Math.round(off3),y:y},{x:x+w,y:y},{x:Math.round(x+w-off3),y:y+h},{x:x,y:y+h});
-      preferred.push({x:Math.round(cx+off3/2),y:y},{x:Math.round(cx-off3/2),y:y+h},{x:Math.round(off3/2),y:cy},{x:Math.round(x+w-off3/2),y:cy});
+      preferred.push({x:Math.round(x+off3),y:y},{x:x+w,y:y},{x:Math.round(x+w-off3),y:y+h},{x:x,y:y+h});
+      preferred.push({x:Math.round(cx+off3/2),y:y},{x:Math.round(cx-off3/2),y:y+h},{x:Math.round(x+off3/2),y:cy},{x:Math.round(x+w-off3/2),y:cy});
     } else if(t==='sym-right-tri'){
-      preferred.push({x:x,y:y},{x:x+w,y:y+h},{x:x,y:y+h},{x:Math.round(x/2),y:Math.round((y+y+h)/2)},{x:Math.round((x+w+x)/2),y:y+h},{x:x,y:cy});
+      // vertices: tl, br, bl — plus edge midpoints
+      preferred.push({x:x,y:y},{x:x+w,y:y+h},{x:x,y:y+h},{x:cx,y:y+h},{x:x,y:cy});
     } else if(t==='sym-cylinder'){
       const ry3=h*0.14;
       preferred.push({x:cx,y:y},{x:cx,y:y+h},{x:x,y:Math.round(y+ry3)},{x:x+w,y:Math.round(y+ry3)},{x:x,y:Math.round(y+h-ry3)},{x:x+w,y:Math.round(y+h-ry3)});
@@ -2765,7 +2792,10 @@ function findSnap(nx,ny,excludeId){
     } else if(t==='sym-diamond'){
       preferred.push({x:cx,y:y},{x:x+w,y:cy},{x:cx,y:y+h},{x:x,y:cy});
     } else if(t==='sym-triangle'){
-      preferred.push({x:cx,y:y},{x:x,y:y+h},{x:x+w,y:y+h},{x:Math.round((cx+x)/2),y:Math.round((y+y+h)/2)},{x:Math.round((cx+x+w)/2),y:Math.round((y+y+h)/2)});
+      preferred.push({x:cx,y:y},{x:x,y:y+h},{x:x+w,y:y+h},
+        {x:Math.round((cx+x)/2),y:Math.round((y+y+h)/2)},
+        {x:Math.round((cx+x+w)/2),y:Math.round((y+y+h)/2)},
+        {x:cx,y:y+h});
     } else {
       // Rectangle / text / image / etc.: 4 corners + 4 edge midpoints
       preferred.push(
