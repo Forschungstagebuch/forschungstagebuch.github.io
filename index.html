@@ -88,8 +88,34 @@
     <svg width="12" height="10" viewBox="0 0 12 10"><line x1="0" y1="1" x2="12" y2="1" stroke="currentColor" stroke-width="1.5"/><line x1="4" y1="5" x2="12" y2="5" stroke="currentColor" stroke-width="1.5"/><line x1="2" y1="9" x2="12" y2="9" stroke="currentColor" stroke-width="1.5"/></svg>
   </button>
   <div class="rtb-div"></div>
-  <button class="rtb-btn" onmousedown="evDef(event)" onclick="rfmt('insertUnorderedList')" title="Aufzählung">•≡</button>
-  <button class="rtb-btn" onmousedown="evDef(event)" onclick="rfmt('insertOrderedList')" title="Nummeriert">1≡</button>
+  <button class="rtb-btn" id="rtbListBtn" onmousedown="evDef(event)" onmouseenter="showListMenu()" onmouseleave="schedHideListMenu()" title="Liste">
+    <svg width="13" height="11" viewBox="0 0 13 11"><circle cx="1.5" cy="1.5" r="1.5" fill="currentColor"/><line x1="5" y1="1.5" x2="13" y2="1.5" stroke="currentColor" stroke-width="1.5"/><circle cx="1.5" cy="5.5" r="1.5" fill="currentColor"/><line x1="5" y1="5.5" x2="13" y2="5.5" stroke="currentColor" stroke-width="1.5"/><circle cx="1.5" cy="9.5" r="1.5" fill="currentColor"/><line x1="5" y1="9.5" x2="13" y2="9.5" stroke="currentColor" stroke-width="1.5"/></svg>
+  </button>
+  <!-- List submenu — shown above the toolbar on hover -->
+  <div id="rtbListMenu" class="rtb-list-menu" onmouseenter="cancelHideListMenu()" onmouseleave="schedHideListMenu()">
+    <div class="rtb-lm-section">
+      <div class="rtb-lm-label">Listentyp</div>
+      <div class="rtb-lm-types">
+        <button class="rtb-lm-btn" onmousedown="evDef(event)" onclick="applyListType('ul','disc')"     title="Punkte">•  Liste</button>
+        <button class="rtb-lm-btn" onmousedown="evDef(event)" onclick="applyListType('ul','circle')"   title="Kreise">○  Kreise</button>
+        <button class="rtb-lm-btn" onmousedown="evDef(event)" onclick="applyListType('ul','square')"   title="Quadrate">■  Quadrate</button>
+        <button class="rtb-lm-btn" onmousedown="evDef(event)" onclick="applyListType('ul','dash')"     title="Strich">—  Strich</button>
+        <button class="rtb-lm-btn" onmousedown="evDef(event)" onclick="applyListType('ul','arrow')"    title="Pfeil">→  Pfeil</button>
+        <button class="rtb-lm-btn" onmousedown="evDef(event)" onclick="applyListType('ul','check')"    title="Haken">✓  Haken</button>
+        <button class="rtb-lm-btn" onmousedown="evDef(event)" onclick="applyListType('ul','diamond')"  title="Raute">◆  Raute</button>
+        <button class="rtb-lm-btn" onmousedown="evDef(event)" onclick="applyListType('ul','star')"     title="Stern">★  Stern</button>
+        <button class="rtb-lm-btn" onmousedown="evDef(event)" onclick="applyListType('ol','decimal')"  title="Zahlen">1.  Zahlen</button>
+        <button class="rtb-lm-btn" onmousedown="evDef(event)" onclick="applyListType('ol','lower-alpha')" title="Buchstaben">a.  Buchst.</button>
+        <button class="rtb-lm-btn" onmousedown="evDef(event)" onclick="applyListType('ol','lower-roman')" title="Römisch">i.  Römisch</button>
+        <button class="rtb-lm-btn" onmousedown="evDef(event)" onclick="applyListType('ol','upper-alpha')" title="Großbuchst.">A.  Groß</button>
+      </div>
+    </div>
+    <div class="rtb-lm-div"></div>
+    <div class="rtb-lm-section">
+      <div class="rtb-lm-label">Symbol pro Einrückungsebene</div>
+      <div id="rtbLmLevels"></div>
+    </div>
+  </div>
   <div class="rtb-div"></div>
   <button class="rtb-btn" onmousedown="evDef(event)" onclick="rfmt('removeFormat')" title="Format löschen">✕</button>
 </div>
@@ -576,11 +602,9 @@
               <label class="fmt-lbl">Zeilenabstand</label>
               <input type="number" class="fmt-inp" id="fmtLH" min="1" max="4" step="0.1" oninput="applyFmt('lineHeight',+this.value)">
               <label class="fmt-lbl">Rahmenfarbe</label>
-              <div style="display:flex;gap:6px;align-items:center;margin-bottom:10px">
-                <input type="color" class="fmt-inp fmt-color" id="fmtTextBorderColor" oninput="applyFmt('borderColor',this.value)" style="margin-bottom:0;flex-shrink:0">
-                <input type="number" class="fmt-inp" id="fmtTextBorderWidth" min="0" max="20" step="0.5" oninput="applyFmt('borderWidth',+this.value)" style="width:52px;margin-bottom:0" placeholder="px">
-                <label class="fmt-chk-lbl" style="margin:0;white-space:nowrap"><input type="checkbox" id="fmtTextNoBorder" onchange="clearTextBorder(this.checked)"> Kein Rahmen</label>
-              </div>
+              <input type="color" class="fmt-inp fmt-color" id="fmtTextBorderColor" oninput="applyFmt('borderColor',this.value)">
+              <label class="fmt-lbl">Rahmenbreite (px)</label>
+              <input type="number" class="fmt-inp" id="fmtTextBorderWidth" min="0" max="20" step="0.5" oninput="applyFmt('borderWidth',+this.value)" placeholder="px">
               <div class="fmt-hint">Zum Formatieren von Textabschnitten: Text markieren → schwebende Toolbar benutzen</div>
               <button class="dict-open-btn" onclick="SC.openDictModal()" title="Eigenes Wörterbuch öffnen">
                 <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>
