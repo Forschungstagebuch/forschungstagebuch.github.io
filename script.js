@@ -594,7 +594,15 @@ function buildLineDom(el){
   hitLine.setAttribute('x2',sx2);hitLine.setAttribute('y2',sy2);
   hitLine.setAttribute('stroke','transparent');hitLine.setAttribute('stroke-width','20');
   hitLine.setAttribute('stroke-linecap','round');hitLine.style.cursor='move';
-  hitLine.addEventListener('mousedown',ev=>{ev.stopPropagation();selectLine(el.id);startMoveLine(el.id,ev);});
+  hitLine.addEventListener('mousedown',ev=>{ev.stopPropagation();
+    if(ev.ctrlKey||ev.metaKey){
+      if(_multiSel.has(el.id)){_multiSel.delete(el.id);const d=document.getElementById('sel_'+el.id);if(d)d.classList.remove('multi-selected');}
+      else{if(selElId&&!_multiSel.has(selElId)){_multiSel.add(selElId);const d=document.getElementById('sel_'+selElId);if(d)d.classList.add('multi-selected');}
+        _multiSel.add(el.id);const d=document.getElementById('sel_'+el.id);if(d)d.classList.add('multi-selected');selElId=el.id;}
+      edTab('fmt');populateMultiFmt();return;
+    }
+    if(_multiSel.size>0&&_multiSel.has(el.id)){startGroupMove(ev);return;}
+    selectLine(el.id);startMoveLine(el.id,ev);});
   svgHit.appendChild(hitLine); wrap.appendChild(svgHit);
 
   // Endpoint handles
@@ -739,6 +747,30 @@ function arrBounds(el){
   const rw=Math.abs(el.x2-el.x1)+2*ARR_PAD,rh=Math.abs(el.y2-el.y1)+2*ARR_PAD;
   return{lx:lx-ARR_PAD,ly:ly-ARR_PAD,w:Math.max(2*ARR_PAD,rw),h:Math.max(2*ARR_PAD,rh)};
 }
+/* Returns ids of er-line/sym-arrow elements whose hit area covers (cx,cy),
+   excluding excludeId, ordered by z-index descending — used for cycle selection. */
+function _getOverlappingLines(cx,cy,excludeId){
+  const THRESH=14; // px tolerance matching the 20px stroke-width / 2
+  const sl=curSlide();if(!sl)return[];
+  const cv=document.getElementById('slideCV');
+  const cvRect=cv?cv.getBoundingClientRect():{left:0,top:0};
+  const scale=cv?(cv.offsetWidth/(slSz(sl).w||960)):1;
+  const px=(cx-cvRect.left)/scale, py=(cy-cvRect.top)/scale;
+  return sl.elements
+    .filter(e=>{
+      if(e.id===excludeId)return false;
+      if(e.type!=='er-line'&&e.type!=='sym-arrow')return false;
+      // Point-to-segment distance
+      const dx=e.x2-e.x1,dy=e.y2-e.y1;
+      const lenSq=dx*dx+dy*dy;
+      if(lenSq===0)return false;
+      const t=Math.max(0,Math.min(1,((px-e.x1)*dx+(py-e.y1)*dy)/lenSq));
+      const nx=e.x1+t*dx-px, ny=e.y1+t*dy-py;
+      return Math.sqrt(nx*nx+ny*ny)<=THRESH;
+    })
+    .sort((a,b)=>(b.z||0)-(a.z||0))
+    .map(e=>e.id);
+}
 function buildArrowDom(el){
   const b=arrBounds(el);
   const wrap=document.createElement('div');
@@ -757,8 +789,19 @@ function buildArrowDom(el){
   hitLine.setAttribute('stroke-linecap','round');hitLine.style.cursor='move';
   hitLine.addEventListener('mousedown',ev=>{
     ev.stopPropagation();
+    if(ev.ctrlKey||ev.metaKey){
+      if(_multiSel.has(el.id)){_multiSel.delete(el.id);const d=document.getElementById('sel_'+el.id);if(d)d.classList.remove('multi-selected');}
+      else{if(selElId&&!_multiSel.has(selElId)){_multiSel.add(selElId);const d=document.getElementById('sel_'+selElId);if(d)d.classList.add('multi-selected');}
+        _multiSel.add(el.id);const d=document.getElementById('sel_'+el.id);if(d)d.classList.add('multi-selected');selElId=el.id;}
+      edTab('fmt');populateMultiFmt();return;
+    }
     if(_multiSel.size>0&&_multiSel.has(el.id)){startGroupMove(ev);return;}
-    selectLine(el.id);startMoveArrow(el.id,ev);
+    // Cycle through overlapping arrows/lines at this position
+    const candidates=_getOverlappingLines(ev.clientX,ev.clientY,el.id);
+    if(candidates.length>0&&selElId===el.id){
+      const next=candidates[0];selectLine(next);
+      const nextEl=getEl(next);if(nextEl)nextEl.type==='sym-arrow'?startMoveArrow(next,ev):startMoveLine(next,ev);
+    } else {selectLine(el.id);startMoveArrow(el.id,ev);}
   });
   svgHit.appendChild(hitLine);wrap.appendChild(svgHit);
   [1,2].forEach(pn=>{
@@ -839,6 +882,12 @@ function mkThumb(slide, tw){
       const sw2=erS.strokeWidth||2;
       const da2=erS.dashed?`stroke-dasharray="${sw2*2.5} ${sw2*2}"`:'';
       inner=`<svg style="position:absolute;inset:0;width:100%;height:100%;overflow:visible"><line x1="${sx1}" y1="${sy1}" x2="${sx2}" y2="${sy2}" stroke="${erS.stroke||'#888077'}" stroke-width="${sw2}" stroke-linecap="round" ${da2}/></svg>`;
+    } else if(el.type==='marker'){
+      const ms=el.markerStyle||{};
+      const sw3=ms.strokeWidth||14, pad3=Math.ceil(sw3/2)+2;
+      posStyle=`left:${(el.x||0)-pad3}px;top:${(el.y||0)-pad3}px;width:${(el.w||4)+pad3*2}px;height:${(el.h||4)+pad3*2}px;overflow:visible`;
+      const pts3=(el.points||[]).map(p=>`${p.x},${p.y}`).join(' ');
+      inner=`<svg style="position:absolute;inset:0;width:100%;height:100%;overflow:visible" viewBox="${-pad3} ${-pad3} ${(el.w||4)+pad3*2} ${(el.h||4)+pad3*2}"><polyline points="${pts3}" stroke="${ms.color||'#facc15'}" stroke-width="${sw3}" stroke-linecap="round" stroke-linejoin="round" fill="none" opacity="${ms.opacity!=null?ms.opacity:0.35}"/></svg>`;
     } else {
       const ex=el.x||0, ey=el.y||0, ew=Math.max(1,el.w||10), eh=Math.max(1,el.h||10);
       const bgS=(st.background&&st.background!=='transparent')?`background:${st.background};`:'';
@@ -1123,6 +1172,14 @@ function renderViewer(){
         d.style.cssText=`position:absolute;left:${b.lx}px;top:${b.ly}px;width:${b.w}px;height:${b.h}px;z-index:${el.z||1};pointer-events:none;overflow:visible`;
         d.appendChild(_buildArrowSVGEl(el,b));
         wrap.appendChild(d);
+      } else if(el.type==='marker'){
+        const ms=el.markerStyle||{};
+        const sw2=ms.strokeWidth||14, pad2=Math.ceil(sw2/2)+2;
+        const d=document.createElement('div');
+        d.style.cssText=`position:absolute;left:${(el.x||0)-pad2}px;top:${(el.y||0)-pad2}px;width:${(el.w||4)+pad2*2}px;height:${(el.h||4)+pad2*2}px;z-index:${el.z||1};pointer-events:none;overflow:visible`;
+        const pts=(el.points||[]).map(p=>`${p.x},${p.y}`).join(' ');
+        d.innerHTML=`<svg style="position:absolute;inset:0;width:100%;height:100%;overflow:visible" viewBox="${-pad2} ${-pad2} ${(el.w||4)+pad2*2} ${(el.h||4)+pad2*2}"><polyline points="${pts}" stroke="${ms.color||'#facc15'}" stroke-width="${sw2}" stroke-linecap="round" stroke-linejoin="round" fill="none" opacity="${ms.opacity!=null?ms.opacity:0.35}"/></svg>`;
+        wrap.appendChild(d);
       } else {
         const st=el.style||{};
         const d=document.createElement('div'); d.className='ro-el';
@@ -1395,16 +1452,25 @@ function onCvDown(ev){
   const slideCV=document.getElementById('slideCV');
   if(ev.target===document.getElementById('edCvArea')||ev.target===slideCV){
     deselectAll();hideRTB();
-    // Start lasso if no modifier — plain background drag
     const rect=slideCV?.getBoundingClientRect();
     if(rect&&!ev.ctrlKey&&!ev.metaKey){
       const lx=(ev.clientX-rect.left)/cvScale, ly=(ev.clientY-rect.top)/cvScale;
+      if(_markerMode){
+        // Start freehand marker drawing (canvas background click path)
+        _beginMarkerDraw(ev,lx,ly);
+        return;
+      }
       MS={type:'lasso',sx:ev.clientX,sy:ev.clientY,lx0:lx,ly0:ly,snap:null};
       ev.preventDefault();
     }
   }
 }
-function onSlideBgDown(ev){if(ev.target===document.getElementById('slideCV')){deselectAll();hideRTB();}}
+function onSlideBgDown(ev){
+  if(ev.target===document.getElementById('slideCV')){
+    if(_markerMode)return; // handled by onCvDown via the slideCV check
+    deselectAll();hideRTB();
+  }
+}
 function onCvDrop(ev){
   ev.preventDefault(); ev.stopPropagation();
   const files=ev.dataTransfer.files; if(!files.length||!files[0].type.startsWith('image/'))return;
@@ -1422,6 +1488,7 @@ function renderSlide(){
   els.forEach(el=>{
     if(el.type==='er-line') slide.appendChild(buildLineDom(el));
     else if(el.type==='sym-arrow') slide.appendChild(buildArrowDom(el));
+    else if(el.type==='marker') slide.appendChild(buildMarkerDom(el));
     else slide.appendChild(buildElDOM(el));
   });
   // Schedule spell check for all text elements after DOM is settled
@@ -1447,6 +1514,7 @@ function buildElDOM(el){
   const bd=document.createElement('div'); bd.className='sel-bd'; wrap.appendChild(bd);
   // Wider overlay for easier clicking
   const ov=document.createElement('div'); ov.className='sel-ov'; wrap.appendChild(ov);
+  _attachElCtxMenu(ov, el.id);
   ov.addEventListener('mousedown',ev=>{
     ev.stopPropagation();
     if(ev.ctrlKey||ev.metaKey){
@@ -1490,7 +1558,7 @@ function buildElDOM(el){
   return wrap;
 }
 
-function typeLabel(t){return{title:'Überschrift',text:'Text',code:'Code',sql:'SQL',image:'Bild',divider:'Linie',badge:'Badge','er-entity':'Entität','er-weak-entity':'Schwache Entität','er-relation':'Beziehungstyp','er-weak-relation':'Schw. Beziehungstyp','er-attribute':'Attribut','er-key-attribute':'Schlüsselattr.','er-multi-attribute':'Mehrwertiger Attr.','er-derived-attr':'Abgel. Attribut','er-isa':'IS-A','er-line':'Verbindungslinie','er-cardinality':'Kardinalität','sym-rect':'Rechteck','sym-rounded-rect':'Abg. Rechteck','sym-circle':'Kreis','sym-ellipse':'Ellipse','sym-triangle':'Dreieck','sym-right-tri':'Rechtes Dreieck','sym-diamond':'Raute','sym-hexagon':'Sechseck','sym-parallelogram':'Parallelogramm','sym-star':'Stern','sym-cylinder':'Zylinder','sym-arrow':'Pfeil'}[t]||t;}
+function typeLabel(t){return{title:'Überschrift',text:'Text',code:'Code',sql:'SQL',image:'Bild',divider:'Linie',badge:'Badge',marker:'Markierung','er-entity':'Entität','er-weak-entity':'Schwache Entität','er-relation':'Beziehungstyp','er-weak-relation':'Schw. Beziehungstyp','er-attribute':'Attribut','er-key-attribute':'Schlüsselattr.','er-multi-attribute':'Mehrwertiger Attr.','er-derived-attr':'Abgel. Attribut','er-isa':'IS-A','er-line':'Verbindungslinie','er-cardinality':'Kardinalität','sym-rect':'Rechteck','sym-rounded-rect':'Abg. Rechteck','sym-circle':'Kreis','sym-ellipse':'Ellipse','sym-triangle':'Dreieck','sym-right-tri':'Rechtes Dreieck','sym-diamond':'Raute','sym-hexagon':'Sechseck','sym-parallelogram':'Parallelogramm','sym-star':'Stern','sym-cylinder':'Zylinder','sym-arrow':'Pfeil'}[t]||t;}
 
 function _closestLI(node, root){
   while(node&&node!==root){if(node.nodeName==='LI')return node;node=node.parentNode;}
@@ -1816,7 +1884,8 @@ function getEl(id){
 function flushEl(){
   if(!selElId)return; const el=getEl(selElId); if(!el)return;
   const dom=document.getElementById('sel_'+selElId); if(!dom)return;
-  const ce=dom.querySelector('.el-text'); if(ce)el.html=ce.innerHTML;
+  const ce=dom.querySelector('.el-text');
+  if(ce){ el.html=ce.innerHTML; if(document.activeElement===ce) ce.blur(); }
   const cd=dom.querySelector('.el-code'); if(cd)el.html=cd.textContent;
   const ba=dom.querySelector('.el-badge-inner'); if(ba)el.text=ba.textContent;
   const et=dom.querySelector('.el-er-text'); if(et)el.text=et.textContent;
@@ -2092,11 +2161,13 @@ function populateFmt(el){
   const isSym=el.type&&el.type.startsWith('sym-')&&el.type!=='sym-arrow';
   const isArrow=el.type==='sym-arrow';
   const isCode=el.type==='code';
+  const isMarker=el.type==='marker';
   document.getElementById('fmtTextSec').style.display=isText?'block':'none';
   document.getElementById('fmtERSec').style.display=isER?'block':'none';
   document.getElementById('fmtLineSec').style.display=isLine?'block':'none';
   const symSec=document.getElementById('fmtSymSec'); if(symSec)symSec.style.display=isSym?'block':'none';
   const arrowSec=document.getElementById('fmtArrowSec'); if(arrowSec)arrowSec.style.display=isArrow?'block':'none';
+  const markerSec=document.getElementById('fmtMarkerSec'); if(markerSec)markerSec.style.display=isMarker?'block':'none';
   const sqlSec=document.getElementById('fmtSqlSec');
   if(sqlSec)sqlSec.style.display='none';
   if(isText){
@@ -2142,14 +2213,25 @@ function populateFmt(el){
     const arEnd=document.getElementById('fmtArrowEnd');if(arEnd)arEnd.value=arS.endType||'filled';
     const arSize=document.getElementById('fmtArrowSize');if(arSize)arSize.value=arS.markerSize||9;
   }
+  if(isMarker){
+    const ms=el.markerStyle||{};
+    const mc=document.getElementById('fmtMarkerColor');if(mc)mc.value=toHex(ms.color||'#facc15');
+    const msw=document.getElementById('fmtMarkerSW');if(msw)msw.value=ms.strokeWidth||14;
+    const mop=document.getElementById('fmtMarkerOpacity');
+    const mopV=document.getElementById('fmtMarkerOpacityV');
+    const opVal=ms.opacity!=null?ms.opacity:0.35;
+    if(mop)mop.value=opVal;
+    if(mopV)mopV.textContent=Math.round(opVal*100)+'%';
+  }
   const bg=st.background||'transparent';
   document.getElementById('fmtBgT').checked=!bg||bg==='transparent';
   document.getElementById('fmtBg').value=(!bg||bg==='transparent')?'#000000':toHex(bg);
   document.getElementById('fmtRad').value=st.borderRadius||0;
   document.getElementById('fmtRadV').textContent=st.borderRadius||0;
-  // Hide radius control for ER elements (shapes are defined by SVG, not CSS border-radius)
+  // Hide background/radius controls for marker and ER line elements
+  const bgSec=document.querySelector('#ep-fmt .sec-hdr:has(+ .sec-body #fmtBg)');
   const radRow=document.getElementById('fmtRadRow');
-  if(radRow) radRow.style.display=(isER||isLine)?'none':'block';
+  if(radRow) radRow.style.display=(isER||isLine||isMarker)?'none':'block';
   refreshFP(el);
 }
 function refreshFP(el){
@@ -2489,9 +2571,312 @@ function addEl(type){
   sl.elements.push(el);
   if(type==='er-line') document.getElementById('slideCV').appendChild(buildLineDom(el));
   else if(type==='sym-arrow') document.getElementById('slideCV').appendChild(buildArrowDom(el));
+  else if(type==='marker') document.getElementById('slideCV').appendChild(buildMarkerDom(el));
   else document.getElementById('slideCV').appendChild(buildElDOM(el));
   if(type==='er-line'||type==='sym-arrow') selectLine(id); else selectEl(id);
   renderSpanel();
+}
+
+/* ════════ MARKER ELEMENT ════════ */
+/* Ramer-Douglas-Peucker path simplifier */
+function _rdp(pts, eps){
+  if(pts.length<3)return pts.slice();
+  let maxD=0, idx=0;
+  const [ax,ay]=pts[0], [bx,by]=pts[pts.length-1];
+  const abLen=Math.hypot(bx-ax,by-ay);
+  for(let i=1;i<pts.length-1;i++){
+    const [px,py]=pts[i];
+    const d=abLen<0.001?Math.hypot(px-ax,py-ay):Math.abs((by-ay)*px-(bx-ax)*py+(bx*ay-by*ax))/abLen;
+    if(d>maxD){maxD=d;idx=i;}
+  }
+  if(maxD>eps){
+    const r1=_rdp(pts.slice(0,idx+1),eps);
+    const r2=_rdp(pts.slice(idx),eps);
+    return [...r1.slice(0,-1),...r2];
+  }
+  return [pts[0],pts[pts.length-1]];
+}
+/* Compute tight bbox of a point array [{x,y}] */
+function _mrkBounds(pts){
+  let x1=Infinity,y1=Infinity,x2=-Infinity,y2=-Infinity;
+  pts.forEach(p=>{if(p.x<x1)x1=p.x;if(p.y<y1)y1=p.y;if(p.x>x2)x2=p.x;if(p.y>y2)y2=p.y;});
+  return {x:x1,y:y1,w:Math.max(4,x2-x1),h:Math.max(4,y2-y1)};
+}
+/* Build SVG polyline string from local points */
+function _mrkPolyStr(el){
+  const pts=el.points||[];
+  return pts.map(p=>`${p.x},${p.y}`).join(' ');
+}
+/* Build DOM for a marker element */
+function buildMarkerDom(el){
+  const ms=el.markerStyle||{};
+  const color=ms.color||'#facc15';
+  const sw=ms.strokeWidth||14;
+  const op=ms.opacity!=null?ms.opacity:0.35;
+  const pad=Math.ceil(sw/2)+2; // padding so stroke isn't clipped
+  const x=el.x||0, y=el.y||0, w=el.w||4, h=el.h||4;
+
+  const wrap=document.createElement('div');
+  wrap.className='sel marker-el'; wrap.id='sel_'+el.id; wrap.dataset.elid=el.id;
+  wrap.style.cssText=`left:${x-pad}px;top:${y-pad}px;width:${w+pad*2}px;height:${h+pad*2}px;z-index:${el.z||10};position:absolute;pointer-events:none`;
+
+  const svg=document.createElementNS('http://www.w3.org/2000/svg','svg');
+  svg.style.cssText='position:absolute;inset:0;width:100%;height:100%;overflow:visible;pointer-events:none';
+  svg.setAttribute('viewBox',`${-pad} ${-pad} ${w+pad*2} ${h+pad*2}`);
+
+  const pl=document.createElementNS('http://www.w3.org/2000/svg','polyline');
+  pl.setAttribute('points',_mrkPolyStr(el));
+  pl.setAttribute('stroke',color);
+  pl.setAttribute('stroke-width',sw);
+  pl.setAttribute('stroke-linecap','round');
+  pl.setAttribute('stroke-linejoin','round');
+  pl.setAttribute('fill','none');
+  pl.setAttribute('opacity',op);
+  svg.appendChild(pl);
+  wrap.appendChild(svg);
+
+  // Invisible hit overlay for clicking/selecting
+  const ov=document.createElement('div');
+  ov.className='sel-ov marker-ov';
+  ov.style.cssText=`position:absolute;inset:0;cursor:move;pointer-events:auto`;
+  _attachElCtxMenu(ov, el.id);
+  ov.addEventListener('mousedown',ev=>{
+    ev.stopPropagation();
+    if(ev.ctrlKey||ev.metaKey){
+      if(_multiSel.has(el.id)){_multiSel.delete(el.id);wrap.classList.remove('multi-selected');}
+      else{if(selElId&&!_multiSel.has(selElId)){_multiSel.add(selElId);const d2=document.getElementById('sel_'+selElId);if(d2)d2.classList.add('multi-selected');}
+        _multiSel.add(el.id);wrap.classList.add('multi-selected');selElId=el.id;}
+      edTab('fmt');populateMultiFmt();return;
+    }
+    if(_multiSel.size>0&&_multiSel.has(el.id)){startGroupMove(ev);return;}
+    _multiSel.forEach(id=>{const d2=document.getElementById('sel_'+id);if(d2)d2.classList.remove('multi-selected');});_multiSel.clear();
+    selectEl(el.id);startMoveMarker(el.id,ev);
+  });
+  wrap.appendChild(ov);
+
+  // Drag bar at top
+  // pointer-events:auto is critical: the wrapper has pointer-events:none, so the bar
+  // must explicitly re-enable them. This also keeps the parent's :hover active when
+  // the cursor moves from the element up into the bar (CSS :hover fires for any
+  // interactive descendant, even one positioned at top:-26px), preventing the bar
+  // from vanishing before the user can reach it.
+  const bar=document.createElement('div'); bar.className='sel-bar';
+  bar.style.pointerEvents='auto';
+  wrap.appendChild(bar);
+  bar.innerHTML=`<span class="sel-bar-grip">⠿⠿</span><span class="sel-bar-lbl">Markierung</span>`;
+  const xb=document.createElement('button'); xb.className='sel-bar-x'; xb.textContent='×';
+  xb.addEventListener('click',ev=>{ev.stopPropagation();deleteEl(el.id);}); bar.appendChild(xb);
+  bar.addEventListener('mousedown',ev=>{ev.preventDefault();ev.stopPropagation();selectEl(el.id);startMoveMarker(el.id,ev);});
+  return wrap;
+}
+function updateMarkerDom(el){
+  const wrap=document.getElementById('sel_'+el.id); if(!wrap)return;
+  const ms=el.markerStyle||{};
+  const sw=ms.strokeWidth||14;
+  const pad=Math.ceil(sw/2)+2;
+  const x=el.x||0,y=el.y||0,w=el.w||4,h=el.h||4;
+  wrap.style.left=(x-pad)+'px'; wrap.style.top=(y-pad)+'px';
+  wrap.style.width=(w+pad*2)+'px'; wrap.style.height=(h+pad*2)+'px';
+  const svg=wrap.querySelector('svg'); if(!svg)return;
+  svg.setAttribute('viewBox',`${-pad} ${-pad} ${w+pad*2} ${h+pad*2}`);
+  const pl=svg.querySelector('polyline'); if(!pl)return;
+  pl.setAttribute('points',_mrkPolyStr(el));
+  pl.setAttribute('stroke',ms.color||'#facc15');
+  pl.setAttribute('stroke-width',sw);
+  pl.setAttribute('opacity',ms.opacity!=null?ms.opacity:0.35);
+}
+function startMoveMarker(elId,ev){
+  const el=getEl(elId);if(!el)return;
+  const snap=_snapElements('Markierung verschoben');
+  // Save original positions of all points (relative to element)
+  MS={type:'move-marker',elId,sx:ev.clientX,sy:ev.clientY,
+      data:{x:el.x||0,y:el.y||0,pts:(el.points||[]).map(p=>({x:p.x,y:p.y}))},snap};
+  ev.preventDefault();
+}
+
+/* ── Marker drawing mode ── */
+let _markerMode=false;
+/* Default style applied to newly drawn markers; updated via the insert-panel right-click popover */
+let _markerDefaults={color:'#facc15',strokeWidth:14,opacity:0.35};
+
+/* Shared helper: begin a freehand marker draw stroke from slide-space point (lx,ly).
+   Called from both onCvDown (click on canvas bg) and the marker-mode overlay
+   (click on top of any element). */
+function _beginMarkerDraw(ev,lx,ly){
+  const slideCV=document.getElementById('slideCV'); if(!slideCV)return;
+  const previewSVG=document.createElementNS('http://www.w3.org/2000/svg','svg');
+  previewSVG.style.cssText='position:absolute;inset:0;width:100%;height:100%;overflow:visible;pointer-events:none;z-index:9998';
+  previewSVG.setAttribute('viewBox',`0 0 ${slideCV.offsetWidth} ${slideCV.offsetHeight}`);
+  const pl=document.createElementNS('http://www.w3.org/2000/svg','polyline');
+  pl.setAttribute('stroke',_markerDefaults.color);
+  pl.setAttribute('stroke-width',_markerDefaults.strokeWidth);
+  pl.setAttribute('stroke-linecap','round');
+  pl.setAttribute('stroke-linejoin','round');
+  pl.setAttribute('fill','none');
+  pl.setAttribute('opacity',_markerDefaults.opacity);
+  previewSVG.appendChild(pl);
+  slideCV.appendChild(previewSVG);
+  MS={type:'draw-marker',rawPts:[{x:lx,y:ly}],previewEl:previewSVG};
+  ev.preventDefault();
+}
+
+function toggleMarkerMode(){
+  _markerMode=!_markerMode;
+  const btn=document.getElementById('markerDrawBtn');
+  if(btn)btn.classList.toggle('marker-draw-active',_markerMode);
+  const cv=document.getElementById('edCvArea');
+  if(cv)cv.style.cursor=_markerMode?'crosshair':'';
+
+  /* Transparent overlay injected directly into slideCV so it sits above every
+     element (image, shape, etc.) at z-index 9999. Without this, clicking on an
+     element overlay steals the mousedown via stopPropagation and the marker
+     stroke never starts. The overlay converts every click/drag into a draw stroke
+     and does NOT block the context menu (contextmenu events bubble through). */
+  const slideCV=document.getElementById('slideCV');
+  let ov=document.getElementById('markerModeOverlay');
+  if(_markerMode){
+    if(!ov&&slideCV){
+      ov=document.createElement('div');
+      ov.id='markerModeOverlay';
+      ov.style.cssText='position:absolute;inset:0;z-index:9999;cursor:crosshair;';
+      ov.addEventListener('mousedown',ev=>{
+        if(!_markerMode)return;
+        /* Check what sits directly under the overlay at this position.
+           By briefly setting pointer-events:none we let elementFromPoint
+           look through the overlay to the real element beneath it. */
+        ov.style.pointerEvents='none';
+        const under=document.elementFromPoint(ev.clientX,ev.clientY);
+        ov.style.pointerEvents='auto';
+        /* If the user clicked on an existing marker (or its drag-bar / delete button),
+           forward the event so the marker can be selected, moved, deleted etc. */
+        if(under&&under.closest('.marker-el')){
+          under.dispatchEvent(new MouseEvent('mousedown',{
+            bubbles:true,cancelable:true,
+            clientX:ev.clientX,clientY:ev.clientY,
+            ctrlKey:ev.ctrlKey,metaKey:ev.metaKey,
+            button:ev.button,buttons:ev.buttons
+          }));
+          return; // do not start a new drawing stroke
+        }
+        /* Otherwise start a new freehand stroke */
+        const rect=slideCV.getBoundingClientRect();
+        const lx=(ev.clientX-rect.left)/cvScale, ly=(ev.clientY-rect.top)/cvScale;
+        _beginMarkerDraw(ev,lx,ly);
+      });
+      /* Forward click events to marker elements (needed for the × delete button,
+         whose action fires on 'click' not 'mousedown'). */
+      ov.addEventListener('click',ev=>{
+        if(!_markerMode)return;
+        ov.style.pointerEvents='none';
+        const under=document.elementFromPoint(ev.clientX,ev.clientY);
+        ov.style.pointerEvents='auto';
+        if(under&&under.closest('.marker-el')){
+          under.dispatchEvent(new MouseEvent('click',{
+            bubbles:true,cancelable:true,
+            clientX:ev.clientX,clientY:ev.clientY,
+            ctrlKey:ev.ctrlKey,metaKey:ev.metaKey,
+            button:ev.button
+          }));
+        }
+      });
+      /* Right-click on the overlay shows the canvas context menu as normal */
+      ov.addEventListener('contextmenu',ev=>{
+        const underlying=document.elementFromPoint(ev.clientX,ev.clientY);
+        // briefly hide overlay so elementFromPoint finds the real element under it
+        ov.style.display='none';
+        const target=document.elementFromPoint(ev.clientX,ev.clientY);
+        ov.style.display='';
+        const elDom=target?.closest('[data-elid]');
+        showCtxMenu(ev, elDom?elDom.dataset.elid:null);
+      });
+      slideCV.appendChild(ov);
+    }
+  } else {
+    if(ov)ov.remove();
+    hideMarkerStylePop();
+  }
+}
+
+function _finishMarkerDraw(rawPts){
+  if(rawPts.length<2)return;
+  // RDP simplification — epsilon 6px gives natural straight strokes
+  const simplified=_rdp(rawPts.map(p=>[p.x,p.y]),6).map(([x,y])=>({x:Math.round(x),y:Math.round(y)}));
+  // Compute bounding box
+  const bb=_mrkBounds(simplified);
+  // Normalize points to local (relative) coords
+  const pts=simplified.map(p=>({x:Math.round(p.x-bb.x),y:Math.round(p.y-bb.y)}));
+  const sl=curSlide(); if(!sl)return;
+  pushHistory('Markierung hinzugefügt');
+  const id=uid(), z=++zMax;
+  const el={id,type:'marker',z,x:Math.round(bb.x),y:Math.round(bb.y),w:Math.round(bb.w),h:Math.round(bb.h),
+    points:pts, markerStyle:{color:_markerDefaults.color,strokeWidth:_markerDefaults.strokeWidth,opacity:_markerDefaults.opacity}};
+  sl.elements.push(el);
+  document.getElementById('slideCV').appendChild(buildMarkerDom(el));
+  selectEl(id);
+  renderSpanel();
+}
+
+/* ── Marker style popover (right-click on insert-panel button) ── */
+function showMarkerStylePop(ev){
+  ev.preventDefault(); ev.stopPropagation();
+  const pop=document.getElementById('markerStylePop'); if(!pop)return;
+  // Populate from current defaults
+  const mc=document.getElementById('mspColor');
+  const msw=document.getElementById('mspSW'), mswv=document.getElementById('mspSWV');
+  const mop=document.getElementById('mspOp'), mopv=document.getElementById('mspOpV');
+  if(mc) mc.value=_markerDefaults.color;
+  if(msw){ msw.value=_markerDefaults.strokeWidth; if(mswv)mswv.textContent=_markerDefaults.strokeWidth+'px'; }
+  if(mop){ mop.value=_markerDefaults.opacity; if(mopv)mopv.textContent=Math.round(_markerDefaults.opacity*100)+'%'; }
+  // Position: to the right of the sidebar panel, centered on the button
+  const btn=document.getElementById('markerDrawBtn');
+  const r=btn?.getBoundingClientRect();
+  pop.style.display='block';
+  const pw=pop.offsetWidth||200, ph=pop.offsetHeight||130;
+  // Horizontally: right edge of the button + gap
+  let x = r ? r.right + 10 : ev.clientX + 10;
+  // Vertically: center on the button
+  let y = r ? r.top + r.height/2 - ph/2 : ev.clientY - ph/2;
+  // Clamp to viewport
+  if(x+pw > window.innerWidth-8) x = (r ? r.left : ev.clientX) - pw - 8;
+  y = Math.max(8, Math.min(y, window.innerHeight - ph - 8));
+  pop.style.left=x+'px'; pop.style.top=y+'px';
+}
+function hideMarkerStylePop(){
+  const pop=document.getElementById('markerStylePop'); if(pop)pop.style.display='none';
+}
+function setMarkerDefault(prop,val){
+  _markerDefaults[prop]=val;
+  /* Update the SVG preview icon on the insert-panel button */
+  const previewBg=document.getElementById('mspPreviewBg');
+  const previewFg=document.getElementById('mspPreviewFg');
+  if(prop==='color'){
+    if(previewBg) previewBg.setAttribute('stroke',val);
+    if(previewFg) previewFg.setAttribute('stroke',val);
+  }
+  if(prop==='strokeWidth'){
+    // Map [2,60] → [1.5, 9] for the 36×22 viewBox
+    const dsw = 1.5 + (val - 2) / 58 * 7.5;
+    if(previewBg) previewBg.setAttribute('stroke-width', dsw.toFixed(1));
+  }
+  if(prop==='opacity'){
+    // bg path shows the semi-transparent fill at the chosen opacity
+    if(previewBg) previewBg.setAttribute('opacity', val);
+    // fg crisp outline stays readable but fades slightly when very transparent
+    if(previewFg) previewFg.setAttribute('opacity', Math.min(0.95, val + 0.45));
+  }
+  /* Mirror live into the canvas context-menu controls if they're visible */
+  if(prop==='color'){ const e=document.getElementById('ctxMarkerColor'); if(e)e.value=val; }
+  if(prop==='strokeWidth'){ const e=document.getElementById('ctxMarkerSW'); if(e)e.value=val; const v=document.getElementById('ctxMarkerSWV'); if(v)v.textContent=val+'px'; }
+  if(prop==='opacity'){ const e=document.getElementById('ctxMarkerOp'); if(e)e.value=val; const v=document.getElementById('ctxMarkerOpV'); if(v)v.textContent=Math.round(val*100)+'%'; }
+}
+
+/* Marker properties panel */
+function applyMarkerSt(prop,val){
+  if(!selElId)return; const el=getEl(selElId); if(!el||el.type!=='marker')return;
+  pushHistoryDebounced('Markierung formatiert');
+  el.markerStyle=el.markerStyle||{};
+  el.markerStyle[prop]=val;
+  updateMarkerDom(el);
 }
 
 /* ════════ MOVEMENT STATE MACHINE ════════ */
@@ -2501,7 +2886,7 @@ function startGroupMove(ev){
   const initPositions={};
   _multiSel.forEach(id=>{
     const el=getEl(id);if(!el)return;
-    if(el.type==='sym-arrow'){
+    if(el.type==='sym-arrow'||el.type==='er-line'){
       initPositions[id]={x1:el.x1,y1:el.y1,x2:el.x2,y2:el.y2};
     } else {
       initPositions[id]={x:el.x||0,y:el.y||0};
@@ -2819,6 +3204,16 @@ document.addEventListener('mousemove',ev=>{
   if(!MS)return;
   const dx=(ev.clientX-MS.sx)/cvScale, dy=(ev.clientY-MS.sy)/cvScale;
 
+  if(MS.type==='draw-marker'){
+    const rect=document.getElementById('slideCV')?.getBoundingClientRect(); if(!rect)return;
+    const px=(ev.clientX-rect.left)/cvScale, py=(ev.clientY-rect.top)/cvScale;
+    MS.rawPts.push({x:px,y:py});
+    // Update live preview polyline
+    const pl=MS.previewEl?.querySelector('polyline');
+    if(pl)pl.setAttribute('points',MS.rawPts.map(p=>`${p.x},${p.y}`).join(' '));
+    return;
+  }
+
   if(MS.type==='lasso'){
     const rect=document.getElementById('slideCV')?.getBoundingClientRect();if(!rect)return;
     const lx1=MS.lx0,ly1=MS.ly0;
@@ -2832,13 +3227,21 @@ document.addEventListener('mousemove',ev=>{
     MS._lx2=lx2;MS._ly2=ly2;
     return;
   }
+  if(MS.type==='move-marker'){
+    const el=getEl(MS.elId); if(!el)return;
+    el.x=Math.round(MS.data.x+dx);
+    el.y=Math.round(MS.data.y+dy);
+    // Offset all points (they are in local/relative coords so just update anchor)
+    updateMarkerDom(el);
+    return;
+  }
   if(MS.type==='move-group'){
     // ── Step 1: compute raw group bounding box after applying dx/dy ──
     let gx1=Infinity,gy1=Infinity,gx2=-Infinity,gy2=-Infinity;
     MS.elIds.forEach(id=>{
       const d=MS.data[id]; if(!d)return;
       const el=getEl(id); if(!el)return;
-      if(el.type==='sym-arrow'){
+      if(el.type==='sym-arrow'||el.type==='er-line'){
         const bx1=Math.min(d.x1,d.x2)+dx, bx2=Math.max(d.x1,d.x2)+dx;
         const by1=Math.min(d.y1,d.y2)+dy, by2=Math.max(d.y1,d.y2)+dy;
         if(bx1<gx1)gx1=bx1; if(by1<gy1)gy1=by1;
@@ -2898,8 +3301,9 @@ document.addEventListener('mousemove',ev=>{
     });
 
     const snapDx=Math.round(dx+snapDdx), snapDy=Math.round(dy+snapDdy);
+    const snappedRect={x:gx1+snapDdx,y:gy1+snapDdy,w:gw,h:gh};
 
-    // ── Step 3: Show guide lines at correct slide-pixel position ──
+    // ── Step 3a: Red/blue alignment guides via gH/gV (same as single element) ──
     const sRect=document.getElementById('slideCV')?.getBoundingClientRect();
     const gH=document.getElementById('gH'), gV=document.getElementById('gV');
     if(sRect){
@@ -2914,18 +3318,23 @@ document.addEventListener('mousemove',ev=>{
         gV.style.background=colorX; gV.style.boxShadow=`0 0 4px ${colorX}`;
       } else { gV.style.display='none'; }
     }
+    // ── Step 3b: Green spacing guides via SVG overlay ──
+    const spSnap=updateSmartGuides(snappedRect, new Set(MS.elIds), true /*skipEdgeLines — gH/gV used above*/);
+    // Apply green spacing snap correction on top of red/blue edge snap
+    const finalDx=snapDx+(spSnap&&spSnap.dx?Math.round(spSnap.dx):0);
+    const finalDy=snapDy+(spSnap&&spSnap.dy?Math.round(spSnap.dy):0);
 
     // ── Step 4: Apply movement to all group elements ──
     MS.elIds.forEach(id=>{
       const el=getEl(id);if(!el||!MS.data[id])return;
-      if(el.type==='sym-arrow'){
+      if(el.type==='sym-arrow'||el.type==='er-line'){
         const d=MS.data[id];
-        el.x1=Math.round(d.x1+snapDx);el.y1=Math.round(d.y1+snapDy);
-        el.x2=Math.round(d.x2+snapDx);el.y2=Math.round(d.y2+snapDy);
-        updateArrowDom(el);
+        el.x1=Math.round(d.x1+finalDx);el.y1=Math.round(d.y1+finalDy);
+        el.x2=Math.round(d.x2+finalDx);el.y2=Math.round(d.y2+finalDy);
+        if(el.type==='sym-arrow')updateArrowDom(el); else updateLineDom(el);
       } else {
-        el.x=Math.round(MS.data[id].x+snapDx);
-        el.y=Math.round(MS.data[id].y+snapDy);
+        el.x=Math.round(MS.data[id].x+finalDx);
+        el.y=Math.round(MS.data[id].y+finalDy);
         const dom=document.getElementById('sel_'+id);
         if(dom){dom.style.left=el.x+'px';dom.style.top=el.y+'px';}
       }
@@ -2938,6 +3347,11 @@ document.addEventListener('mousemove',ev=>{
     const snap=trySnapEl(el,nx,ny); el.x=snap.x; el.y=snap.y;
     const dom=document.getElementById('sel_'+MS.elId);
     if(dom){dom.style.left=el.x+'px';dom.style.top=el.y+'px';}
+    const spS=updateSmartGuides({x:el.x,y:el.y,w:el.w||0,h:el.h||0},[MS.elId],true/*skipEdgeLines — trySnapEl already shows gH/gV*/);
+    if(spS&&(spS.dx||spS.dy)){
+      el.x+=spS.dx; el.y+=spS.dy;
+      if(dom){dom.style.left=el.x+'px';dom.style.top=el.y+'px';}
+    }
     // Update attached ER lines using pre-bound point indices (no per-frame proximity search)
     if(MS.lineBindings&&MS.lineBindings.length){
       const newPts=connPts(el);
@@ -2957,12 +3371,16 @@ document.addEventListener('mousemove',ev=>{
     el.x1=Math.round(MS.data.x1+dx); el.y1=Math.round(MS.data.y1+dy);
     el.x2=Math.round(MS.data.x2+dx); el.y2=Math.round(MS.data.y2+dy);
     updateLineDom(el); refreshFP(el);
+    const lr={x:Math.min(el.x1,el.x2),y:Math.min(el.y1,el.y2),w:Math.abs(el.x2-el.x1)||4,h:Math.abs(el.y2-el.y1)||4};
+    updateSmartGuides(lr,[MS.elId]);
   }
   if(MS.type==='move-arrow'){
     const el=getEl(MS.elId); if(!el)return;
     el.x1=Math.round(MS.data.x1+dx); el.y1=Math.round(MS.data.y1+dy);
     el.x2=Math.round(MS.data.x2+dx); el.y2=Math.round(MS.data.y2+dy);
     updateArrowDom(el); refreshFP(el);
+    const ar={x:Math.min(el.x1,el.x2),y:Math.min(el.y1,el.y2),w:Math.abs(el.x2-el.x1)||4,h:Math.abs(el.y2-el.y1)||4};
+    updateSmartGuides(ar,[MS.elId]);
   }
   if(MS.type==='drag-arrow-pt'){
     const el=getEl(MS.elId); if(!el)return;
@@ -3046,6 +3464,14 @@ document.addEventListener('mouseup',()=>{
   document.body.classList.remove('er-element-moving');
   // Restore CSS control over er-line endpoint handles (clear inline style set by startMove)
   document.querySelectorAll('.er-line-pt').forEach(p=>{p.style.display='';});
+  if(MS&&MS.type==='draw-marker'){
+    const rawPts=MS.rawPts||[];
+    // Remove preview overlay
+    if(MS.previewEl&&MS.previewEl.parentNode)MS.previewEl.parentNode.removeChild(MS.previewEl);
+    MS=null;
+    _finishMarkerDraw(rawPts);
+    return;
+  }
   if(MS&&MS.type==='lasso'){
     const lBox=document.getElementById('lassoBox');if(lBox)lBox.style.display='none';
     const lx1=Math.min(MS.lx0,MS._lx2||MS.lx0),ly1=Math.min(MS.ly0,MS._ly2||MS.ly0);
@@ -3053,11 +3479,10 @@ document.addEventListener('mouseup',()=>{
     if(lx2-lx1>4||ly2-ly1>4){ // only if dragged a meaningful distance
       const sl=curSlide();
       if(sl)sl.elements.forEach(el=>{
-        if(el.type==='er-line')return; // er-lines not selectable via lasso
         let inLasso=false;
-        if(el.type==='sym-arrow'){
-          const b=arrBounds(el);
-          inLasso=(b.lx<lx2&&b.lx+b.w>lx1&&b.ly<ly2&&b.ly+b.h>ly1);
+        if(el.type==='er-line'||el.type==='sym-arrow'){
+          const pts=[[el.x1,el.y1],[el.x2,el.y2],[(el.x1+el.x2)/2,(el.y1+el.y2)/2]];
+          inLasso=pts.some(([px,py])=>px>=lx1&&px<=lx2&&py>=ly1&&py<=ly2);
         } else {
           if(!el.x&&el.x!==0)return;
           const ex=el.x||0,ey=el.y||0,ew=el.w||0,eh=el.h||0;
@@ -3077,7 +3502,7 @@ document.addEventListener('mouseup',()=>{
     let changed=false;
     MS.elIds.forEach(id=>{
       const el=getEl(id);if(!el||!MS.data[id])return;
-      if(el.type==='sym-arrow'){
+      if(el.type==='sym-arrow'||el.type==='er-line'){
         if(el.x1!==MS.data[id].x1||el.y1!==MS.data[id].y1)changed=true;
       } else {
         if(el.x!==MS.data[id].x||el.y!==MS.data[id].y)changed=true;
@@ -3086,7 +3511,7 @@ document.addEventListener('mouseup',()=>{
     if(changed&&MS.snap){_undoStack.push(MS.snap);if(_undoStack.length>UNDO_MAX)_undoStack.shift();_redoStack=[];_updateHistBtns();}
     MS=null;hideGuides();hideConnDots();return;
   }
-  if(MS&&(MS.type==='move'||MS.type==='move-line'||MS.type==='resize'||MS.type==='drag-pt'||MS.type==='move-arrow'||MS.type==='drag-arrow-pt')){
+  if(MS&&(MS.type==='move'||MS.type==='move-line'||MS.type==='resize'||MS.type==='drag-pt'||MS.type==='move-arrow'||MS.type==='drag-arrow-pt'||MS.type==='move-marker')){
     const el=getEl(MS.elId);
     let changed=false;
     if(MS.type==='move'&&el)
@@ -3097,6 +3522,8 @@ document.addEventListener('mouseup',()=>{
       changed=(el.w!==MS.data.w||el.h!==MS.data.h);
     else if((MS.type==='drag-pt'||MS.type==='drag-arrow-pt')&&el)
       changed=(el.x1!==MS.data.x1||el.y1!==MS.data.y1||el.x2!==MS.data.x2||el.y2!==MS.data.y2);
+    else if(MS.type==='move-marker'&&el)
+      changed=(el.x!==MS.data.x||el.y!==MS.data.y);
     if(changed){
       // Push the pre-drag snapshot now that we know something changed
       if(MS.snap){_undoStack.push(MS.snap);if(_undoStack.length>UNDO_MAX)_undoStack.shift();_redoStack=[];_updateHistBtns();}
@@ -3169,7 +3596,7 @@ function trySnapEl(el,nx,ny){
   }
   return{x:rx,y:ry};
 }
-function hideGuides(){document.getElementById('gH').style.display='none';document.getElementById('gV').style.display='none';}
+function hideGuides(){document.getElementById('gH').style.display='none';document.getElementById('gV').style.display='none';clearSmartGuides();}
 
 /* ════════ KEYBOARD ════════ */
 document.addEventListener('keydown',ev=>{
@@ -4954,6 +5381,13 @@ document.addEventListener('paste', ev => {
     active.tagName === 'SELECT'
   )) return;
 
+  // ── Internal element clipboard takes priority over OS clipboard ─────
+  if (_ctxClipboard && _ctxClipboard.length > 0) {
+    ev.preventDefault();
+    ctxPaste();
+    return;
+  }
+
   const items = ev.clipboardData?.items;
   if (!items) return;
 
@@ -5428,3 +5862,652 @@ document.addEventListener('DOMContentLoaded',async ()=>{
   document.getElementById('dbLoading').style.display='none';
   showView('loginView');
 });
+/* ════════ CONTEXT MENU ════════ */
+let _ctxClipboard = null; // internal element clipboard
+let _ctxTargetId  = null; // element id that was right-clicked (null = canvas bg)
+let _ctxPasteSlideX = null; // slide-coords where right-click happened (for paste position)
+let _ctxPasteSlideY = null;
+
+/* ── Capturing mousedown on canvas: cycle-select overlapping lines/arrows ── */
+document.addEventListener('mousedown', ev => {
+  if (!document.getElementById('editorView')?.classList.contains('open')) return;
+  const cv = document.getElementById('slideCV');
+  if (!cv || !cv.contains(ev.target)) return;
+
+  // Let endpoint handle clicks pass through unchanged
+  if (ev.target.classList.contains('er-line-pt')) return;
+
+  const sl = curSlide(); if (!sl) return;
+  const cvRect = cv.getBoundingClientRect();
+  const scale  = cv.offsetWidth / (slSz(sl).w || 960);
+  const px = (ev.clientX - cvRect.left)  / scale;
+  const py = (ev.clientY - cvRect.top)   / scale;
+
+  // Collect all lines/arrows whose hit area covers this point
+  const THRESH = 7;
+  const hits = sl.elements
+    .filter(e => {
+      if (e.type !== 'er-line' && e.type !== 'sym-arrow') return false;
+      const dx = e.x2 - e.x1, dy = e.y2 - e.y1;
+      const lenSq = dx*dx + dy*dy; if (lenSq === 0) return false;
+      const t = Math.max(0, Math.min(1, ((px-e.x1)*dx + (py-e.y1)*dy) / lenSq));
+      const nx = e.x1 + t*dx - px, ny = e.y1 + t*dy - py;
+      return Math.sqrt(nx*nx + ny*ny) <= THRESH;
+    })
+    .sort((a, b) => (b.z||0) - (a.z||0));
+
+  if (hits.length === 0) return; // let normal handlers take over
+
+  ev.stopPropagation(); // take over selection completely
+
+  if (ev.ctrlKey || ev.metaKey) {
+    // Ctrl+click: toggle all hits in multi-selection (top one only for simplicity)
+    const e = hits[0];
+    if (_multiSel.has(e.id)) {
+      _multiSel.delete(e.id);
+      document.getElementById('sel_'+e.id)?.classList.remove('multi-selected');
+    } else {
+      if (selElId && !_multiSel.has(selElId)) {
+        _multiSel.add(selElId);
+        document.getElementById('sel_'+selElId)?.classList.add('multi-selected');
+      }
+      _multiSel.add(e.id);
+      document.getElementById('sel_'+e.id)?.classList.add('multi-selected');
+      selElId = e.id;
+    }
+    edTab('fmt'); populateMultiFmt();
+    return;
+  }
+
+  if (_multiSel.size > 0 && hits.some(e => _multiSel.has(e.id))) {
+    startGroupMove(ev); return;
+  }
+
+  // Cycle: if already selected one of the hits, move to next in list
+  let pick = hits[0];
+  if (hits.length > 1) {
+    const curIdx = hits.findIndex(e => e.id === selElId);
+    pick = curIdx >= 0 ? hits[(curIdx + 1) % hits.length] : hits[0];
+  }
+
+  selectLine(pick.id);
+  if (pick.type === 'sym-arrow') startMoveArrow(pick.id, ev);
+  else startMoveLine(pick.id, ev);
+}, true /* capturing */);
+
+
+function showCtxMenu(ev, elId) {
+  ev.preventDefault();
+  ev.stopPropagation();
+
+  // Store slide-space position for paste/duplicate placement
+  const cv = document.getElementById('slideCV');
+  const sl = curSlide();
+  if (cv && sl) {
+    const cvRect = cv.getBoundingClientRect();
+    const scale  = cv.offsetWidth / (slSz(sl).w || 960);
+    _ctxPasteSlideX = Math.round((ev.clientX - cvRect.left) / scale);
+    _ctxPasteSlideY = Math.round((ev.clientY - cvRect.top)  / scale);
+  } else { _ctxPasteSlideX = null; _ctxPasteSlideY = null; }
+
+  // Select the right-clicked element so actions apply to it
+  if (elId) {
+    if (!_multiSel.has(elId)) { selectEl(elId); }
+  }
+
+  _ctxTargetId = elId || null;
+
+  const menu = document.getElementById('ctxMenu');
+  const hasEl   = !!(elId || _multiSel.size > 0 || selElId);
+  const hasCopy = !!_ctxClipboard;
+
+  // Enable / disable items
+  menu.querySelector('#ctxCutBtn').disabled    = !hasEl;
+  menu.querySelector('#ctxDupBtn').disabled    = !hasEl;
+  menu.querySelector('#ctxFrontBtn').disabled  = !hasEl;
+  menu.querySelector('#ctxBackBtn').disabled   = !hasEl;
+  menu.querySelector('#ctxDeleteBtn').disabled = !hasEl;
+  menu.querySelector('#ctxPasteBtn').disabled  = !hasCopy;
+
+  // Show / populate marker properties section
+  const ctxMarkerSec = document.getElementById('ctxMarkerSec');
+  const targetEl = elId ? getEl(elId) : (selElId ? getEl(selElId) : null);
+  const isMarkerTarget = targetEl && targetEl.type === 'marker';
+  if (ctxMarkerSec) {
+    ctxMarkerSec.style.display = isMarkerTarget ? 'block' : 'none';
+    if (isMarkerTarget) {
+      const ms = targetEl.markerStyle || {};
+      const mc = document.getElementById('ctxMarkerColor');
+      const msw = document.getElementById('ctxMarkerSW');
+      const mswv = document.getElementById('ctxMarkerSWV');
+      const mop = document.getElementById('ctxMarkerOp');
+      const mopv = document.getElementById('ctxMarkerOpV');
+      if (mc)   mc.value  = toHex(ms.color || '#facc15');
+      if (msw)  { msw.value  = ms.strokeWidth || 14; if (mswv) mswv.textContent = (ms.strokeWidth || 14) + 'px'; }
+      if (mop)  { mop.value  = ms.opacity != null ? ms.opacity : 0.35; if (mopv) mopv.textContent = Math.round((ms.opacity != null ? ms.opacity : 0.35) * 100) + '%'; }
+    }
+  }
+
+  // Position
+  menu.style.display = 'block';
+  const vw = window.innerWidth, vh = window.innerHeight;
+  const mw = menu.offsetWidth  || 220;
+  const mh = menu.offsetHeight || 300;
+  let x = ev.clientX, y = ev.clientY;
+  if (x + mw > vw - 8) x = vw - mw - 8;
+  if (y + mh > vh - 8) y = vh - mh - 8;
+  menu.style.left = x + 'px';
+  menu.style.top  = y + 'px';
+}
+
+function hideCtxMenu() {
+  document.getElementById('ctxMenu').style.display = 'none';
+}
+
+// Close on any click or Escape outside the menu
+document.addEventListener('click', ev => {
+  const menu = document.getElementById('ctxMenu');
+  if (menu && menu.style.display !== 'none' && !menu.contains(ev.target)) hideCtxMenu();
+  /* Also close marker style popover unless clicking inside it or on the button */
+  const pop = document.getElementById('markerStylePop');
+  const btn = document.getElementById('markerDrawBtn');
+  if (pop && pop.style.display !== 'none' && !pop.contains(ev.target) && !btn?.contains(ev.target)) hideMarkerStylePop();
+});
+document.addEventListener('keydown', ev => {
+  if (ev.key === 'Escape') hideCtxMenu();
+}, true);
+document.addEventListener('contextmenu', ev => {
+  // Contextmenu on canvas background → show with no element target
+  const edOpen = document.getElementById('editorView')?.classList.contains('open');
+  if (!edOpen) return;
+  const inCanvas = !!ev.target.closest('#edCvArea');
+  if (!inCanvas) { hideCtxMenu(); return; }
+  // If not already handled by an element overlay, treat as background click
+  if (!ev._ctxHandled) showCtxMenu(ev, null);
+});
+
+// Hook contextmenu on element overlays (called from buildElDOM)
+function _attachElCtxMenu(ovEl, elId) {
+  ovEl.addEventListener('contextmenu', ev => {
+    ev._ctxHandled = true;
+    showCtxMenu(ev, elId);
+  });
+}
+
+/* ── Actions ── */
+function _activeIds() {
+  if (_multiSel.size > 0) return [..._multiSel];
+  if (selElId) return [selElId];
+  if (_ctxTargetId) return [_ctxTargetId];
+  return [];
+}
+
+function ctxCopy() {
+  hideCtxMenu();
+  const ids = _activeIds();
+  if (!ids.length) return;
+  const sl = curSlide(); if (!sl) return;
+  _ctxClipboard = ids.map(id => JSON.parse(JSON.stringify(sl.elements.find(e => e.id === id)))).filter(Boolean);
+}
+
+function ctxCut() {
+  hideCtxMenu();
+  const ids = _activeIds();
+  if (!ids.length) return;
+  ctxCopy();
+  pushHistory('Ausgeschnitten');
+  ids.forEach(id => deleteElById(id));
+  _multiSel.clear();
+  selElId = null;
+  document.getElementById('fmtEmpty').style.display = 'block';
+  document.getElementById('fmtCtrl').style.display  = 'none';
+}
+
+function ctxPaste(isDuplicate) {
+  hideCtxMenu();
+  if (!_ctxClipboard || !_ctxClipboard.length) return;
+  const sl = curSlide(); if (!sl) return;
+  pushHistory('Eingefügt');
+
+  const OFFSET = 20; // offset for plain Ctrl+V (no right-click position)
+  const cv = document.getElementById('slideCV');
+  const sz = slSz(sl);
+
+  // Compute bounding box of clipboard elements to position group at paste point
+  let minX = Infinity, minY = Infinity;
+  _ctxClipboard.forEach(orig => {
+    if ('x' in orig) { minX = Math.min(minX, orig.x); minY = Math.min(minY, orig.y); }
+    if ('x1' in orig) { minX = Math.min(minX, orig.x1, orig.x2); minY = Math.min(minY, orig.y1, orig.y2); }
+  });
+
+  // Decide where to place: at right-click position or offset from original
+  let dx, dy;
+  if (!isDuplicate && _ctxPasteSlideX !== null) {
+    // Place top-left of group at right-click position
+    dx = _ctxPasteSlideX - (isFinite(minX) ? minX : 0);
+    dy = _ctxPasteSlideY - (isFinite(minY) ? minY : 0);
+  } else {
+    // Duplicate or keyboard Ctrl+V: small offset from original
+    dx = OFFSET; dy = OFFSET;
+  }
+
+  // Clear previous selection visually before resetting the set
+  _multiSel.forEach(id => document.getElementById('sel_'+id)?.classList.remove('multi-selected'));
+  if (selElId) { document.getElementById('sel_'+selElId)?.classList.remove('selected'); selElId = null; }
+  _multiSel.clear();
+  const newIds = [];
+  _ctxClipboard.forEach(orig => {
+    const newEl = JSON.parse(JSON.stringify(orig));
+    newEl.id = uid();
+    newEl.z  = ++zMax;
+    if ('x' in newEl)  { newEl.x += dx; newEl.y += dy; }
+    if ('x1' in newEl) { newEl.x1 += dx; newEl.y1 += dy; newEl.x2 += dx; newEl.y2 += dy; }
+    sl.elements.push(newEl);
+    // Use the correct builder and append to the live canvas
+    let dom;
+    if (newEl.type === 'er-line')    dom = buildLineDom(newEl);
+    else if (newEl.type === 'sym-arrow') dom = buildArrowDom(newEl);
+    else                              dom = buildElDOM(newEl);
+    cv.appendChild(dom);
+    newIds.push(newEl.id);
+    _multiSel.add(newEl.id);
+  });
+
+  if (newIds.length === 1) {
+    selElId = newIds[0]; _multiSel.clear();
+    selectEl(selElId);
+  } else {
+    selElId = newIds[newIds.length - 1];
+    // Highlight all pasted elements as multi-selected
+    newIds.forEach(id => document.getElementById('sel_'+id)?.classList.add('multi-selected'));
+    populateMultiFmt();
+  }
+  renderSpanel();
+  autoSave();
+}
+
+function ctxDuplicate() {
+  hideCtxMenu();
+  const savedX = _ctxPasteSlideX, savedY = _ctxPasteSlideY;
+  ctxCopy();
+  _ctxPasteSlideX = savedX; _ctxPasteSlideY = savedY;
+  ctxPaste(true); // isDuplicate=true → use offset instead of click position
+}
+
+function ctxDelete() {
+  hideCtxMenu();
+  const ids = _activeIds();
+  if (!ids.length) return;
+  if (ids.length === 1) {
+    deleteEl(ids[0]);
+  } else {
+    pushHistory('Gruppe gelöscht');
+    ids.forEach(id => deleteElById(id));
+    _multiSel.clear();
+    selElId = null;
+    document.getElementById('fmtEmpty').style.display = 'block';
+    document.getElementById('fmtCtrl').style.display  = 'none';
+  }
+}
+
+function ctxBringFront() {
+  hideCtxMenu();
+  const ids = _activeIds();
+  ids.forEach(id => {
+    const el = getEl(id); if (!el) return;
+    el.z = ++zMax;
+    const d = document.getElementById('sel_' + id);
+    if (d) d.style.zIndex = el.z;
+  });
+  autoSave();
+}
+
+function ctxSendBack() {
+  hideCtxMenu();
+  const ids = _activeIds();
+  ids.forEach(id => {
+    const el = getEl(id); if (!el) return;
+    el.z = Math.max(1, (el.z || 10) - 5);
+    const d = document.getElementById('sel_' + id);
+    if (d) d.style.zIndex = el.z;
+  });
+  autoSave();
+}
+
+function ctxSelectAll() {
+  hideCtxMenu();
+  const sl = curSlide(); if (!sl) return;
+  _multiSel.clear();
+  sl.elements.forEach(el => _multiSel.add(el.id));
+  document.querySelectorAll('.sel').forEach(d => d.classList.add('multi-selected'));
+  selElId = sl.elements[sl.elements.length - 1]?.id || null;
+  populateMultiFmt();
+}
+
+/* ── Keyboard shortcuts: Ctrl+C / Ctrl+X / Ctrl+D for elements ── */
+document.addEventListener('keydown', ev => {
+  if (!document.getElementById('editorView')?.classList.contains('open')) return;
+  const k = ev.key.toLowerCase();
+  // If copying text in an editable field → clear element clipboard so Ctrl+V stays text
+  if ((ev.ctrlKey||ev.metaKey) && k==='c' && isEdit(ev.target)) { _ctxClipboard=null; return; }
+  if (isEdit(ev.target)) return;
+  if (!(ev.ctrlKey || ev.metaKey)) return;
+  if (k === 'c' && (selElId || _multiSel.size > 0)) { ev.preventDefault(); ctxCopy(); return; }
+  if (k === 'x' && (selElId || _multiSel.size > 0)) { ev.preventDefault(); ctxCut(); return; }
+  if (k === 'd' && (selElId || _multiSel.size > 0)) { ev.preventDefault(); const s=_ctxPasteSlideX; ctxCopy(); _ctxPasteSlideX=s; ctxPaste(true); return; }
+  if (k === 'a') { ev.preventDefault(); ctxSelectAll(); return; }
+});
+
+/* ════════ SMART ALIGNMENT GUIDES ════════ */
+const SG_SNAP   = 10;   // snap threshold for edge/center guides (slide-px)
+const SG_SP_TOL = 20;  // tolerance for spacing equality (slide-px) — more forgiving
+const SG_COLORS = { edge:'rgba(239,68,68,.9)', center:'rgba(59,130,246,.9)', spacing:'rgba(52,211,153,.85)' };
+
+let _sgHighlights = []; // highlight divs currently shown
+
+function _sgSVG(){
+  let svg = document.getElementById('smartGuidesSVG');
+  if(!svg){
+    const cv = document.getElementById('slideCV');
+    if(!cv) return null;
+    svg = document.createElementNS('http://www.w3.org/2000/svg','svg');
+    svg.id = 'smartGuidesSVG';
+    svg.setAttribute('class','smart-guides-svg');
+    svg.setAttribute('xmlns','http://www.w3.org/2000/svg');
+    svg.style.cssText='position:absolute;inset:0;width:100%;height:100%;pointer-events:none;overflow:visible;z-index:9';
+    cv.appendChild(svg);
+  }
+  // Always sync viewBox to slide dimensions so slide-px coords map correctly
+  const sl=curSlide();
+  if(sl){ const sz=slSz(sl); svg.setAttribute('viewBox',`0 0 ${sz.w} ${sz.h}`); }
+  return svg;
+}
+
+function clearSmartGuides(){
+  const svg=_sgSVG(); if(svg) svg.innerHTML='';
+  _sgHighlights.forEach(h=>h.remove());
+  _sgHighlights=[];
+}
+
+/* Main entry — call during mousemove with the moving element's current rect (slide-px)
+   skipEdgeLines: true when group move already draws gH/gV guides separately */
+function updateSmartGuides(movingRect, excludeIds, skipEdgeLines){
+  clearSmartGuides();
+  const svg=_sgSVG(); if(!svg) return;
+  const sl=curSlide(); if(!sl) return;
+  const sz=slSz(sl);
+  const excl=new Set(excludeIds||[]);
+
+  // Rects of all stationary elements
+  const others=[];
+  sl.elements.forEach(el=>{
+    if(excl.has(el.id))return;
+    let r=null;
+    if(el.type==='er-line'||el.type==='sym-arrow'){
+      const x1=Math.min(el.x1,el.x2),y1=Math.min(el.y1,el.y2);
+      r={id:el.id,type:el.type,x:x1,y:y1,w:Math.abs(el.x2-el.x1)||4,h:Math.abs(el.y2-el.y1)||4};
+    } else if('x' in el && 'w' in el){
+      r={id:el.id,type:el.type,x:el.x||0,y:el.y||0,w:el.w||0,h:el.h||0};
+    }
+    if(r) others.push(r);
+  });
+  if(!others.length) return;
+
+  const mr=movingRect; // {x,y,w,h}
+  const axes=[
+    // Vertical guide axes: [movingVal, label, axisType]
+    {axis:'V', mv:mr.x,            label:'left',   kind:'edge'},
+    {axis:'V', mv:mr.x+mr.w/2,     label:'centerX',kind:'center'},
+    {axis:'V', mv:mr.x+mr.w,       label:'right',  kind:'edge'},
+    // Horizontal guide axes
+    {axis:'H', mv:mr.y,            label:'top',    kind:'edge'},
+    {axis:'H', mv:mr.y+mr.h/2,     label:'centerY',kind:'center'},
+    {axis:'H', mv:mr.y+mr.h,       label:'bottom', kind:'edge'},
+  ];
+
+  const drawnV=new Set(), drawnH=new Set();
+  const matchedOthers=new Set();
+
+  if(!skipEdgeLines){
+    axes.forEach(({axis,mv,label,kind})=>{
+      others.forEach(o=>{
+        const candidates=axis==='V'
+          ?[o.x, o.x+o.w/2, o.x+o.w]
+          :[o.y, o.y+o.h/2, o.y+o.h];
+        candidates.forEach(cv=>{
+          if(Math.abs(mv-cv)>SG_SNAP) return;
+          const color=SG_COLORS[kind];
+          const key=`${axis}:${Math.round(cv)}`;
+          if(axis==='V' && !drawnV.has(key)){
+            drawnV.add(key);
+            const involved=[mr,...others.filter(o2=>{
+              return Math.abs(o2.x-cv)<SG_SNAP||Math.abs(o2.x+o2.w/2-cv)<SG_SNAP||Math.abs(o2.x+o2.w-cv)<SG_SNAP;
+            })];
+            const minY=Math.min(...involved.map(r=>r.y))-8;
+            const maxY=Math.max(...involved.map(r=>r.y+r.h))+8;
+            _sgLine(svg, cv, Math.max(-20,minY), cv, Math.min(sz.h+20,maxY), color, kind);
+          }
+          if(axis==='H' && !drawnH.has(key)){
+            drawnH.add(key);
+            const involved=[mr,...others.filter(o2=>{
+              return Math.abs(o2.y-cv)<SG_SNAP||Math.abs(o2.y+o2.h/2-cv)<SG_SNAP||Math.abs(o2.y+o2.h-cv)<SG_SNAP;
+            })];
+            const minX=Math.min(...involved.map(r=>r.x))-8;
+            const maxX=Math.max(...involved.map(r=>r.x+r.w))+8;
+            _sgLine(svg, Math.max(-20,minX), cv, Math.min(sz.w+20,maxX), cv, color, kind);
+          }
+          matchedOthers.add(o.id);
+        });
+      });
+    });
+  }
+
+  // Spacing guides: compute snap + draw
+  const spSnap=_drawSpacingGuides(svg, mr, others, sz);
+  return spSnap; // {dx,dy} spacing snap offsets
+
+  // Highlight matched elements
+  const cvEl=document.getElementById('slideCV');
+  if(cvEl){
+    const scale=cvEl.offsetWidth/(sz.w||960);
+    matchedOthers.forEach(id=>{
+      const o=others.find(e=>e.id===id); if(!o) return;
+      const h=document.createElement('div');
+      h.className='sg-highlight';
+      h.style.cssText=`left:${o.x*scale}px;top:${o.y*scale}px;width:${o.w*scale}px;height:${o.h*scale}px;pointer-events:none`;
+      cvEl.appendChild(h);
+      _sgHighlights.push(h);
+    });
+  }
+  return spSnap||{dx:0,dy:0};
+}
+
+function _sgLine(svg, x1,y1,x2,y2, color, kind){
+  const l=document.createElementNS('http://www.w3.org/2000/svg','line');
+  l.setAttribute('x1',x1); l.setAttribute('y1',y1);
+  l.setAttribute('x2',x2); l.setAttribute('y2',y2);
+  l.setAttribute('stroke',color);
+  l.setAttribute('stroke-width','1');
+  l.setAttribute('vector-effect','non-scaling-stroke');
+  if(kind==='spacing') l.setAttribute('stroke-dasharray','4 3');
+  svg.appendChild(l);
+}
+
+function _sgLabel(svg, x, y, text){
+  const fontSize=9, charW=5.5, padX=6, padY=3;
+  const w=Math.max(24, Math.ceil(text.length*charW)+padX*2);
+  const h=fontSize+padY*2;
+  const bg=document.createElementNS('http://www.w3.org/2000/svg','rect');
+  bg.setAttribute('x',x-w/2); bg.setAttribute('y',y-h/2);
+  bg.setAttribute('width',w); bg.setAttribute('height',h);
+  bg.setAttribute('rx',3); bg.setAttribute('fill','rgba(0,0,0,.78)');
+  svg.appendChild(bg);
+  const t=document.createElementNS('http://www.w3.org/2000/svg','text');
+  t.setAttribute('x',x); t.setAttribute('y',y);
+  t.setAttribute('text-anchor','middle');
+  t.setAttribute('dominant-baseline','central');
+  t.setAttribute('fill','#fff');
+  t.setAttribute('font-size',fontSize);
+  t.setAttribute('font-family',"'JetBrains Mono',monospace");
+  t.setAttribute('font-weight','600');
+  t.textContent=text;
+  svg.appendChild(t);
+}
+
+/* Returns {dx,dy} snap correction for equal spacing, or {dx:0,dy:0} */
+function _drawSpacingGuides(svg, mr, others, sz){
+  const SP_TOL = SG_SP_TOL;
+  let snapDx=0, snapDy=0;
+
+  // ── Horizontal spacing ──
+  const hSorted=[...others].sort((a,b)=>a.x-b.x);
+  const existingHGaps=[];
+  for(let i=0;i<hSorted.length-1;i++){
+    const gap=hSorted[i+1].x-(hSorted[i].x+hSorted[i].w);
+    if(gap>=0) existingHGaps.push({gap,left:hSorted[i],right:hSorted[i+1]});
+  }
+  const hLeft =others.filter(o=>o.x+o.w<=mr.x).sort((a,b)=>(b.x+b.w)-(a.x+a.w));
+  const hRight=others.filter(o=>o.x>=mr.x+mr.w).sort((a,b)=>a.x-b.x);
+  const gapToLeft =hLeft.length  ? mr.x-(hLeft[0].x+hLeft[0].w)  : null;
+  const gapToRight=hRight.length ? hRight[0].x-(mr.x+mr.w)       : null;
+
+  const hMatches=[];
+  if(gapToLeft!==null&&gapToRight!==null&&Math.abs(gapToLeft-gapToRight)<=SP_TOL&&gapToLeft>=-2&&gapToRight>=-2){
+    const ideal=(hLeft[0].x+hLeft[0].w+hRight[0].x-mr.w)/2;
+    hMatches.push({left:hLeft[0],right:hRight[0],gapL:gapToLeft,gapR:gapToRight,kind:'between',idealX:ideal});
+  }
+  existingHGaps.forEach(({gap,left:eL,right:eR})=>{
+    // chain-right: moving element comes after the pair — require nearest-left neighbour IS eR
+    if(gapToLeft!==null&&Math.abs(gapToLeft-gap)<=SP_TOL&&gapToLeft>=-2&&hLeft.length>0&&hLeft[0].id===eR.id)
+      hMatches.push({left:eL,right:eR,gapL:gap,pivot:mr,gapR:gapToLeft,kind:'chain-right',idealX:eR.x+eR.w+gap});
+    // chain-left: moving element comes before the pair — require nearest-right neighbour IS eL
+    if(gapToRight!==null&&Math.abs(gapToRight-gap)<=SP_TOL&&gapToRight>=-2&&hRight.length>0&&hRight[0].id===eL.id)
+      hMatches.push({left:mr,gapL:gapToRight,right:eL,pivot2:eR,gapR:gap,kind:'chain-left',idealX:eL.x-gap-mr.w});
+  });
+  const hBest=hMatches.find(m=>m.kind==='between')||hMatches[0];
+  let hDraw=null;
+  if(hBest&&hBest.idealX!==undefined){
+    const d=Math.round(hBest.idealX-mr.x);
+    if(Math.abs(d)<=SG_SNAP){snapDx=d;hDraw=hBest;}
+  }
+
+  [hDraw].filter(Boolean).forEach(m=>{
+    const mr2={...mr,x:mr.x+snapDx};
+    if(m.kind==='between'){
+      const L=m.left,R=m.right;
+      const y1=Math.min(L.y,mr2.y,R.y),y2=Math.max(L.y+L.h,mr2.y+mr2.h,R.y+R.h);
+      const midY=(y1+y2)/2;
+      _sgLine(svg,L.x+L.w,midY,mr2.x,midY,SG_COLORS.spacing,'spacing');
+      _sgTickH(svg,L.x+L.w,midY);_sgTickH(svg,mr2.x,midY);
+      _sgLabel(svg,(L.x+L.w+mr2.x)/2,midY,Math.round(mr2.x-(L.x+L.w))+'px');
+      _sgLine(svg,mr2.x+mr2.w,midY,R.x,midY,SG_COLORS.spacing,'spacing');
+      _sgTickH(svg,mr2.x+mr2.w,midY);_sgTickH(svg,R.x,midY);
+      _sgLabel(svg,(mr2.x+mr2.w+R.x)/2,midY,Math.round(R.x-(mr2.x+mr2.w))+'px');
+    } else if(m.kind==='chain-right'){
+      const y=Math.min(m.left.y,m.right.y,mr2.y)+Math.max(m.left.h,m.right.h,mr2.h)/2;
+      _sgLine(svg,m.left.x+m.left.w,y,m.right.x,y,SG_COLORS.spacing,'spacing');
+      _sgLine(svg,m.right.x+m.right.w,y,mr2.x,y,SG_COLORS.spacing,'spacing');
+      [m.left.x+m.left.w,m.right.x,m.right.x+m.right.w,mr2.x].forEach(xp=>_sgTickH(svg,xp,y));
+      _sgLabel(svg,(m.left.x+m.left.w+m.right.x)/2,y,Math.round(m.gapL)+'px');
+      _sgLabel(svg,(m.right.x+m.right.w+mr2.x)/2,y,Math.round(m.gapR)+'px');
+    } else if(m.kind==='chain-left'){
+      const y=Math.min(mr2.y,m.right.y,m.pivot2.y)+Math.max(mr2.h,m.right.h,m.pivot2.h)/2;
+      _sgLine(svg,mr2.x+mr2.w,y,m.right.x,y,SG_COLORS.spacing,'spacing');
+      _sgLine(svg,m.right.x+m.right.w,y,m.pivot2.x,y,SG_COLORS.spacing,'spacing');
+      [mr2.x+mr2.w,m.right.x,m.right.x+m.right.w,m.pivot2.x].forEach(xp=>_sgTickH(svg,xp,y));
+      _sgLabel(svg,(mr2.x+mr2.w+m.right.x)/2,y,Math.round(m.gapL)+'px');
+      _sgLabel(svg,(m.right.x+m.right.w+m.pivot2.x)/2,y,Math.round(m.gapR)+'px');
+    }
+  });
+
+  // ── Vertical spacing ──
+  const vSorted=[...others].sort((a,b)=>a.y-b.y);
+  const existingVGaps=[];
+  for(let i=0;i<vSorted.length-1;i++){
+    const gap=vSorted[i+1].y-(vSorted[i].y+vSorted[i].h);
+    if(gap>=0) existingVGaps.push({gap,above:vSorted[i],below:vSorted[i+1]});
+  }
+  const vAbove=others.filter(o=>o.y+o.h<=mr.y).sort((a,b)=>(b.y+b.h)-(a.y+a.h));
+  const vBelow=others.filter(o=>o.y>=mr.y+mr.h).sort((a,b)=>a.y-b.y);
+  const gapToAbove=vAbove.length ? mr.y-(vAbove[0].y+vAbove[0].h) : null;
+  const gapToBelow=vBelow.length ? vBelow[0].y-(mr.y+mr.h)        : null;
+
+  const vMatches=[];
+  if(gapToAbove!==null&&gapToBelow!==null&&Math.abs(gapToAbove-gapToBelow)<=SP_TOL&&gapToAbove>=-2&&gapToBelow>=-2){
+    const ideal=(vAbove[0].y+vAbove[0].h+vBelow[0].y-mr.h)/2;
+    vMatches.push({above:vAbove[0],below:vBelow[0],gapA:gapToAbove,gapB:gapToBelow,kind:'between',idealY:ideal});
+  }
+  existingVGaps.forEach(({gap,above:eA,below:eB})=>{
+    // chain-below: moving element comes below the pair — require nearest-above neighbour IS eB
+    if(gapToAbove!==null&&Math.abs(gapToAbove-gap)<=SP_TOL&&gapToAbove>=-2&&vAbove.length>0&&vAbove[0].id===eB.id)
+      vMatches.push({above:eA,below:eB,gapA:gap,pivot:mr,gapB:gapToAbove,kind:'chain-below',idealY:eB.y+eB.h+gap});
+    // chain-above: moving element comes above the pair — require nearest-below neighbour IS eA
+    if(gapToBelow!==null&&Math.abs(gapToBelow-gap)<=SP_TOL&&gapToBelow>=-2&&vBelow.length>0&&vBelow[0].id===eA.id)
+      vMatches.push({above:mr,gapA:gapToBelow,below:eA,pivot2:eB,gapB:gap,kind:'chain-above',idealY:eA.y-gap-mr.h});
+  });
+  const vBest=vMatches.find(m=>m.kind==='between')||vMatches[0];
+  let vDraw=null;
+  if(vBest&&vBest.idealY!==undefined){
+    const d=Math.round(vBest.idealY-mr.y);
+    if(Math.abs(d)<=SG_SNAP){snapDy=d;vDraw=vBest;}
+  }
+
+  [vDraw].filter(Boolean).forEach(m=>{
+    const mr2={...mr,y:mr.y+snapDy};
+    if(m.kind==='between'){
+      const A=m.above,B=m.below;
+      const x1=Math.min(A.x,mr2.x,B.x),x2=Math.max(A.x+A.w,mr2.x+mr2.w,B.x+B.w);
+      const midX=(x1+x2)/2;
+      _sgLine(svg,midX,A.y+A.h,midX,mr2.y,SG_COLORS.spacing,'spacing');
+      _sgTickV(svg,midX,A.y+A.h);_sgTickV(svg,midX,mr2.y);
+      _sgLabel(svg,midX+18,(A.y+A.h+mr2.y)/2,Math.round(mr2.y-(A.y+A.h))+'px');
+      _sgLine(svg,midX,mr2.y+mr2.h,midX,B.y,SG_COLORS.spacing,'spacing');
+      _sgTickV(svg,midX,mr2.y+mr2.h);_sgTickV(svg,midX,B.y);
+      _sgLabel(svg,midX+18,(mr2.y+mr2.h+B.y)/2,Math.round(B.y-(mr2.y+mr2.h))+'px');
+    } else if(m.kind==='chain-below'){
+      const x=Math.min(m.above.x,m.below.x,mr2.x)+Math.max(m.above.w,m.below.w,mr2.w)/2;
+      _sgLine(svg,x,m.above.y+m.above.h,x,m.below.y,SG_COLORS.spacing,'spacing');
+      _sgLine(svg,x,m.below.y+m.below.h,x,mr2.y,SG_COLORS.spacing,'spacing');
+      [m.above.y+m.above.h,m.below.y,m.below.y+m.below.h,mr2.y].forEach(yp=>_sgTickV(svg,x,yp));
+      _sgLabel(svg,x+16,(m.above.y+m.above.h+m.below.y)/2,Math.round(m.gapA)+'px');
+      _sgLabel(svg,x+16,(m.below.y+m.below.h+mr2.y)/2,Math.round(m.gapB)+'px');
+    } else if(m.kind==='chain-above'){
+      const x=Math.min(mr2.x,m.below.x,m.pivot2.x)+Math.max(mr2.w,m.below.w,m.pivot2.w)/2;
+      _sgLine(svg,x,mr2.y+mr2.h,x,m.below.y,SG_COLORS.spacing,'spacing');
+      _sgLine(svg,x,m.below.y+m.below.h,x,m.pivot2.y,SG_COLORS.spacing,'spacing');
+      [mr2.y+mr2.h,m.below.y,m.below.y+m.below.h,m.pivot2.y].forEach(yp=>_sgTickV(svg,x,yp));
+      _sgLabel(svg,x+16,(mr2.y+mr2.h+m.below.y)/2,Math.round(m.gapA)+'px');
+      _sgLabel(svg,x+16,(m.below.y+m.below.h+m.pivot2.y)/2,Math.round(m.gapB)+'px');
+    }
+  });
+
+  return {dx:snapDx, dy:snapDy};
+}
+function _sgTickH(svg, x, y){
+  _sgLine(svg, x, y-5, x, y+5, SG_COLORS.spacing, 'spacing');
+}
+function _sgTickV(svg, x, y){
+  _sgLine(svg, x-5, y, x+5, y, SG_COLORS.spacing, 'spacing');
+}
+
+/* Helper: build a rect from any element for guide use */
+function _elRect(el){
+  if(!el) return null;
+  if(el.type==='er-line'||el.type==='sym-arrow'){
+    return{x:Math.min(el.x1,el.x2),y:Math.min(el.y1,el.y2),
+           w:Math.max(4,Math.abs(el.x2-el.x1)),h:Math.max(4,Math.abs(el.y2-el.y1))};
+  }
+  if('x' in el) return{x:el.x||0,y:el.y||0,w:el.w||0,h:el.h||0};
+  return null;
+}
+
+/* Build a bounding rect from a set of element ids */
+function _groupRect(ids){
+  let x1=Infinity,y1=Infinity,x2=-Infinity,y2=-Infinity;
+  ids.forEach(id=>{
+    const r=_elRect(getEl(id)); if(!r) return;
+    x1=Math.min(x1,r.x); y1=Math.min(y1,r.y);
+    x2=Math.max(x2,r.x+r.w); y2=Math.max(y2,r.y+r.h);
+  });
+  return isFinite(x1)?{x:x1,y:y1,w:x2-x1,h:y2-y1}:null;
+}
