@@ -551,18 +551,18 @@
         </div>
         <div class="sec-hdr open" onclick="toggleSec(this)"><span>Symbole &amp; Formen</span><span class="sec-chev">▾</span></div>
         <div class="sec-body">
-          <button class="ins-btn" onclick="addEl('sym-rect')"><span class="ins-ico er-ico"><svg viewBox="0 0 36 22"><rect x="2" y="3" width="32" height="16" fill="rgba(232,160,48,.12)" stroke="#e8a030" stroke-width="1.5" rx="1"/></svg></span><span class="ins-lbl"><strong>Rechteck</strong><small>Grundform</small></span></button>
-          <button class="ins-btn" onclick="addEl('sym-rounded-rect')"><span class="ins-ico er-ico"><svg viewBox="0 0 36 22"><rect x="2" y="3" width="32" height="16" fill="rgba(232,160,48,.12)" stroke="#e8a030" stroke-width="1.5" rx="5"/></svg></span><span class="ins-lbl"><strong>Abgerundetes Rechteck</strong><small>Mit Radius</small></span></button>
-          <button class="ins-btn" onclick="addEl('sym-circle')"><span class="ins-ico er-ico"><svg viewBox="0 0 36 22"><ellipse cx="18" cy="11" rx="10" ry="10" fill="rgba(232,160,48,.12)" stroke="#e8a030" stroke-width="1.5"/></svg></span><span class="ins-lbl"><strong>Kreis</strong><small>Gleichmäßig</small></span></button>
-          <button class="ins-btn" onclick="addEl('sym-ellipse')"><span class="ins-ico er-ico"><svg viewBox="0 0 36 22"><ellipse cx="18" cy="11" rx="17" ry="9" fill="rgba(232,160,48,.12)" stroke="#e8a030" stroke-width="1.5"/></svg></span><span class="ins-lbl"><strong>Ellipse</strong><small>Oval</small></span></button>
-          <button class="ins-btn" onclick="addEl('sym-triangle')"><span class="ins-ico er-ico"><svg viewBox="0 0 36 22"><polygon points="18,2 34,20 2,20" fill="rgba(232,160,48,.12)" stroke="#e8a030" stroke-width="1.5" stroke-linejoin="round"/></svg></span><span class="ins-lbl"><strong>Dreieck</strong><small>Gleichschenklig</small></span></button>
-          <button class="ins-btn" onclick="addEl('sym-right-tri')"><span class="ins-ico er-ico"><svg viewBox="0 0 36 22"><polygon points="2,2 34,20 2,20" fill="rgba(232,160,48,.12)" stroke="#e8a030" stroke-width="1.5" stroke-linejoin="round"/></svg></span><span class="ins-lbl"><strong>Rechtes Dreieck</strong><small>90°-Winkel</small></span></button>
-          <button class="ins-btn" onclick="addEl('sym-diamond')"><span class="ins-ico er-ico"><svg viewBox="0 0 36 22"><polygon points="18,2 34,11 18,20 2,11" fill="rgba(232,160,48,.12)" stroke="#e8a030" stroke-width="1.5" stroke-linejoin="round"/></svg></span><span class="ins-lbl"><strong>Raute</strong><small>Diamantform</small></span></button>
-          <button class="ins-btn" onclick="addEl('sym-hexagon')"><span class="ins-ico er-ico"><svg viewBox="0 0 36 22"><polygon points="9,2 27,2 35,11 27,20 9,20 1,11" fill="rgba(232,160,48,.12)" stroke="#e8a030" stroke-width="1.5" stroke-linejoin="round"/></svg></span><span class="ins-lbl"><strong>Sechseck</strong><small>Hexagon</small></span></button>
-          <button class="ins-btn" onclick="addEl('sym-parallelogram')"><span class="ins-ico er-ico"><svg viewBox="0 0 36 22"><polygon points="8,2 34,2 28,20 2,20" fill="rgba(232,160,48,.12)" stroke="#e8a030" stroke-width="1.5" stroke-linejoin="round"/></svg></span><span class="ins-lbl"><strong>Parallelogramm</strong><small>Schräg</small></span></button>
-          <button class="ins-btn" onclick="addEl('sym-star')"><span class="ins-ico er-ico"><svg viewBox="0 0 36 22"><polygon points="18,1 21,9 30,9 23,14 25,22 18,17 11,22 13,14 6,9 15,9" fill="rgba(232,160,48,.12)" stroke="#e8a030" stroke-width="1.5" stroke-linejoin="round"/></svg></span><span class="ins-lbl"><strong>Stern</strong><small>5-zackig</small></span></button>
-          <button class="ins-btn" onclick="addEl('sym-cylinder')"><span class="ins-ico er-ico"><svg viewBox="0 0 36 22"><ellipse cx="18" cy="4" rx="16" ry="3.5" fill="rgba(232,160,48,.12)" stroke="#e8a030" stroke-width="1.5"/><rect x="2" y="4" width="32" height="13" fill="rgba(232,160,48,.08)" stroke="none"/><line x1="2" y1="4" x2="2" y2="17" stroke="#e8a030" stroke-width="1.5"/><line x1="34" y1="4" x2="34" y2="17" stroke="#e8a030" stroke-width="1.5"/><ellipse cx="18" cy="17" rx="16" ry="3.5" fill="rgba(232,160,48,.12)" stroke="#e8a030" stroke-width="1.5"/></svg></span><span class="ins-lbl"><strong>Zylinder</strong><small>3D-Tonne</small></span></button>
-          <button class="ins-btn" onclick="addEl('sym-arrow')"><span class="ins-ico er-ico"><svg viewBox="0 0 36 22"><defs><marker id="ah" markerWidth="7" markerHeight="7" refX="7" refY="3.5" orient="auto"><polygon points="0,0 7,3.5 0,7" fill="#e8a030"/></marker></defs><line x1="2" y1="11" x2="30" y2="11" stroke="#e8a030" stroke-width="2" stroke-linecap="round" marker-end="url(#ah)"/><circle cx="2" cy="11" r="2.5" fill="#3b82f6"/><circle cx="32" cy="11" r="2.5" fill="#3b82f6"/></svg></span><span class="ins-lbl"><strong>Pfeil</strong><small>Andockbar, konfigurierbar</small></span></button>
+          <button class="ins-btn" onclick="addEl('sym-rect')" oncontextmenu="showSymStylePop(event,'sym-rect')" data-sym-type="sym-rect"><span class="ins-ico er-ico"><svg viewBox="0 0 36 22"><rect x="2" y="3" width="32" height="16" fill="rgba(232,160,48,.12)" stroke="#e8a030" stroke-width="1.5" rx="1"/></svg></span><span class="ins-lbl"><strong>Rechteck</strong><small>Grundform</small></span></button>
+          <button class="ins-btn" onclick="addEl('sym-rounded-rect')" oncontextmenu="showSymStylePop(event,'sym-rounded-rect')" data-sym-type="sym-rounded-rect"><span class="ins-ico er-ico"><svg viewBox="0 0 36 22"><rect x="2" y="3" width="32" height="16" fill="rgba(232,160,48,.12)" stroke="#e8a030" stroke-width="1.5" rx="5"/></svg></span><span class="ins-lbl"><strong>Abgerundetes Rechteck</strong><small>Mit Radius</small></span></button>
+          <button class="ins-btn" onclick="addEl('sym-circle')" oncontextmenu="showSymStylePop(event,'sym-circle')" data-sym-type="sym-circle"><span class="ins-ico er-ico"><svg viewBox="0 0 36 22"><ellipse cx="18" cy="11" rx="10" ry="10" fill="rgba(232,160,48,.12)" stroke="#e8a030" stroke-width="1.5"/></svg></span><span class="ins-lbl"><strong>Kreis</strong><small>Gleichmäßig</small></span></button>
+          <button class="ins-btn" onclick="addEl('sym-ellipse')" oncontextmenu="showSymStylePop(event,'sym-ellipse')" data-sym-type="sym-ellipse"><span class="ins-ico er-ico"><svg viewBox="0 0 36 22"><ellipse cx="18" cy="11" rx="17" ry="9" fill="rgba(232,160,48,.12)" stroke="#e8a030" stroke-width="1.5"/></svg></span><span class="ins-lbl"><strong>Ellipse</strong><small>Oval</small></span></button>
+          <button class="ins-btn" onclick="addEl('sym-triangle')" oncontextmenu="showSymStylePop(event,'sym-triangle')" data-sym-type="sym-triangle"><span class="ins-ico er-ico"><svg viewBox="0 0 36 22"><polygon points="18,2 34,20 2,20" fill="rgba(232,160,48,.12)" stroke="#e8a030" stroke-width="1.5" stroke-linejoin="round"/></svg></span><span class="ins-lbl"><strong>Dreieck</strong><small>Gleichschenklig</small></span></button>
+          <button class="ins-btn" onclick="addEl('sym-right-tri')" oncontextmenu="showSymStylePop(event,'sym-right-tri')" data-sym-type="sym-right-tri"><span class="ins-ico er-ico"><svg viewBox="0 0 36 22"><polygon points="2,2 34,20 2,20" fill="rgba(232,160,48,.12)" stroke="#e8a030" stroke-width="1.5" stroke-linejoin="round"/></svg></span><span class="ins-lbl"><strong>Rechtes Dreieck</strong><small>90°-Winkel</small></span></button>
+          <button class="ins-btn" onclick="addEl('sym-diamond')" oncontextmenu="showSymStylePop(event,'sym-diamond')" data-sym-type="sym-diamond"><span class="ins-ico er-ico"><svg viewBox="0 0 36 22"><polygon points="18,2 34,11 18,20 2,11" fill="rgba(232,160,48,.12)" stroke="#e8a030" stroke-width="1.5" stroke-linejoin="round"/></svg></span><span class="ins-lbl"><strong>Raute</strong><small>Diamantform</small></span></button>
+          <button class="ins-btn" onclick="addEl('sym-hexagon')" oncontextmenu="showSymStylePop(event,'sym-hexagon')" data-sym-type="sym-hexagon"><span class="ins-ico er-ico"><svg viewBox="0 0 36 22" data-sym-svg><polygon points="35,11 26.5,19.7 9.5,19.7 1,11 9.5,2.3 26.5,2.3" fill="rgba(232,160,48,.12)" stroke="#e8a030" stroke-width="1.5" stroke-linejoin="round"/></svg></span><span class="ins-lbl"><strong>Sechseck</strong><small>Hexagon</small></span></button>
+          <button class="ins-btn" onclick="addEl('sym-parallelogram')" oncontextmenu="showSymStylePop(event,'sym-parallelogram')" data-sym-type="sym-parallelogram"><span class="ins-ico er-ico"><svg viewBox="0 0 36 22"><polygon points="8,2 34,2 28,20 2,20" fill="rgba(232,160,48,.12)" stroke="#e8a030" stroke-width="1.5" stroke-linejoin="round"/></svg></span><span class="ins-lbl"><strong>Parallelogramm</strong><small>Schräg</small></span></button>
+          <button class="ins-btn" onclick="addEl('sym-star')" oncontextmenu="showSymStylePop(event,'sym-star')" data-sym-type="sym-star"><span class="ins-ico er-ico"><svg viewBox="0 0 36 22"><polygon points="18,1 21,9 30,9 23,14 25,22 18,17 11,22 13,14 6,9 15,9" fill="rgba(232,160,48,.12)" stroke="#e8a030" stroke-width="1.5" stroke-linejoin="round"/></svg></span><span class="ins-lbl"><strong>Stern</strong><small>5-zackig</small></span></button>
+          <button class="ins-btn" onclick="addEl('sym-cylinder')" oncontextmenu="showSymStylePop(event,'sym-cylinder')" data-sym-type="sym-cylinder"><span class="ins-ico er-ico"><svg viewBox="0 0 36 22"><ellipse cx="18" cy="4" rx="16" ry="3.5" fill="rgba(232,160,48,.12)" stroke="#e8a030" stroke-width="1.5"/><rect x="2" y="4" width="32" height="13" fill="rgba(232,160,48,.08)" stroke="none"/><line x1="2" y1="4" x2="2" y2="17" stroke="#e8a030" stroke-width="1.5"/><line x1="34" y1="4" x2="34" y2="17" stroke="#e8a030" stroke-width="1.5"/><ellipse cx="18" cy="17" rx="16" ry="3.5" fill="rgba(232,160,48,.12)" stroke="#e8a030" stroke-width="1.5"/></svg></span><span class="ins-lbl"><strong>Zylinder</strong><small>3D-Tonne</small></span></button>
+          <button class="ins-btn" onclick="addEl('sym-arrow')" oncontextmenu="showArrowStylePop(event)"><span class="ins-ico er-ico"><svg id="arrowBtnSvg" viewBox="0 0 36 22"><defs><marker id="ah" markerWidth="7" markerHeight="7" refX="7" refY="3.5" orient="auto"><polygon points="0,0 7,3.5 0,7" fill="#e8a030"/></marker></defs><line x1="2" y1="11" x2="30" y2="11" stroke="#e8a030" stroke-width="2" stroke-linecap="round" marker-end="url(#ah)"/><circle cx="2" cy="11" r="2.5" fill="#3b82f6"/><circle cx="32" cy="11" r="2.5" fill="#3b82f6"/></svg></span><span class="ins-lbl"><strong>Pfeil</strong><small>Andockbar, konfigurierbar</small></span></button>
         </div>
 
                 <div class="sec-hdr open" onclick="toggleSec(this)"><span>ER-Modell <span style="font-size:9px;font-weight:400;text-transform:none;letter-spacing:0">Hessen</span></span><span class="sec-chev">▾</span></div>
@@ -577,7 +577,8 @@
           <button class="ins-btn" onclick="addEl('er-derived-attr')"><span class="ins-ico er-ico"><svg viewBox="0 0 36 22"><ellipse cx="18" cy="11" rx="17" ry="10" fill="rgba(134,239,172,.06)" stroke="#86efac" stroke-width="1.5" stroke-dasharray="4 3"/></svg></span><span class="ins-lbl"><strong>Abgeleitetes Attribut</strong><small>Gestrichelt</small></span></button>
           <button class="ins-btn" onclick="addEl('er-isa')"><span class="ins-ico er-ico"><svg viewBox="0 0 36 22"><polygon points="18,1 35,21 1,21" fill="rgba(192,132,252,.12)" stroke="#c084fc" stroke-width="1.5"/></svg></span><span class="ins-lbl"><strong>IS-A / Generalisierung</strong><small>Dreieck</small></span></button>
           <button class="ins-btn" onclick="addEl('er-line')"><span class="ins-ico er-ico"><svg viewBox="0 0 36 22"><line x1="2" y1="11" x2="34" y2="11" stroke="#888077" stroke-width="2" stroke-linecap="round"/><circle cx="2" cy="11" r="3" fill="#3b82f6"/><circle cx="34" cy="11" r="3" fill="#3b82f6"/></svg></span><span class="ins-lbl"><strong>Verbindungslinie</strong><small>Endpunkte ziehbar</small></span></button>
-          <button class="ins-btn" onclick="addEl('er-cardinality')"><span class="ins-ico er-ico" style="font-family:'JetBrains Mono',monospace;font-size:13px;color:#e8a030;font-weight:700">1:n</span><span class="ins-lbl"><strong>Kardinalität</strong><small>1, n, m …</small></span></button>
+          <button class="ins-btn" id="cardInsBtn" onclick="addEl('er-cardinality')" oncontextmenu="showCardPop(event)"><span class="ins-ico er-ico" style="font-family:'JetBrains Mono',monospace;font-size:13px;color:#22d3ee;font-weight:700" id="cardBtnPreview">1</span><span class="ins-lbl"><strong>Kardinalität</strong><small>1, n, m | Rechtsklick</small></span></button>
+          <button class="ins-btn" id="optInsBtn" onclick="addEl('er-optionality')" oncontextmenu="showOptPop(event)"><span class="ins-ico er-ico" style="font-family:'JetBrains Mono',monospace;font-size:11px;color:#f87171;font-weight:700;letter-spacing:-.5px" id="optBtnPreview">kann</span><span class="ins-lbl"><strong>Optionalität</strong><small>kann, muss | Rechtsklick</small></span></button>
         </div>
       </div>
 
@@ -624,7 +625,11 @@
               <label class="fmt-lbl">Rahmenfarbe</label>
               <input type="color" class="fmt-inp fmt-color" id="fmtStroke" oninput="applyERSt('stroke',this.value)">
               <label class="fmt-lbl">Füllfarbe</label>
-              <input type="color" class="fmt-inp fmt-color" id="fmtFill" oninput="applyERSt('fill',this.value)">
+              <div style="display:flex;gap:6px;align-items:center;margin-bottom:8px">
+                <input type="color" class="fmt-inp fmt-color fmt-color-inline" id="fmtFill" oninput="applyERSt('fillColor',this.value)">
+                <input type="range" style="flex:1;accent-color:var(--gold)" id="fmtFillOp" min="0" max="1" step="0.05" oninput="applyERSt('fillOpacity',+this.value);document.getElementById('fmtFillOpV').textContent=Math.round(this.value*100)+'%'">
+                <span id="fmtFillOpV" style="font-size:11px;color:var(--text2);min-width:30px;text-align:right">9%</span>
+              </div>
               <label class="fmt-lbl">Rahmendicke</label>
               <input type="number" class="fmt-inp" id="fmtSW" min="0.5" max="8" step="0.5" oninput="applyERSt('strokeWidth',+this.value)">
               <label class="fmt-chk-lbl"><input type="checkbox" id="fmtDash" onchange="applyERSt('dashed',this.checked)"> Gestrichelt</label>
@@ -648,10 +653,18 @@
           <div id="fmtSymSec" style="display:none">
             <div class="sec-hdr open" onclick="toggleSec(this)"><span>Symbol-Form</span><span class="sec-chev">▾</span></div>
             <div class="sec-body">
+              <label class="fmt-lbl">Deckkraft (gesamt)</label>
+              <div style="display:flex;gap:6px;align-items:center;margin-bottom:8px">
+                <input type="range" style="flex:1;accent-color:var(--gold)" id="fmtSymOpacity" min="0.05" max="1" step="0.05" oninput="applySymSt('opacity',+this.value);document.getElementById('fmtSymOpacityV').textContent=Math.round(this.value*100)+'%'">
+                <span id="fmtSymOpacityV" style="font-size:11px;color:var(--text2);min-width:30px;text-align:right">100%</span>
+              </div>
               <label class="fmt-lbl">Rahmenfarbe</label>
-              <input type="color" class="fmt-inp fmt-color" id="fmtSymStroke" oninput="applySymSt('stroke',this.value)">
               <label class="fmt-lbl">Füllfarbe</label>
-              <input type="color" class="fmt-inp fmt-color" id="fmtSymFill" oninput="applySymSt('fill',this.value)">
+              <div style="display:flex;gap:6px;align-items:center;margin-bottom:8px">
+                <input type="color" class="fmt-inp fmt-color fmt-color-inline" id="fmtSymFill" oninput="applySymSt('fillColor',this.value)">
+                <input type="range" style="flex:1;accent-color:var(--gold)" id="fmtSymFillOp" min="0" max="1" step="0.05" oninput="applySymSt('fillOpacity',+this.value);document.getElementById('fmtSymFillOpV').textContent=Math.round(this.value*100)+'%'">
+                <span id="fmtSymFillOpV" style="font-size:11px;color:var(--text2);min-width:30px;text-align:right">9%</span>
+              </div>
               <label class="fmt-lbl">Rahmendicke</label>
               <input type="number" class="fmt-inp" id="fmtSymSW" min="0.5" max="12" step="0.5" oninput="applySymSt('strokeWidth',+this.value)">
               <label class="fmt-chk-lbl"><input type="checkbox" id="fmtSymDash" onchange="applySymSt('dashed',this.checked)"> Gestrichelt</label>
@@ -896,6 +909,100 @@
           <input type="range" id="mspOp" class="msp-range" min="0.05" max="1" step="0.05" oninput="setMarkerDefault('opacity',+this.value);document.getElementById('mspOpV').textContent=Math.round(this.value*100)+'%'">
           <span class="msp-val" id="mspOpV">35%</span>
         </div>
+      </div>
+      <!-- Symbol style defaults popover (right-click any shape button) -->
+      <div id="symStylePop" class="marker-style-pop" style="display:none">
+        <div class="msp-hd">
+          <svg id="symPopPreview" viewBox="0 0 36 22" width="36" height="22" style="flex-shrink:0;overflow:visible"></svg>
+          <span style="flex:1;margin-left:6px">Formenstil</span>
+        </div>
+        <div class="msp-row">
+          <span class="msp-lbl">Deckkraft</span>
+          <input type="range" id="sspOpacity" class="msp-range" min="0.05" max="1" step="0.05" oninput="setSymDefault('opacity',+this.value);document.getElementById('sspOpacityV').textContent=Math.round(this.value*100)+'%'">
+          <span class="msp-val" id="sspOpacityV">100%</span>
+        </div>
+        <div class="msp-row">
+          <span class="msp-lbl">Rahmen</span>
+          <input type="color" id="sspStroke" class="msp-color" oninput="setSymDefault('stroke',this.value)">
+        </div>
+        <div class="msp-row">
+          <span class="msp-lbl">Füllung</span>
+          <input type="color" id="sspFillColor" class="msp-color" oninput="setSymDefault('fillColor',this.value)">
+          <input type="range" id="sspFillOp" class="msp-range" min="0" max="1" step="0.05" oninput="setSymDefault('fillOpacity',+this.value)">
+          <span class="msp-val" id="sspFillOpV">9%</span>
+        </div>
+        <div class="msp-row">
+          <span class="msp-lbl">Dicke</span>
+          <input type="range" id="sspSW" class="msp-range" min="0.5" max="8" step="0.5" oninput="setSymDefault('strokeWidth',+this.value)">
+          <span class="msp-val" id="sspSWV"></span>
+        </div>
+        <div class="msp-row">
+          <label style="display:flex;align-items:center;gap:6px;font-size:12px;color:var(--text2);cursor:pointer">
+            <input type="checkbox" id="sspDash" onchange="setSymDefault('dashed',this.checked)"> Gestrichelt
+          </label>
+        </div>
+      </div>
+
+      <!-- Arrow style defaults popover (right-click arrow button) -->
+      <div id="arrowStylePop" class="marker-style-pop" style="display:none;min-width:220px">
+        <div class="msp-hd">
+          <svg id="arrowPopPreview" viewBox="0 0 36 22" width="36" height="22" style="flex-shrink:0;overflow:visible"></svg>
+          <span style="flex:1;margin-left:6px">Pfeilstil</span>
+        </div>
+        <div class="msp-row">
+          <span class="msp-lbl">Farbe</span>
+          <input type="color" id="aspColor" class="msp-color" oninput="setArrowDefault('stroke',this.value)">
+        </div>
+        <div class="msp-row">
+          <span class="msp-lbl">Dicke</span>
+          <input type="range" id="aspSW" class="msp-range" min="0.5" max="12" step="0.5" oninput="setArrowDefault('strokeWidth',+this.value)">
+        </div>
+        <div class="msp-row">
+          <label style="display:flex;align-items:center;gap:6px;font-size:12px;color:var(--text2);cursor:pointer">
+            <input type="checkbox" id="aspDash" onchange="setArrowDefault('dashed',this.checked)"> Gestrichelt
+          </label>
+        </div>
+        <div class="msp-row">
+          <span class="msp-lbl">Anfang</span>
+          <select id="aspStart" class="msp-sel" onchange="setArrowDefault('startType',this.value)">
+            <option value="none">Kein</option>
+            <option value="arrow">Pfeil (offen)</option>
+            <option value="filled">Pfeil (gefüllt)</option>
+            <option value="open-dot">Kreis (offen)</option>
+            <option value="filled-dot">Kreis (gefüllt)</option>
+            <option value="open-diamond">Raute (offen)</option>
+            <option value="filled-diamond">Raute (gefüllt)</option>
+            <option value="bar">Balken |</option>
+          </select>
+        </div>
+        <div class="msp-row">
+          <span class="msp-lbl">Ende</span>
+          <select id="aspEnd" class="msp-sel" onchange="setArrowDefault('endType',this.value)">
+            <option value="none">Kein</option>
+            <option value="arrow">Pfeil (offen)</option>
+            <option value="filled" selected>Pfeil (gefüllt)</option>
+            <option value="open-dot">Kreis (offen)</option>
+            <option value="filled-dot">Kreis (gefüllt)</option>
+            <option value="open-diamond">Raute (offen)</option>
+            <option value="filled-diamond">Raute (gefüllt)</option>
+            <option value="bar">Balken |</option>
+          </select>
+        </div>
+        <div class="msp-row">
+          <span class="msp-lbl">Kopfgröße</span>
+          <input type="range" id="aspSize" class="msp-range" min="4" max="24" step="1" oninput="setArrowDefault('markerSize',+this.value)">
+        </div>
+      </div>
+
+      <!-- Cardinality quick-pick popover -->
+      <div id="cardPop" class="erval-pop" style="display:none">
+        <div class="msp-hd">Kardinalität wählen</div>
+        <div class="erval-grid" id="cardGrid"></div>
+      </div>
+      <!-- Optionality quick-pick popover -->
+      <div id="optPop" class="erval-pop" style="display:none">
+        <div class="msp-hd">Optionalität wählen</div>
+        <div class="erval-grid" id="optGrid"></div>
       </div>
       <!-- Context menu -->
       <div id="ctxMenu" class="ctx-menu" style="display:none">

@@ -50,6 +50,7 @@ const ERD = {
   'er-derived-attr':  {w:130,h:54, label:'Abgel. Attribut',      stroke:'#86efac',fill:'rgba(134,239,172,.04)'},
   'er-isa':           {w:100,h:80, label:'IS-A',                  stroke:'#c084fc',fill:'rgba(192,132,252,.09)'},
   'er-cardinality':   {w:50, h:40, label:'Kardinalität',          stroke:'transparent',fill:'transparent'},
+  'er-optionality':   {w:72, h:40, label:'Optionalität',          stroke:'transparent',fill:'transparent'},
 };
 const SNAP_TH = 32; // snap threshold px — how close cursor must be to element border
 
@@ -548,17 +549,13 @@ function erShapeSVG(type,w,h,stroke,fill,sw,dashed){
 }
 function updateERSVG(el){
   const dom=document.getElementById('sel_'+el.id);if(!dom)return;
-  const svg=dom.querySelector('svg.er-s');if(!svg)return;
-  svg.setAttribute('viewBox',`0 0 ${el.w} ${el.h}`);
-  const erS=el.erStyle||{};
-  svg.innerHTML=erShapeSVG(el.type,el.w,el.h,erS.stroke,erS.fill,erS.strokeWidth,erS.dashed);
+  const inn=dom.querySelector('.sel-in');if(!inn)return;
+  inn.innerHTML=''; inn.appendChild(buildInnerContent(el,false));
 }
 function updateSymSVG(el){
   const dom=document.getElementById('sel_'+el.id);if(!dom)return;
-  const svg=dom.querySelector('svg.sym-s');if(!svg)return;
-  svg.setAttribute('viewBox',`0 0 ${el.w} ${el.h}`);
-  const symS=el.symStyle||{};
-  svg.innerHTML=symShapeSVG(el.type,el.w,el.h,symS.stroke,symS.fill,symS.strokeWidth,symS.dashed);
+  const inn=dom.querySelector('.sel-in');if(!inn)return;
+  inn.innerHTML=''; inn.appendChild(buildInnerContent(el,false));
 }
 
 /* ════════ ER LINE ════════ */
@@ -663,7 +660,15 @@ function symShapeSVG(type,w,h,stroke,fill,sw,dashed){
     case 'sym-triangle':return `<polygon points="${cx},${pad} ${w-pad},${h-pad} ${pad},${h-pad}" fill="${f}" stroke="${s}" stroke-width="${p}" stroke-linejoin="round" ${da}/>`;
     case 'sym-right-tri':return `<polygon points="${pad},${pad} ${w-pad},${h-pad} ${pad},${h-pad}" fill="${f}" stroke="${s}" stroke-width="${p}" stroke-linejoin="round" ${da}/>`;
     case 'sym-diamond':return `<polygon points="${cx},${pad} ${w-pad},${cy} ${cx},${h-pad} ${pad},${cy}" fill="${f}" stroke="${s}" stroke-width="${p}" stroke-linejoin="round" ${da}/>`;
-    case 'sym-hexagon':{const pts=_ngonPts(6,cx,cy,Math.min(cx,cy)-pad,0);return `<polygon points="${pts}" fill="${f}" stroke="${s}" stroke-width="${p}" stroke-linejoin="round" ${da}/>`;}
+    case 'sym-hexagon':{
+      // Flat-top elliptical hexagon that fills the full bounding box
+      const rx=cx-pad, ry=cy-pad;
+      const pts=[0,60,120,180,240,300].map(deg=>{
+        const a=deg*Math.PI/180;
+        return `${(cx+rx*Math.cos(a)).toFixed(2)},${(cy+ry*Math.sin(a)).toFixed(2)}`;
+      }).join(' ');
+      return `<polygon points="${pts}" fill="${f}" stroke="${s}" stroke-width="${p}" stroke-linejoin="round" ${da}/>`;
+    }
     case 'sym-parallelogram':{const off=w*0.2;return `<polygon points="${off+pad},${pad} ${w-pad},${pad} ${w-off-pad},${h-pad} ${pad},${h-pad}" fill="${f}" stroke="${s}" stroke-width="${p}" stroke-linejoin="round" ${da}/>`;}
     case 'sym-star':{const ro=Math.min(cx,cy)-pad,ri=ro*0.42;const pts=_starPts(5,cx,cy,ro,ri,-Math.PI/2);return `<polygon points="${pts}" fill="${f}" stroke="${s}" stroke-width="${p}" stroke-linejoin="round" ${da}/>`;}
     case 'sym-cylinder':{const ry=h*0.14;return `<ellipse cx="${cx}" cy="${pad+ry}" rx="${(w-p)/2}" ry="${ry}" fill="${f}" stroke="${s}" stroke-width="${p}"/><rect x="${pad}" y="${pad+ry}" width="${w-p}" height="${h-p-ry*2}" fill="${f}" stroke="none"/><line x1="${pad}" y1="${pad+ry}" x2="${pad}" y2="${h-pad-ry}" stroke="${s}" stroke-width="${p}"/><line x1="${w-pad}" y1="${pad+ry}" x2="${w-pad}" y2="${h-pad-ry}" stroke="${s}" stroke-width="${p}"/><ellipse cx="${cx}" cy="${h-pad-ry}" rx="${(w-p)/2}" ry="${ry}" fill="${f}" stroke="${s}" stroke-width="${p}"/>`;}
@@ -928,19 +933,22 @@ function mkThumb(slide, tw){
         inner=_svgEl.outerHTML;
       } else if(el.type&&el.type.startsWith('sym-')&&el.type!=='sym-arrow'){
         const symS2=el.symStyle||{};
+        const opStyle=symS2.opacity!=null&&symS2.opacity<1?`opacity:${symS2.opacity};`:'';
         const svg2=symShapeSVG(el.type,ew,eh,symS2.stroke,symS2.fill,symS2.strokeWidth||2,symS2.dashed);
         const tc2=el.style?.color||'#e4ddd0';const fs2=el.style?.fontSize||13;
-        inner=`<svg viewBox="0 0 ${ew} ${eh}" width="${ew}" height="${eh}" style="position:absolute;inset:0">${svg2}</svg>`
+        inner=`<svg viewBox="0 0 ${ew} ${eh}" width="${ew}" height="${eh}" style="position:absolute;inset:0;overflow:visible;${opStyle}">${svg2}</svg>`
              +(el.text?`<div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:${fs2}px;color:${tc2};text-align:center;padding:4px;overflow:hidden">${esc(el.text)}</div>`:'');
       } else if(el.type&&el.type.startsWith('er-')){
         const erS=el.erStyle||{};
         const svg=erShapeSVG(el.type,ew,eh,erS.stroke,erS.fill,erS.strokeWidth||2,erS.dashed);
-        const tc=el.style?.color||'#e4ddd0';
+        const tc = el.type==='er-cardinality' ? '#22d3ee'
+                 : el.type==='er-optionality'  ? '#f87171'
+                 : (el.style?.color||'#e4ddd0');
         const ff=el.style?.fontFamily||"'DM Sans',sans-serif";
         const fw=el.style?.fontWeight||600;
         const fs=el.style?.fontSize||13;
         const tdec=el.type==='er-key-attribute'?'underline':'none';
-        inner=`<svg viewBox="0 0 ${ew} ${eh}" width="${ew}" height="${eh}" style="position:absolute;inset:0">${svg}</svg>`
+        inner=`<svg viewBox="0 0 ${ew} ${eh}" width="${ew}" height="${eh}" style="position:absolute;inset:0;overflow:visible">${svg}</svg>`
              +`<div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:${fs}px;color:${tc};font-family:${ff};font-weight:${fw};text-align:center;text-decoration:${tdec};padding:4px;overflow:hidden">${esc(el.text||'')}</div>`;
       } else if(el.type){
         // Generic fallback: use buildInnerContent so future element types render automatically
@@ -996,7 +1004,7 @@ function entryCard(e, idx, isAdmin){
       <button class="ib ed" title="Bearbeiten" onclick="event.stopPropagation();openEditor(${e.id},0)"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg></button>
       <button class="ib dl" title="Löschen" onclick="event.stopPropagation();delE(${e.id})"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></svg></button>
     </div>`:
-    `<button class="ib" style="color:#60a5fa;border-color:rgba(96,165,250,.25)" title="Folien anzeigen" onclick="event.stopPropagation();openViewer(${e.id})">
+    `<button class="ib" style="color:#f87171;border-color:rgba(96,165,250,.25)" title="Folien anzeigen" onclick="event.stopPropagation();openViewer(${e.id})">
       <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
     </button>`;
   return `<div class="ec${isAdmin?' adm-pad':''}" id="ec${e.id}" ${isAdmin?`draggable="true" data-id="${e.id}"`:''}>
@@ -1558,7 +1566,7 @@ function buildElDOM(el){
   return wrap;
 }
 
-function typeLabel(t){return{title:'Überschrift',text:'Text',code:'Code',sql:'SQL',image:'Bild',divider:'Linie',badge:'Badge',marker:'Markierung','er-entity':'Entität','er-weak-entity':'Schwache Entität','er-relation':'Beziehungstyp','er-weak-relation':'Schw. Beziehungstyp','er-attribute':'Attribut','er-key-attribute':'Schlüsselattr.','er-multi-attribute':'Mehrwertiger Attr.','er-derived-attr':'Abgel. Attribut','er-isa':'IS-A','er-line':'Verbindungslinie','er-cardinality':'Kardinalität','sym-rect':'Rechteck','sym-rounded-rect':'Abg. Rechteck','sym-circle':'Kreis','sym-ellipse':'Ellipse','sym-triangle':'Dreieck','sym-right-tri':'Rechtes Dreieck','sym-diamond':'Raute','sym-hexagon':'Sechseck','sym-parallelogram':'Parallelogramm','sym-star':'Stern','sym-cylinder':'Zylinder','sym-arrow':'Pfeil'}[t]||t;}
+function typeLabel(t){return{title:'Überschrift',text:'Text',code:'Code',sql:'SQL',image:'Bild',divider:'Linie',badge:'Badge',marker:'Markierung','er-entity':'Entität','er-weak-entity':'Schwache Entität','er-relation':'Beziehungstyp','er-weak-relation':'Schw. Beziehungstyp','er-attribute':'Attribut','er-key-attribute':'Schlüsselattr.','er-multi-attribute':'Mehrwertiger Attr.','er-derived-attr':'Abgel. Attribut','er-isa':'IS-A','er-line':'Verbindungslinie','er-cardinality':'Kardinalität','er-optionality':'Optionalität','sym-rect':'Rechteck','sym-rounded-rect':'Abg. Rechteck','sym-circle':'Kreis','sym-ellipse':'Ellipse','sym-triangle':'Dreieck','sym-right-tri':'Rechtes Dreieck','sym-diamond':'Raute','sym-hexagon':'Sechseck','sym-parallelogram':'Parallelogramm','sym-star':'Stern','sym-cylinder':'Zylinder','sym-arrow':'Pfeil'}[t]||t;}
 
 function _closestLI(node, root){
   while(node&&node!==root){if(node.nodeName==='LI')return node;node=node.parentNode;}
@@ -1806,6 +1814,7 @@ function buildInnerContent(el, readOnly, canRunSql=false){
     svg.setAttribute('preserveAspectRatio','none');
     svg.style.cssText='position:absolute;inset:0;width:100%;height:100%;pointer-events:none;overflow:visible';
     const symS=el.symStyle||{};
+    if(symS.opacity!=null&&symS.opacity<1) svg.style.opacity=symS.opacity;
     svg.innerHTML=symShapeSVG(el.type,el.w,el.h,symS.stroke,symS.fill,symS.strokeWidth,symS.dashed);
     wrap.appendChild(svg);
     const txt=document.createElement('div'); txt.className='el-sym-text';
@@ -1833,6 +1842,7 @@ function buildInnerContent(el, readOnly, canRunSql=false){
     // Text label
     const txt=document.createElement('div'); txt.className='el-er-text';
     if(el.type==='er-cardinality')txt.classList.add('el-er-cardinality');
+    if(el.type==='er-optionality')txt.classList.add('el-er-optionality');
     if(el.type==='er-key-attribute')txt.classList.add('key-attr');
     txt.contentEditable=readOnly?'false':'true'; txt.textContent=el.text||'';
     if(!readOnly){
@@ -1984,7 +1994,7 @@ function _showMultiSub(el){
 function _populateFmtInto(el, container){
   const st=el.style||{}, erS=el.erStyle||{};
   const isText=el.type==='title'||el.type==='text';
-  const isER=el.type&&el.type.startsWith('er-')&&el.type!=='er-line'&&el.type!=='er-cardinality';
+  const isER=el.type&&el.type.startsWith('er-')&&el.type!=='er-line'&&el.type!=='er-cardinality'&&el.type!=='er-optionality';
   const isLine=el.type==='er-line';
   const isSym=el.type&&el.type.startsWith('sym-')&&el.type!=='sym-arrow';
   const isArrow=el.type==='sym-arrow';
@@ -2007,7 +2017,10 @@ function _populateFmtInto(el, container){
   }
   if(isER){
     const sto=container.querySelector('#fmtStroke');if(sto)sto.value=toHex(erS.stroke||'#e8a030');
-    const fi=container.querySelector('#fmtFill');if(fi)fi.value=toHex(erS.fill==='transparent'?'#000000':erS.fill||'#000000');
+    const {hex:fhex,alpha:falpha}=_parseFill(erS.fill||'rgba(232,160,48,.09)');
+    const fi=container.querySelector('#fmtFill');if(fi)fi.value=fhex;
+    const fop=container.querySelector('#fmtFillOp');if(fop)fop.value=falpha;
+    const fopV=container.querySelector('#fmtFillOpV');if(fopV)fopV.textContent=Math.round(falpha*100)+'%';
     const sw=container.querySelector('#fmtSW');if(sw)sw.value=erS.strokeWidth||2;
     const da=container.querySelector('#fmtDash');if(da)da.checked=!!erS.dashed;
   }
@@ -2019,7 +2032,13 @@ function _populateFmtInto(el, container){
   if(isSym){
     const symS=el.symStyle||{};
     const ss=container.querySelector('#fmtSymStroke');if(ss)ss.value=toHex(symS.stroke||'#e8a030');
-    const sf=container.querySelector('#fmtSymFill');if(sf)sf.value=toHex(symS.fill==='transparent'?'#000000':symS.fill||'#000000');
+    const {hex:sfhex,alpha:sfalpha}=_parseFill(symS.fill||'rgba(232,160,48,.09)');
+    const sf=container.querySelector('#fmtSymFill');if(sf)sf.value=sfhex;
+    const sfOp=container.querySelector('#fmtSymFillOp');if(sfOp)sfOp.value=sfalpha;
+    const sfOpV=container.querySelector('#fmtSymFillOpV');if(sfOpV)sfOpV.textContent=Math.round(sfalpha*100)+'%';
+    const sop2=symS.opacity??1;
+    const sOpEl=container.querySelector('#fmtSymOpacity');if(sOpEl)sOpEl.value=sop2;
+    const sOpV2=container.querySelector('#fmtSymOpacityV');if(sOpV2)sOpV2.textContent=Math.round(sop2*100)+'%';
     const ssw=container.querySelector('#fmtSymSW');if(ssw)ssw.value=symS.strokeWidth||2;
     const sd=container.querySelector('#fmtSymDash');if(sd)sd.checked=!!symS.dashed;
     const sc=container.querySelector('#fmtSymColor');if(sc)sc.value=toHex(el.style?.color||'#e4ddd0');
@@ -2072,7 +2091,7 @@ function _wireMultiSubInputs(container, el){
     d.addEventListener('change', ()=>applyFn(d));
   };
   const isText=el.type==='title'||el.type==='text';
-  const isER=el.type&&el.type.startsWith('er-')&&el.type!=='er-line'&&el.type!=='er-cardinality';
+  const isER=el.type&&el.type.startsWith('er-')&&el.type!=='er-line'&&el.type!=='er-cardinality'&&el.type!=='er-optionality';
   const isLine=el.type==='er-line';
   const isSym=el.type&&el.type.startsWith('sym-')&&el.type!=='sym-arrow';
   const isArrow=el.type==='sym-arrow';
@@ -2111,7 +2130,8 @@ function _wireMultiSubInputs(container, el){
   }
   if(isER){
     rewire('#fmtStroke', d=>{pushHistoryDebounced('ER-Stil geändert');el.erStyle=el.erStyle||{};el.erStyle.stroke=d.value;updateERSVG(el);_spRefresh();});
-    rewire('#fmtFill', d=>{pushHistoryDebounced('ER-Stil geändert');el.erStyle=el.erStyle||{};el.erStyle.fill=d.value;updateERSVG(el);_spRefresh();});
+    rewire('#fmtFill', d=>{applyERSt('fillColor',d.value);});
+    rewire('#fmtFillOp', d=>{applyERSt('fillOpacity',+d.value);const v=container.querySelector('#fmtFillOpV');if(v)v.textContent=Math.round(+d.value*100)+'%';});
     rewire('#fmtSW', d=>{pushHistoryDebounced('ER-Stil geändert');el.erStyle=el.erStyle||{};el.erStyle.strokeWidth=+d.value;updateERSVG(el);_spRefresh();});
     rewire('#fmtDash', d=>{pushHistoryDebounced('ER-Stil geändert');el.erStyle=el.erStyle||{};el.erStyle.dashed=d.checked;updateERSVG(el);_spRefresh();});
   }
@@ -2122,7 +2142,9 @@ function _wireMultiSubInputs(container, el){
   }
   if(isSym){
     rewire('#fmtSymStroke', d=>{pushHistoryDebounced('Symbol-Stil geändert');el.symStyle=el.symStyle||{};el.symStyle.stroke=d.value;updateSymSVG(el);_spRefresh();});
-    rewire('#fmtSymFill', d=>{pushHistoryDebounced('Symbol-Stil geändert');el.symStyle=el.symStyle||{};el.symStyle.fill=d.value;updateSymSVG(el);_spRefresh();});
+    rewire('#fmtSymFill', d=>{applySymSt('fillColor',d.value);});
+    rewire('#fmtSymFillOp', d=>{applySymSt('fillOpacity',+d.value);const v=container.querySelector('#fmtSymFillOpV');if(v)v.textContent=Math.round(+d.value*100)+'%';});
+    rewire('#fmtSymOpacity', d=>{applySymSt('opacity',+d.value);const v=container.querySelector('#fmtSymOpacityV');if(v)v.textContent=Math.round(+d.value*100)+'%';});
     rewire('#fmtSymSW', d=>{pushHistoryDebounced('Symbol-Stil geändert');el.symStyle=el.symStyle||{};el.symStyle.strokeWidth=+d.value;updateSymSVG(el);_spRefresh();});
     rewire('#fmtSymDash', d=>{pushHistoryDebounced('Symbol-Stil geändert');el.symStyle=el.symStyle||{};el.symStyle.dashed=d.checked;updateSymSVG(el);_spRefresh();});
     rewire('#fmtSymColor', d=>{applyElStyle('color',d.value);});
@@ -2156,7 +2178,7 @@ function populateFmt(el){
   document.getElementById('fmtCtrl').style.display='block';
   document.getElementById('fmtTypePill').textContent=typeLabel(el.type);
   const isText=el.type==='title'||el.type==='text';
-  const isER=el.type&&el.type.startsWith('er-')&&el.type!=='er-line'&&el.type!=='er-cardinality';
+  const isER=el.type&&el.type.startsWith('er-')&&el.type!=='er-line'&&el.type!=='er-cardinality'&&el.type!=='er-optionality';
   const isLine=el.type==='er-line';
   const isSym=el.type&&el.type.startsWith('sym-')&&el.type!=='sym-arrow';
   const isArrow=el.type==='sym-arrow';
@@ -2185,10 +2207,13 @@ function populateFmt(el){
     if(fmtNBCb)fmtNBCb.checked=_noBorderActive;
   }
   if(isER){
-    document.getElementById('fmtStroke').value=toHex(erS.stroke||'#e8a030');
-    document.getElementById('fmtFill').value=toHex(erS.fill==='transparent'?'#000000':erS.fill||'#000000');
-    document.getElementById('fmtSW').value=erS.strokeWidth||2;
-    document.getElementById('fmtDash').checked=!!erS.dashed;
+    const sto=document.getElementById('fmtStroke');if(sto)sto.value=toHex(erS.stroke||'#e8a030');
+    const {hex:fhex,alpha:falpha}=_parseFill(erS.fill||'rgba(232,160,48,.09)');
+    const fi=document.getElementById('fmtFill');if(fi)fi.value=fhex;
+    const fop=document.getElementById('fmtFillOp');if(fop)fop.value=falpha;
+    const fopV=document.getElementById('fmtFillOpV');if(fopV)fopV.textContent=Math.round(falpha*100)+'%';
+    const sw=document.getElementById('fmtSW');if(sw)sw.value=erS.strokeWidth||2;
+    const da=document.getElementById('fmtDash');if(da)da.checked=!!erS.dashed;
   }
   if(isLine){
     document.getElementById('fmtLC').value=toHex(erS.stroke||'#888077');
@@ -2198,7 +2223,12 @@ function populateFmt(el){
   if(isSym){
     const symS=el.symStyle||{};
     const symStroke=document.getElementById('fmtSymStroke');if(symStroke)symStroke.value=toHex(symS.stroke||'#e8a030');
-    const symFill=document.getElementById('fmtSymFill');if(symFill)symFill.value=toHex(symS.fill==='transparent'?'#000000':symS.fill||'#000000');
+    const {hex:sfhex,alpha:sfalpha}=_parseFill(symS.fill||'rgba(232,160,48,.09)');
+    const symFill=document.getElementById('fmtSymFill');if(symFill)symFill.value=sfhex;
+    const sfOp=document.getElementById('fmtSymFillOp');if(sfOp)sfOp.value=sfalpha;
+    const sfOpV=document.getElementById('fmtSymFillOpV');if(sfOpV)sfOpV.textContent=Math.round(sfalpha*100)+'%';
+    const symOp=document.getElementById('fmtSymOpacity');const sop=symS.opacity??1;if(symOp)symOp.value=sop;
+    const symOpV=document.getElementById('fmtSymOpacityV');if(symOpV)symOpV.textContent=Math.round(sop*100)+'%';
     const symSW=document.getElementById('fmtSymSW');if(symSW)symSW.value=symS.strokeWidth||2;
     const symDash=document.getElementById('fmtSymDash');if(symDash)symDash.checked=!!symS.dashed;
     const symColor=document.getElementById('fmtSymColor');if(symColor)symColor.value=toHex(el.style?.color||'#e4ddd0');
@@ -2283,22 +2313,55 @@ function applyFmt(prop,val){
   }
   _spRefresh();
 }
+/* Parse any fill value into {hex, alpha} so the opacity slider and color picker stay in sync */
+function _parseFill(fill){
+  if(!fill||fill==='transparent') return {hex:'#000000', alpha:0};
+  if(fill.startsWith('#')) return {hex:fill.slice(0,7), alpha:1};
+  // rgb(r,g,b)
+  let m=fill.match(/^rgb\(\s*(\d+),\s*(\d+),\s*(\d+)\s*\)$/);
+  if(m){const h=(n=>n<16?'0'+n.toString(16):n.toString(16));return{hex:'#'+h(+m[1])+h(+m[2])+h(+m[3]),alpha:1};}
+  // rgba(r,g,b,a)
+  m=fill.match(/^rgba\(\s*(\d+),\s*(\d+),\s*(\d+),\s*([\d.]+)\s*\)$/);
+  if(m){const h=(n=>n<16?'0'+n.toString(16):n.toString(16));return{hex:'#'+h(+m[1])+h(+m[2])+h(+m[3]),alpha:+m[4]};}
+  return {hex:'#000000', alpha:1};
+}
+function _composeFill(hex, alpha){
+  if(alpha<=0) return 'transparent';
+  if(alpha>=1) return hex;
+  const r=parseInt(hex.slice(1,3),16),g=parseInt(hex.slice(3,5),16),b=parseInt(hex.slice(5,7),16);
+  return `rgba(${r},${g},${b},${alpha})`;
+}
+
 function applyERSt(prop,val){
   if(!selElId)return; const el=getEl(selElId); if(!el)return;
   pushHistoryDebounced('ER-Stil geändert');
-  el.erStyle=el.erStyle||{}; el.erStyle[prop]=val;
+  el.erStyle=el.erStyle||{};
+  if(prop==='fillColor'){
+    const {alpha}=_parseFill(el.erStyle.fill||'transparent');
+    el.erStyle.fill=_composeFill(val,alpha);
+  } else if(prop==='fillOpacity'){
+    const {hex}=_parseFill(el.erStyle.fill||'#000000');
+    el.erStyle.fill=_composeFill(hex,val);
+  } else {
+    el.erStyle[prop]=val;
+  }
   if(el.type==='er-line'){updateLineDom(el);_spRefresh();return;}
   updateERSVG(el); _spRefresh();
 }
 function applySymSt(prop,val){
   if(!selElId)return; const el=getEl(selElId); if(!el)return;
   pushHistoryDebounced('Symbol-Stil geändert');
-  el.symStyle=el.symStyle||{}; el.symStyle[prop]=val;
-  const dom=document.getElementById('sel_'+selElId); if(!dom)return;
-  const svg=dom.querySelector('svg.sym-s'); if(!svg)return;
-  const symS=el.symStyle;
-  svg.innerHTML=symShapeSVG(el.type,el.w,el.h,symS.stroke,symS.fill,symS.strokeWidth,symS.dashed);
-  _spRefresh();
+  el.symStyle=el.symStyle||{};
+  if(prop==='fillColor'){
+    const {alpha}=_parseFill(el.symStyle.fill||'transparent');
+    el.symStyle.fill=_composeFill(val,alpha);
+  } else if(prop==='fillOpacity'){
+    const {hex}=_parseFill(el.symStyle.fill||'#000000');
+    el.symStyle.fill=_composeFill(hex,val);
+  } else {
+    el.symStyle[prop]=val;
+  }
+  updateSymSVG(el); _spRefresh();
 }
 function applySymTextSt(prop,val){
   if(!selElId)return; const el=getEl(selElId); if(!el)return;
@@ -2557,13 +2620,18 @@ function addEl(type){
     Object.assign(el,{x1:cx-90,y1:cy,x2:cx+90,y2:cy,erStyle:{stroke:'#888077',strokeWidth:2,dashed:false}});
   } else if(type==='er-cardinality'){
     const cx=Math.round(sz.w/2), cy=Math.round(sz.h/2);
-    Object.assign(el,{x:cx-25,y:cy-20,w:50,h:40,text:'1',style:{fontSize:17,fontFamily:"'JetBrains Mono',monospace",color:'#e8a030',fontWeight:'700',textAlign:'center',lineHeight:1.2,background:'transparent',borderRadius:0},erStyle:{stroke:'transparent',fill:'transparent',strokeWidth:0,dashed:false}});
+    Object.assign(el,{x:cx-25,y:cy-20,w:50,h:40,text:_cardDefault,style:{fontSize:17,fontFamily:"'JetBrains Mono',monospace",color:'#22d3ee',fontWeight:'700',textAlign:'center',lineHeight:1.2,background:'transparent',borderRadius:0},erStyle:{stroke:'transparent',fill:'transparent',strokeWidth:0,dashed:false}});
+  } else if(type==='er-optionality'){
+    const cx=Math.round(sz.w/2), cy=Math.round(sz.h/2);
+    Object.assign(el,{x:cx-36,y:cy-20,w:72,h:40,text:_optDefault,style:{fontSize:13,fontFamily:"'JetBrains Mono',monospace",color:'#f87171',fontWeight:'700',textAlign:'center',lineHeight:1.2,background:'transparent',borderRadius:0},erStyle:{stroke:'transparent',fill:'transparent',strokeWidth:0,dashed:false}});
   } else if(type==='sym-arrow'){
     const cx=Math.round(sz.w/2),cy=Math.round(sz.h/2);
-    Object.assign(el,{x1:cx-100,y1:cy,x2:cx+100,y2:cy,arrowStyle:{stroke:'#e8a030',strokeWidth:2,dashed:false,startType:'none',endType:'filled',markerSize:9}});
+    const ad=_arrowDefaults;
+    Object.assign(el,{x1:cx-100,y1:cy,x2:cx+100,y2:cy,arrowStyle:{stroke:ad.stroke,strokeWidth:ad.strokeWidth,dashed:ad.dashed,startType:ad.startType,endType:ad.endType,markerSize:ad.markerSize}});
   } else if(type&&type.startsWith('sym-')){
     const d=SYMD[type]||{},cx=Math.round(sz.w/2),cy=Math.round(sz.h/2);
-    Object.assign(el,{x:cx-Math.round((d.w||120)/2),y:cy-Math.round((d.h||80)/2),w:d.w||120,h:d.h||80,text:'',style:{background:'transparent',borderRadius:0,color:'#e4ddd0',fontSize:13,fontFamily:"'DM Sans',sans-serif"},symStyle:{stroke:'#e8a030',fill:'rgba(232,160,48,.09)',strokeWidth:2,dashed:false}});
+    const sd=_symDefaults;
+    Object.assign(el,{x:cx-Math.round((d.w||120)/2),y:cy-Math.round((d.h||80)/2),w:d.w||120,h:d.h||80,text:'',style:{background:'transparent',borderRadius:0,color:'#e4ddd0',fontSize:13,fontFamily:"'DM Sans',sans-serif"},symStyle:{stroke:sd.stroke,fill:_composeFill(sd.fillColor,sd.fillOpacity),strokeWidth:sd.strokeWidth,dashed:sd.dashed,opacity:sd.opacity}});
   } else if(type&&type.startsWith('er-')){
     const d=ERD[type]||{}, cx=Math.round(sz.w/2), cy=Math.round(sz.h/2);
     Object.assign(el,{x:cx-Math.round((d.w||140)/2),y:cy-Math.round((d.h||60)/2),w:d.w||140,h:d.h||60,text:d.label||'',style:{background:'transparent',borderRadius:0},erStyle:{stroke:d.stroke||'#e8a030',fill:d.fill||'transparent',strokeWidth:2,dashed:false}});
@@ -2819,6 +2887,7 @@ function _finishMarkerDraw(rawPts){
 /* ── Marker style popover (right-click on insert-panel button) ── */
 function showMarkerStylePop(ev){
   ev.preventDefault(); ev.stopPropagation();
+  _closeAllStylePops();
   const pop=document.getElementById('markerStylePop'); if(!pop)return;
   // Populate from current defaults
   const mc=document.getElementById('mspColor');
@@ -2841,9 +2910,7 @@ function showMarkerStylePop(ev){
   y = Math.max(8, Math.min(y, window.innerHeight - ph - 8));
   pop.style.left=x+'px'; pop.style.top=y+'px';
 }
-function hideMarkerStylePop(){
-  const pop=document.getElementById('markerStylePop'); if(pop)pop.style.display='none';
-}
+function hideMarkerStylePop(){ _closeAllStylePops(); }
 function setMarkerDefault(prop,val){
   _markerDefaults[prop]=val;
   /* Update the SVG preview icon on the insert-panel button */
@@ -2868,6 +2935,193 @@ function setMarkerDefault(prop,val){
   if(prop==='color'){ const e=document.getElementById('ctxMarkerColor'); if(e)e.value=val; }
   if(prop==='strokeWidth'){ const e=document.getElementById('ctxMarkerSW'); if(e)e.value=val; const v=document.getElementById('ctxMarkerSWV'); if(v)v.textContent=val+'px'; }
   if(prop==='opacity'){ const e=document.getElementById('ctxMarkerOp'); if(e)e.value=val; const v=document.getElementById('ctxMarkerOpV'); if(v)v.textContent=Math.round(val*100)+'%'; }
+}
+
+/* ════════ CARDINALITY & OPTIONALITY QUICK-PICK POPOVERS ════════ */
+const CARD_VALUES = ['1','n','m'];
+const OPT_VALUES  = ['muss','kann'];
+
+let _cardDefault = '1';
+let _optDefault  = 'kann';
+
+function _showErValPop(ev, popId, gridId, values, current, color, onPick){
+  ev.preventDefault(); ev.stopPropagation();
+  const pop = document.getElementById(popId);
+  const grid = document.getElementById(gridId);
+  if(!pop||!grid) return;
+  // Build chips
+  grid.innerHTML = '';
+  values.forEach(v => {
+    const chip = document.createElement('button');
+    chip.className = 'erval-chip' + (v===current?' active':'');
+    chip.textContent = v;
+    chip.style.color = color;
+    chip.addEventListener('click', ()=>{ onPick(v); _closeAllErPops(); });
+    grid.appendChild(chip);
+  });
+  // Position: right of the button, vertically centred on it
+  const btn = ev.currentTarget;
+  const r = btn.getBoundingClientRect();
+  pop.style.display = 'block';
+  const pw = pop.offsetWidth||180, ph = pop.offsetHeight||90;
+  let x = r.right + 10;
+  let y = r.top + r.height/2 - ph/2;
+  if(x+pw > window.innerWidth-8) x = r.left - pw - 8;
+  y = Math.max(8, Math.min(y, window.innerHeight - ph - 8));
+  pop.style.left = x+'px'; pop.style.top = y+'px';
+}
+
+function showCardPop(ev){
+  _showErValPop(ev,'cardPop','cardGrid',CARD_VALUES,_cardDefault,'#22d3ee',v=>{
+    _cardDefault = v;
+    const p = document.getElementById('cardBtnPreview'); if(p) p.textContent = v;
+  });
+}
+function showOptPop(ev){
+  _showErValPop(ev,'optPop','optGrid',OPT_VALUES,_optDefault,'#f87171',v=>{
+    _optDefault = v;
+    const p = document.getElementById('optBtnPreview'); if(p) p.textContent = v;
+  });
+}
+function _closeAllErPops(){
+  ['cardPop','optPop'].forEach(id=>{ const p=document.getElementById(id); if(p)p.style.display='none'; });
+}
+
+/* ════════ SYM / ARROW INSERT-PANEL STYLE POPOVERS ════════ */
+let _symDefaults={stroke:'#e8a030',fillColor:'#e8a030',fillOpacity:0.09,strokeWidth:2,dashed:false,opacity:1};
+let _arrowDefaults={stroke:'#e8a030',strokeWidth:2,dashed:false,startType:'none',endType:'filled',markerSize:9};
+let _symPopType=null; // which shape type the sym popover is currently configured for
+
+function _closeAllStylePops(){
+  ['symStylePop','arrowStylePop','markerStylePop','cardPop','optPop'].forEach(id=>{
+    const p=document.getElementById(id); if(p)p.style.display='none';
+  });
+}
+
+function _popPosition(pop, triggerEl){
+  const r=triggerEl.getBoundingClientRect();
+  pop.style.display='block';
+  const pw=pop.offsetWidth||220, ph=pop.offsetHeight||160;
+  let x=r.right+10, y=r.top+r.height/2-ph/2;
+  if(x+pw>window.innerWidth-8) x=r.left-pw-8;
+  y=Math.max(8,Math.min(y,window.innerHeight-ph-8));
+  pop.style.left=x+'px'; pop.style.top=y+'px';
+}
+
+/* Generates the small live SVG preview inside the sym popover */
+function _updateSymPopPreview(){
+  const el=document.getElementById('symPopPreview'); if(!el||!_symPopType)return;
+  const s=_symDefaults.stroke, f=_composeFill(_symDefaults.fillColor,_symDefaults.fillOpacity);
+  const sw=_symDefaults.strokeWidth, da=_symDefaults.dashed;
+  el.innerHTML=symShapeSVG(_symPopType,36,22,s,f,sw,da);
+  el.style.opacity=_symDefaults.opacity<1?_symDefaults.opacity:'';
+}
+
+function showSymStylePop(ev, type){
+  ev.preventDefault(); ev.stopPropagation();
+  _closeAllStylePops();
+  _symPopType=type;
+  const pop=document.getElementById('symStylePop'); if(!pop)return;
+  // Populate controls
+  document.getElementById('sspStroke').value=_symDefaults.stroke;
+  document.getElementById('sspFillColor').value=_symDefaults.fillColor;
+  document.getElementById('sspFillOp').value=_symDefaults.fillOpacity;
+  document.getElementById('sspFillOpV').textContent=Math.round(_symDefaults.fillOpacity*100)+'%';
+  document.getElementById('sspSW').value=_symDefaults.strokeWidth;
+  document.getElementById('sspDash').checked=_symDefaults.dashed;
+  const sspOp=document.getElementById('sspOpacity');if(sspOp)sspOp.value=_symDefaults.opacity;
+  const sspOpV=document.getElementById('sspOpacityV');if(sspOpV)sspOpV.textContent=Math.round(_symDefaults.opacity*100)+'%';
+  _updateSymPopPreview();
+  _popPosition(pop, ev.currentTarget);
+}
+
+function setSymDefault(prop,val){
+  _symDefaults[prop]=val;
+  if(prop==='fillOpacity') document.getElementById('sspFillOpV').textContent=Math.round(val*100)+'%';
+  _updateSymPopPreview();
+  _updateAllSymBtnIcons();
+}
+
+/* Re-render every sym-* insert-button's SVG from current _symDefaults */
+function _updateAllSymBtnIcons(){
+  const fill=_composeFill(_symDefaults.fillColor,_symDefaults.fillOpacity);
+  const {stroke,strokeWidth,dashed,opacity}=_symDefaults;
+  document.querySelectorAll('[data-sym-type]').forEach(btn=>{
+    const type=btn.dataset.symType;
+    const svg=btn.querySelector('.er-ico svg'); if(!svg)return;
+    svg.innerHTML=symShapeSVG(type,36,22,stroke,fill,strokeWidth,dashed);
+    svg.style.opacity=opacity<1?opacity:'';
+  });
+}
+
+/* Re-render the arrow insert-button SVG from current _arrowDefaults */
+function _updateArrowBtnIcon(){
+  const d=_arrowDefaults;
+  const svg=document.getElementById('arrowBtnSvg'); if(!svg)return;
+  // Build arrow line with head markers matching the format-tab approach
+  const col=d.stroke, sw=Math.min(d.strokeWidth,3), da=d.dashed?`stroke-dasharray="${sw*2.5} ${sw*2}"`:'';
+  const x1=3,x2=30,y=11,hs=Math.min(7,d.markerSize*0.55);
+  let inner=`<line x1="${x1}" y1="${y}" x2="${x2}" y2="${y}" stroke="${col}" stroke-width="${sw}" stroke-linecap="round" ${da}/>`;
+  // End head
+  if(d.endType==='filled'||d.endType==='arrow')
+    inner+=`<polyline points="${x2-hs},${y-hs*.6} ${x2},${y} ${x2-hs},${y+hs*.6}" fill="none" stroke="${col}" stroke-width="${sw}" stroke-linejoin="round" stroke-linecap="round"/>`;
+  else if(d.endType==='filled-dot'||d.endType==='open-dot')
+    inner+=`<circle cx="${x2}" cy="${y}" r="${hs*.5}" fill="${d.endType==='filled-dot'?col:'none'}" stroke="${col}" stroke-width="${sw*.7}"/>`;
+  else if(d.endType==='filled-diamond'||d.endType==='open-diamond'){
+    const dx=hs*.8,dy=hs*.45;
+    inner+=`<polygon points="${x2},${y-dy} ${x2+dx*.6},${y} ${x2},${y+dy} ${x2-dx},${y}" fill="${d.endType==='filled-diamond'?col:'none'}" stroke="${col}" stroke-width="${sw*.7}" stroke-linejoin="round"/>`;
+  } else if(d.endType==='bar')
+    inner+=`<line x1="${x2}" y1="${y-hs*.6}" x2="${x2}" y2="${y+hs*.6}" stroke="${col}" stroke-width="${sw}"/>`;
+  // Start head
+  if(d.startType==='filled'||d.startType==='arrow')
+    inner+=`<polyline points="${x1+hs},${y-hs*.6} ${x1},${y} ${x1+hs},${y+hs*.6}" fill="none" stroke="${col}" stroke-width="${sw}" stroke-linejoin="round" stroke-linecap="round"/>`;
+  else if(d.startType==='filled-dot'||d.startType==='open-dot')
+    inner+=`<circle cx="${x1}" cy="${y}" r="${hs*.5}" fill="${d.startType==='filled-dot'?col:'none'}" stroke="${col}" stroke-width="${sw*.7}"/>`;
+  else if(d.startType==='bar')
+    inner+=`<line x1="${x1}" y1="${y-hs*.6}" x2="${x1}" y2="${y+hs*.6}" stroke="${col}" stroke-width="${sw}"/>`;
+  // Anchor dots
+  inner+=`<circle cx="${x1}" cy="${y}" r="2.5" fill="#3b82f6"/><circle cx="${x2+2}" cy="${y}" r="2.5" fill="#3b82f6"/>`;
+  svg.innerHTML=inner;
+}
+
+/* Arrow popover */
+function _updateArrowPopPreview(){
+  const el=document.getElementById('arrowPopPreview'); if(!el)return;
+  const d=_arrowDefaults;
+  const col=d.stroke, sw=d.strokeWidth;
+  const da=d.dashed?`stroke-dasharray="${sw*2.5} ${sw*2}"`:'';
+  // Simple horizontal arrow preview
+  const y=11, x1=3, x2=30;
+  let svgContent=`<line x1="${x1}" y1="${y}" x2="${x2}" y2="${y}" stroke="${col}" stroke-width="${sw}" stroke-linecap="round" ${da}/>`;
+  // Rough filled-arrow heads for preview
+  const headSz=Math.min(8,d.markerSize*0.7);
+  if(d.endType==='filled'||d.endType==='arrow')
+    svgContent+=`<polyline points="${x2-headSz},${y-headSz*0.55} ${x2},${y} ${x2-headSz},${y+headSz*0.55}" fill="none" stroke="${col}" stroke-width="${sw}" stroke-linejoin="round" stroke-linecap="round"/>`;
+  if(d.startType==='filled'||d.startType==='arrow')
+    svgContent+=`<polyline points="${x1+headSz},${y-headSz*0.55} ${x1},${y} ${x1+headSz},${y+headSz*0.55}" fill="none" stroke="${col}" stroke-width="${sw}" stroke-linejoin="round" stroke-linecap="round"/>`;
+  el.innerHTML=svgContent;
+  el.setAttribute('stroke',col); // propagate for currentColor children
+}
+
+function showArrowStylePop(ev){
+  ev.preventDefault(); ev.stopPropagation();
+  _closeAllStylePops();
+  const pop=document.getElementById('arrowStylePop'); if(!pop)return;
+  const d=_arrowDefaults;
+  document.getElementById('aspColor').value=d.stroke;
+  document.getElementById('aspSW').value=d.strokeWidth;
+  document.getElementById('aspDash').checked=d.dashed;
+  document.getElementById('aspStart').value=d.startType;
+  document.getElementById('aspEnd').value=d.endType;
+  document.getElementById('aspSize').value=d.markerSize;
+  _updateArrowPopPreview();
+  _popPosition(pop, ev.currentTarget);
+}
+
+function setArrowDefault(prop,val){
+  _arrowDefaults[prop]=val;
+  _updateArrowPopPreview();
+  _updateArrowBtnIcon();
 }
 
 /* Marker properties panel */
@@ -3119,10 +3373,9 @@ function hideConnDots(){document.getElementById('slideCV')?.querySelectorAll('.c
 function findSnap(nx,ny,excludeId){
   const sl=curSlide(); if(!sl)return null;
   let best=null, bd=SNAP_TH;
-  const PREFER_TH=18; // radius within which center/corners override free-border
   sl.elements.forEach(el=>{
     // Exclude only cardinality lines and self
-    if(el.type==='er-line'||el.type==='er-cardinality'||el.id===excludeId)return;
+    if(el.type==='er-line'||el.type==='er-cardinality'||el.type==='er-optionality'||el.id===excludeId)return;
     // sym-arrow: snap to endpoints + midpoint only
     if(el.type==='sym-arrow'){
       const pts=[{x:el.x1,y:el.y1},{x:el.x2,y:el.y2},{x:Math.round((el.x1+el.x2)/2),y:Math.round((el.y1+el.y2)/2)}];
@@ -3188,8 +3441,12 @@ function findSnap(nx,ny,excludeId){
         {x:cx,y:y},{x:cx,y:y+h},{x:x,y:cy},{x:x+w,y:cy}
       );
     }
-    // Find closest preferred point within PREFER_TH
-    let closestPref=null, closestPrefD=PREFER_TH;
+    // Find closest preferred point within SNAP_TH (the overall snap radius).
+    // Using PREFER_TH was too restrictive: a user dragging near the midpoint
+    // of a long entity edge might be >18px from the preferred point while still
+    // within SNAP_TH of the border, causing fallback to an arbitrary borderPt
+    // and producing a slightly off-center (rotated-looking) line.
+    let closestPref=null, closestPrefD=SNAP_TH;
     for(const pt of preferred){
       const d=Math.hypot(nx-pt.x,ny-pt.y);
       if(d<closestPrefD){closestPrefD=d;closestPref=pt;}
@@ -6008,10 +6265,11 @@ function hideCtxMenu() {
 document.addEventListener('click', ev => {
   const menu = document.getElementById('ctxMenu');
   if (menu && menu.style.display !== 'none' && !menu.contains(ev.target)) hideCtxMenu();
-  /* Also close marker style popover unless clicking inside it or on the button */
-  const pop = document.getElementById('markerStylePop');
-  const btn = document.getElementById('markerDrawBtn');
-  if (pop && pop.style.display !== 'none' && !pop.contains(ev.target) && !btn?.contains(ev.target)) hideMarkerStylePop();
+  /* Close all insert-panel style popovers */
+  ['symStylePop','arrowStylePop','markerStylePop','cardPop','optPop'].forEach(id=>{
+    const p=document.getElementById(id);
+    if(p&&p.style.display!=='none'&&!p.contains(ev.target)) p.style.display='none';
+  });
 });
 document.addEventListener('keydown', ev => {
   if (ev.key === 'Escape') hideCtxMenu();
