@@ -1566,7 +1566,7 @@ function buildElDOM(el){
   return wrap;
 }
 
-function typeLabel(t){return{title:'Überschrift',text:'Text',code:'Code',sql:'SQL',image:'Bild',divider:'Linie',badge:'Badge',marker:'Markierung','er-entity':'Entität','er-weak-entity':'Schwache Entität','er-relation':'Beziehungstyp','er-weak-relation':'Schw. Beziehungstyp','er-attribute':'Attribut','er-key-attribute':'Schlüsselattr.','er-multi-attribute':'Mehrwertiger Attr.','er-derived-attr':'Abgel. Attribut','er-isa':'IS-A','er-line':'Verbindungslinie','er-cardinality':'Kardinalität','er-optionality':'Optionalität','sym-rect':'Rechteck','sym-rounded-rect':'Abg. Rechteck','sym-circle':'Kreis','sym-ellipse':'Ellipse','sym-triangle':'Dreieck','sym-right-tri':'Rechtes Dreieck','sym-diamond':'Raute','sym-hexagon':'Sechseck','sym-parallelogram':'Parallelogramm','sym-star':'Stern','sym-cylinder':'Zylinder','sym-arrow':'Pfeil'}[t]||t;}
+function typeLabel(t){return{title:'Überschrift',text:'Text',code:'Code',sql:'SQL',image:'Bild',divider:'Linie',badge:'Badge',marker:'Markierung','er-entity':'Entität','er-weak-entity':'Schwache Entität','er-relation':'Beziehungstyp','er-weak-relation':'Schw. Beziehungstyp','er-attribute':'Attribut','er-key-attribute':'Schlüsselattr.','er-multi-attribute':'Mehrwertiger Attr.','er-derived-attr':'Abgel. Attribut','er-isa':'IS-A','er-line':'Verbindungslinie','er-cardinality':'Kardinalität','er-optionality':'Optionalität','sym-rect':'Rechteck','sym-rounded-rect':'Abg. Rechteck','sym-circle':'Kreis','sym-ellipse':'Ellipse','sym-triangle':'Dreieck','sym-right-tri':'Rechtes Dreieck','sym-diamond':'Raute','sym-hexagon':'Sechseck','sym-parallelogram':'Parallelogramm','sym-star':'Stern','sym-cylinder':'Zylinder','sym-arrow':'Pfeil','automaton':'Endlicher Automat','regex':'Regulärer Ausdruck'}[t]||t;}
 
 function _closestLI(node, root){
   while(node&&node!==root){if(node.nodeName==='LI')return node;node=node.parentNode;}
@@ -1772,6 +1772,8 @@ function buildInnerContent(el, readOnly, canRunSql=false){
     wrap.appendChild(res);
     return wrap;
   }
+  if(el.type==='automaton'){ return buildAutomatonWidget(el, readOnly, canRunSql); }
+  if(el.type==='regex'){ return buildRegexWidget(el, readOnly, canRunSql); }
   if(el.type==='image'){
     const wrap=document.createElement('div'); wrap.className='el-img-wrap';
     if(el.src){
@@ -2612,6 +2614,11 @@ function addEl(type){
   else if(type==='text') Object.assign(el,{x:60,y:80,w:380,h:200,html:'',style:{fontSize:14,fontFamily:"'DM Sans',sans-serif",color:'#888077',fontWeight:'400',textAlign:'left',lineHeight:1.75,background:'transparent',borderRadius:0}});
   else if(type==='code') Object.assign(el,{x:60,y:80,w:380,h:200,html:'// Code hier',style:{fontSize:13,fontFamily:"'JetBrains Mono',monospace",color:'#7dd3fc',background:'#030303',borderRadius:8}});
   else if(type==='sql') Object.assign(el,{x:60,y:80,w:420,h:260,sql:'SELECT * FROM entries LIMIT 10;',sqlResult:null,style:{fontSize:13,fontFamily:"'JetBrains Mono',monospace",color:'#a3e635',background:'#030303',borderRadius:8}});
+  else if(type==='automaton'){
+    const s0={id:uid(),x:110,y:160,label:'q0',start:true,accept:false};
+    Object.assign(el,{x:60,y:80,w:560,h:400,automaton:{states:[s0],transitions:[],test:''},style:{background:'#030303',borderRadius:8}});
+  }
+  else if(type==='regex') Object.assign(el,{x:60,y:80,w:420,h:320,regex:{pattern:'',icase:false,fullMatch:true,tests:'',results:null},style:{fontSize:13,fontFamily:"'JetBrains Mono',monospace",color:'#a3e635',background:'#030303',borderRadius:8}});
   else if(type==='image') Object.assign(el,{x:60,y:80,w:280,h:200,style:{background:'transparent',borderRadius:4}});
   else if(type==='divider') Object.assign(el,{x:40,y:Math.round(sz.h/2),w:Math.min(sz.w-80,880),h:4,style:{background:'transparent',borderRadius:0}});
   else if(type==='badge') Object.assign(el,{x:60,y:80,w:200,h:40,text:'Badge',style:{background:'transparent',borderRadius:0}});
@@ -5331,10 +5338,16 @@ function applySettings(){
   if(_settings.default_qs_phase){
     _qsPhaseOpen.lehrer=_settings.default_qs_phase;
     _qsPhaseOpen.admin=_settings.default_qs_phase;
-    // Auch die aktive Q-Phase im Forschungstagebuch (Lehrer-Ansicht) setzen
+    // Auch die aktive Q-Phase im Forschungstagebuch setzen — für BEIDE Rollen.
+    // (Bugfix: vorher wurde hier nur 'lehrer' gesetzt, activeQ.admin blieb für
+    // immer beim Startwert 'Q2', wodurch refreshAll() die Admin-Ansicht nach
+    // jedem Login/Reload trotz Einstellung stets auf Q2 zurückgesetzt hat.)
     activeQ.lehrer=_settings.default_qs_phase;
+    activeQ.admin=_settings.default_qs_phase;
     buildQTabs('lehrer');
+    buildQTabs('admin');
     renderL();
+    renderA();
   }
 }
 
@@ -5619,6 +5632,662 @@ function closeSqlModal(){
   const modal=document.getElementById('sqlResultModal');
   if(modal)modal.style.display='none';
 }
+
+/* ════════════════════════════════════════════════════════════════════════
+   ENDLICHER AUTOMAT  (Q3: Formale Sprachen & Automaten)
+   Selbstständiges Widget: Zustände & Übergänge per Klick/Tipp erstellen,
+   NEA + ε-Übergänge unterstützt, Eingaben schrittweise simulierbar.
+   ════════════════════════════════════════════════════════════════════════ */
+const AUTO_VB_W=600, AUTO_VB_H=300;   // feste logische Zeichenfläche (SVG viewBox)
+const AUTO_R=26;                       // Zustandsradius in viewBox-Einheiten
+
+function _autoSymbols(label){
+  return (label||'').split(',').map(s=>s.trim()).filter(s=>s.length>0);
+}
+function _autoIsEps(sym){
+  const l=(sym||'').toLowerCase();
+  return sym==='ε'||l==='eps'||l==='epsilon';
+}
+function _autoLabelDisplay(label){
+  return _autoSymbols(label).map(s=>_autoIsEps(s)?'ε':s).join(', ');
+}
+function _autoNextLabel(automaton){
+  let n=0; const used=new Set((automaton.states||[]).map(s=>s.label));
+  while(used.has('q'+n)) n++;
+  return 'q'+n;
+}
+function _autoFindTrans(automaton, from, to){
+  return automaton.transitions.find(t=>t.from===from&&t.to===to);
+}
+function _autoEpsClosure(automaton, ids){
+  const result=new Set(ids), stack=[...ids];
+  while(stack.length){
+    const cur=stack.pop();
+    for(const t of automaton.transitions){
+      if(t.from!==cur) continue;
+      if(_autoSymbols(t.label).some(_autoIsEps) && !result.has(t.to)){ result.add(t.to); stack.push(t.to); }
+    }
+  }
+  return result;
+}
+function _autoStepSet(automaton, ids, ch){
+  const next=new Set();
+  for(const t of automaton.transitions){
+    if(!ids.has(t.from)) continue;
+    if(_autoSymbols(t.label).includes(ch)) next.add(t.to);
+  }
+  return _autoEpsClosure(automaton, next);
+}
+function _autoSimulate(automaton, input){
+  const startState=(automaton.states||[]).find(s=>s.start);
+  if(!startState) return {ok:false, error:'Kein Startzustand festgelegt.'};
+  let cur=_autoEpsClosure(automaton, new Set([startState.id]));
+  const trace=[{char:null, states:new Set(cur)}];
+  for(const ch of input){
+    cur=_autoStepSet(automaton, cur, ch);
+    trace.push({char:ch, states:new Set(cur)});
+    if(cur.size===0) break;
+  }
+  const accepted = cur.size>0 && [...cur].some(id=>{
+    const st=automaton.states.find(s=>s.id===id); return st&&st.accept;
+  });
+  return {ok:true, trace, accepted, stuck:cur.size===0};
+}
+
+/* Baut den kompletten grafischen SVG-Inhalt (Zustände, Pfeile, Start-Pfeil,
+   unsichtbare Klick-Flächen für Übergänge) als String. Enthält KEINEN Text —
+   Beschriftungen sind editierbare HTML-Overlays (siehe _autoBuildLabelsLayer). */
+function _autoBuildSVG(automaton, sel){
+  sel=sel||{};
+  const states=automaton.states||[], transitions=automaton.transitions||[];
+  const activeSet=sel.active||null;
+  const byId=id=>states.find(s=>s.id===id);
+  let shapes='', hits='';
+
+  transitions.forEach(t=>{
+    const from=byId(t.from), to=byId(t.to);
+    if(!from||!to) return;
+    const isSel=sel.transId===t.id;
+    const col=isSel?'#f5c060':'#5b9bf5';
+    const sw=isSel?3:2;
+    let d, endAng;
+    if(from.id===to.id){
+      const cx=from.x, topEdgeY=from.y-AUTO_R;
+      const x1=cx-16, y1=topEdgeY+8, x2=cx+16, y2=topEdgeY+8;
+      const c1x=cx-16, c1y=topEdgeY-34, c2x=cx+16, c2y=topEdgeY-34;
+      d=`M ${x1} ${y1} C ${c1x} ${c1y}, ${c2x} ${c2y}, ${x2} ${y2}`;
+      endAng=Math.atan2(y2-c2y, x2-c2x);
+    } else {
+      const reverse=_autoFindTrans(automaton, t.to, t.from);
+      const dx=to.x-from.x, dy=to.y-from.y, dist=Math.hypot(dx,dy)||1;
+      const ux=dx/dist, uy=dy/dist;
+      const sx=from.x+ux*AUTO_R, sy=from.y+uy*AUTO_R;
+      const ex=to.x-ux*AUTO_R, ey=to.y-uy*AUTO_R;
+      if(reverse){
+        const nx=-uy, ny=ux, bow=18;
+        const cxp=(sx+ex)/2+nx*bow, cyp=(sy+ey)/2+ny*bow;
+        d=`M ${sx} ${sy} Q ${cxp} ${cyp} ${ex} ${ey}`;
+        endAng=Math.atan2(ey-cyp, ex-cxp);
+      } else {
+        d=`M ${sx} ${sy} L ${ex} ${ey}`;
+        endAng=Math.atan2(dy,dx);
+      }
+    }
+    const tipX = from.id===to.id ? (from.x+16) : (from.id!==to.id ? null : null);
+    shapes+=`<path d="${d}" fill="none" stroke="${col}" stroke-width="${sw}"/>`;
+    // Pfeilspitze: Endpunkt der jeweiligen Kurve/Linie
+    let endX, endY;
+    if(from.id===to.id){ endX=from.x+16; endY=(from.y-AUTO_R)+8; }
+    else {
+      const reverse2=_autoFindTrans(automaton, t.to, t.from);
+      const dx2=to.x-from.x, dy2=to.y-from.y, dist2=Math.hypot(dx2,dy2)||1;
+      const ux2=dx2/dist2, uy2=dy2/dist2;
+      endX=to.x-ux2*AUTO_R; endY=to.y-uy2*AUTO_R;
+    }
+    shapes+=_arrowHead('filled', endX, endY, endAng, 10, col, sw);
+    hits+=`<path data-trans-id="${t.id}" d="${d}" fill="none" stroke="transparent" stroke-width="16" style="cursor:pointer;pointer-events:stroke"/>`;
+  });
+
+  states.forEach(s=>{
+    const isSel=sel.stateId===s.id, isPending=sel.pending===s.id;
+    const isActive=activeSet&&activeSet.has(s.id);
+    const stroke=(isSel||isPending)?'#f5c060':'#e8a030';
+    const sw=(isSel||isPending)?3:2;
+    if(isActive){
+      shapes+=`<circle cx="${s.x}" cy="${s.y}" r="${AUTO_R+9}" fill="none" stroke="#a3e635" stroke-width="2.5" opacity=".9"><animate attributeName="r" values="${AUTO_R+8};${AUTO_R+13};${AUTO_R+8}" dur="1.1s" repeatCount="indefinite"/></circle>`;
+    }
+    if(isPending){
+      shapes+=`<circle cx="${s.x}" cy="${s.y}" r="${AUTO_R+7}" fill="none" stroke="#f5c060" stroke-width="2" stroke-dasharray="4 4" opacity=".8"/>`;
+    } else if(isSel){
+      shapes+=`<circle cx="${s.x}" cy="${s.y}" r="${AUTO_R+6}" fill="none" stroke="#f5c060" stroke-width="1.5" opacity=".55"/>`;
+    }
+    if(s.start){
+      const x2=s.x-AUTO_R, x1=x2-22;
+      shapes+=`<line x1="${x1}" y1="${s.y}" x2="${x2-8}" y2="${s.y}" stroke="#e8a030" stroke-width="2.2" stroke-linecap="round"/>`;
+      shapes+=_arrowHead('filled', x2, s.y, 0, 10, '#e8a030', 2.2);
+    }
+    shapes+=`<circle data-state-id="${s.id}" cx="${s.x}" cy="${s.y}" r="${AUTO_R}" fill="rgba(232,160,48,.10)" stroke="${stroke}" stroke-width="${sw}" style="cursor:pointer"/>`;
+    if(s.accept){
+      shapes+=`<circle cx="${s.x}" cy="${s.y}" r="${AUTO_R-5}" fill="none" stroke="${stroke}" stroke-width="1.4" style="pointer-events:none"/>`;
+    }
+  });
+  return shapes+hits;
+}
+
+function _autoQueueFocus(span){
+  requestAnimationFrame(()=>{
+    span.focus();
+    const range=document.createRange(); range.selectNodeContents(span); range.collapse(false);
+    const sel=window.getSelection(); sel.removeAllRanges(); sel.addRange(range);
+  });
+}
+function _autoMiniBtn(text, active, onClick, danger){
+  const b=document.createElement('button'); b.type='button';
+  b.className='auto-mini-btn'+(active?' active':'')+(danger?' danger':'');
+  b.textContent=text;
+  b.addEventListener('mousedown',ev=>ev.stopPropagation());
+  b.addEventListener('click',ev=>{ev.stopPropagation();onClick();});
+  return b;
+}
+function _autoWireLabelEditing(span, getLiveObj, prop, isTransition){
+  span.addEventListener('mousedown', ev=>ev.stopPropagation());
+  span.addEventListener('click', ev=>ev.stopPropagation());
+  let histPushed=false;
+  span.addEventListener('focus', ()=>{ histPushed=false; });
+  span.addEventListener('keydown', ev=>{
+    ev.stopPropagation();
+    if(ev.key==='Enter'){ ev.preventDefault(); span.blur(); }
+  });
+  span.addEventListener('paste', ev=>{
+    ev.preventDefault(); ev.stopPropagation();
+    const text=(ev.clipboardData||window.clipboardData).getData('text/plain');
+    document.execCommand('insertText', false, text);
+  });
+  span.addEventListener('input', ()=>{
+    if(!histPushed){ pushHistory((isTransition?'Übergang':'Zustand')+' bearbeitet'); histPushed=true; }
+    const obj=getLiveObj(); if(!obj) return;
+    obj[prop]=span.textContent; _spRefresh();
+  });
+  span.addEventListener('blur', ()=>{
+    histPushed=false;
+    const obj=getLiveObj(); if(!obj) return;
+    if(isTransition){
+      const norm=_autoSymbols(obj[prop]).map(s=>_autoIsEps(s)?'ε':s).join(', ');
+      obj[prop]=norm; span.textContent=norm;
+    }
+  });
+}
+
+/* Editierbare Beschriftungen + kontextuelle Mini-Toolbars als HTML-Overlay
+   (SVG <text> kann nicht zuverlässig contentEditable sein). */
+function _autoBuildLabelsLayer(el, automaton, ui, readOnly, rerenderFn){
+  const focusStateId=ui.focusStateId, focusTransId=ui.focusTransId;
+  ui.focusStateId=null; ui.focusTransId=null;
+  const frag=document.createElement('div'); frag.className='el-auto-labels';
+  const states=automaton.states||[], transitions=automaton.transitions||[];
+
+  states.forEach(s=>{
+    const span=document.createElement('span'); span.className='auto-state-label';
+    span.style.left=(s.x/AUTO_VB_W*100)+'%'; span.style.top=(s.y/AUTO_VB_H*100)+'%';
+    span.contentEditable=readOnly?'false':'true';
+    span.textContent=s.label||'';
+    if(!readOnly) _autoWireLabelEditing(span, ()=>{ const a=getEl(el.id); return a?a.automaton.states.find(x=>x.id===s.id):null; }, 'label', false);
+    frag.appendChild(span);
+    if(focusStateId===s.id) _autoQueueFocus(span);
+  });
+
+  transitions.forEach(t=>{
+    const from=states.find(x=>x.id===t.from), to=states.find(x=>x.id===t.to);
+    if(!from||!to) return;
+    let px,py;
+    if(from.id===to.id){ px=from.x; py=from.y-AUTO_R-38; }
+    else {
+      const reverse=_autoFindTrans(automaton, t.to, t.from);
+      const dx=to.x-from.x, dy=to.y-from.y, dist=Math.hypot(dx,dy)||1;
+      if(reverse){ const nx=-dy/dist, ny=dx/dist, bow=18; px=(from.x+to.x)/2+nx*bow; py=(from.y+to.y)/2+ny*bow-9; }
+      else { px=(from.x+to.x)/2; py=(from.y+to.y)/2-9; }
+    }
+    const span=document.createElement('span'); span.className='auto-trans-label';
+    if(ui.selTrans===t.id) span.classList.add('sel');
+    span.style.left=(Math.max(6,Math.min(AUTO_VB_W-6,px))/AUTO_VB_W*100)+'%';
+    span.style.top=(py/AUTO_VB_H*100)+'%';
+    span.contentEditable=readOnly?'false':'true';
+    span.textContent=_autoLabelDisplay(t.label);
+    if(!readOnly) _autoWireLabelEditing(span, ()=>{ const a=getEl(el.id); return a?a.automaton.transitions.find(x=>x.id===t.id):null; }, 'label', true);
+    frag.appendChild(span);
+    if(focusTransId===t.id) _autoQueueFocus(span);
+  });
+
+  if(!readOnly && ui.selState){
+    const s=states.find(x=>x.id===ui.selState);
+    if(s){
+      const bar=document.createElement('div'); bar.className='auto-mini-bar';
+      bar.style.left=(s.x/AUTO_VB_W*100)+'%';
+      bar.style.top=(Math.max(0,s.y-AUTO_R)/AUTO_VB_H*100)+'%';
+      bar.appendChild(_autoMiniBtn(s.start?'★ Start':'☆ Start', s.start, ()=>{
+        pushHistory('Startzustand geändert');
+        const a=getEl(el.id).automaton;
+        a.states.forEach(x=>x.start=false);
+        const live=a.states.find(x=>x.id===s.id); if(live)live.start=true;
+        rerenderFn();
+      }));
+      bar.appendChild(_autoMiniBtn(s.accept?'◎ Akz.':'○ Akz.', s.accept, ()=>{
+        pushHistory('Akzeptierend umgeschaltet');
+        const live=getEl(el.id).automaton.states.find(x=>x.id===s.id); if(live)live.accept=!live.accept;
+        rerenderFn();
+      }));
+      bar.appendChild(_autoMiniBtn('↺ Schleife', false, ()=>{
+        pushHistory('Selbstschleife hinzugefügt');
+        const a=getEl(el.id).automaton;
+        let t=_autoFindTrans(a, s.id, s.id);
+        if(!t){ t={id:uid(), from:s.id, to:s.id, label:''}; a.transitions.push(t); }
+        ui.focusTransId=t.id; ui.selTrans=t.id; ui.selState=null;
+        rerenderFn();
+      }));
+      bar.appendChild(_autoMiniBtn('🗑', false, ()=>{
+        pushHistory('Zustand gelöscht');
+        const a=getEl(el.id).automaton;
+        a.states=a.states.filter(x=>x.id!==s.id);
+        a.transitions=a.transitions.filter(t=>t.from!==s.id&&t.to!==s.id);
+        ui.selState=null;
+        rerenderFn(); _spRefresh();
+      }, true));
+      frag.appendChild(bar);
+    }
+  }
+  if(!readOnly && ui.selTrans){
+    const t=transitions.find(x=>x.id===ui.selTrans);
+    if(t){
+      const from=states.find(x=>x.id===t.from), to=states.find(x=>x.id===t.to);
+      if(from&&to){
+        let px,py;
+        if(from.id===to.id){ px=from.x; py=from.y-AUTO_R-56; }
+        else { px=(from.x+to.x)/2; py=Math.min(from.y,to.y)-30; }
+        const bar=document.createElement('div'); bar.className='auto-mini-bar';
+        bar.style.left=(Math.max(6,Math.min(AUTO_VB_W-6,px))/AUTO_VB_W*100)+'%';
+        bar.style.top=(py/AUTO_VB_H*100)+'%';
+        bar.appendChild(_autoMiniBtn('ε', false, ()=>{
+          pushHistory('Übergang bearbeitet');
+          const live=getEl(el.id).automaton.transitions.find(x=>x.id===t.id);
+          const cur=_autoSymbols(live.label);
+          if(!cur.some(_autoIsEps)) cur.push('ε');
+          live.label=cur.join(', ');
+          rerenderFn();
+        }));
+        bar.appendChild(_autoMiniBtn('🗑', false, ()=>{
+          pushHistory('Übergang gelöscht');
+          const a=getEl(el.id).automaton;
+          a.transitions=a.transitions.filter(x=>x.id!==t.id);
+          ui.selTrans=null;
+          rerenderFn(); _spRefresh();
+        }, true));
+        frag.appendChild(bar);
+      }
+    }
+  }
+  return frag;
+}
+
+function buildAutomatonWidget(el, readOnly, canRun){
+  const wrap=document.createElement('div'); wrap.className='el-auto-wrap';
+  el.automaton = el.automaton || {states:[], transitions:[], test:''};
+
+  const ui = { selState:null, selTrans:null, pending:null, connectMode:false,
+               focusStateId:null, focusTransId:null,
+               simTrace:null, simStep:0, playTimer:null };
+
+  let toolbar=null, hintEl=null, connBtn=null, input=null, tapeRow=null;
+
+  const canvasWrap=document.createElement('div'); canvasWrap.className='el-auto-canvas';
+  const svg=mkSVGEl('svg'); svg.setAttribute('viewBox',`0 0 ${AUTO_VB_W} ${AUTO_VB_H}`);
+  svg.setAttribute('preserveAspectRatio','none'); svg.classList.add('el-auto-svg');
+  const bgRect=mkSVGEl('rect');
+  bgRect.setAttribute('x','0'); bgRect.setAttribute('y','0');
+  bgRect.setAttribute('width',String(AUTO_VB_W)); bgRect.setAttribute('height',String(AUTO_VB_H));
+  bgRect.setAttribute('fill','transparent'); bgRect.style.cursor=readOnly?'default':'copy';
+  svg.appendChild(bgRect);
+  const labelsHost=document.createElement('div');
+  canvasWrap.appendChild(svg); canvasWrap.appendChild(labelsHost);
+
+  function currentAutomaton(){ const a=getEl(el.id); return a?a.automaton:el.automaton; }
+
+  function rerender(){
+    const a=currentAutomaton();
+    const activeIds = ui.simTrace ? ui.simTrace.trace[ui.simStep].states : null;
+    while(svg.children.length>1) svg.removeChild(svg.lastChild);
+    svg.insertAdjacentHTML('beforeend', _autoBuildSVG(a, {stateId:ui.selState, transId:ui.selTrans, pending:ui.pending, active:activeIds}));
+    if(!readOnly){
+      svg.querySelectorAll('[data-state-id]').forEach(node=>{
+        node.addEventListener('mousedown', ev=>onStateMouseDown(ev, node.dataset.stateId));
+      });
+      svg.querySelectorAll('[data-trans-id]').forEach(node=>{
+        node.addEventListener('mousedown', ev=>{ ev.stopPropagation(); onTransTap(node.dataset.transId); });
+      });
+    }
+    labelsHost.innerHTML='';
+    labelsHost.appendChild(_autoBuildLabelsLayer(el, a, ui, readOnly, rerender));
+    if(hintEl) hintEl.textContent = ui.connectMode
+      ? (ui.pending? 'Zielzustand antippen (oder freie Fläche für neuen Zustand)…' : 'Startzustand für Übergang antippen…')
+      : 'Freie Fläche: neuer Zustand · Zustand antippen: bearbeiten';
+    if(connBtn) connBtn.classList.toggle('active', ui.connectMode);
+    renderTape();
+    _spRefresh();
+  }
+
+  function addOrFocusTransition(automaton, from, to){
+    let t=_autoFindTrans(automaton, from, to);
+    if(!t){ t={id:uid(), from, to, label:''}; automaton.transitions.push(t); }
+    ui.selTrans=t.id; ui.selState=null; ui.focusTransId=t.id;
+  }
+
+  function onStateTap(stateId){
+    if(ui.connectMode){
+      if(ui.pending===null){ ui.pending=stateId; }
+      else if(ui.pending===stateId){ ui.pending=null; }
+      else {
+        const aLive=getEl(el.id).automaton;
+        pushHistory('Übergang hinzugefügt');
+        addOrFocusTransition(aLive, ui.pending, stateId);
+        ui.pending=stateId;
+      }
+    } else {
+      if(ui.selState===stateId){ ui.selState=null; }
+      else { ui.selState=stateId; ui.selTrans=null; }
+    }
+    rerender();
+  }
+  function onTransTap(transId){
+    if(ui.selTrans===transId){ ui.selTrans=null; }
+    else { ui.selTrans=transId; ui.selState=null; }
+    rerender();
+  }
+  function onCanvasBackgroundTap(vbX, vbY){
+    const aLive=getEl(el.id).automaton;
+    pushHistory('Zustand hinzugefügt');
+    const st={id:uid(), x:Math.round(vbX), y:Math.round(vbY), label:_autoNextLabel(aLive), start:aLive.states.length===0, accept:false};
+    aLive.states.push(st);
+    if(ui.connectMode && ui.pending!==null){
+      addOrFocusTransition(aLive, ui.pending, st.id);
+    } else {
+      ui.selState=null; ui.selTrans=null;
+    }
+    if(ui.connectMode) ui.pending=st.id;
+    rerender();
+  }
+  function onStateMouseDown(ev, stateId){
+    if(readOnly) return;
+    ev.stopPropagation(); ev.preventDefault();
+    const state=currentAutomaton().states.find(s=>s.id===stateId); if(!state) return;
+    const startClientX=ev.clientX, startClientY=ev.clientY;
+    const startX=state.x, startY=state.y;
+    let dragging=false;
+    function onMove(mv){
+      const dxPix=mv.clientX-startClientX, dyPix=mv.clientY-startClientY;
+      if(!dragging && Math.hypot(dxPix,dyPix)>4){ dragging=true; pushHistory('Zustand verschoben'); }
+      if(dragging){
+        const r=canvasWrap.getBoundingClientRect();
+        const scaleX=r.width/AUTO_VB_W||1, scaleY=r.height/AUTO_VB_H||1;
+        const live=currentAutomaton().states.find(s=>s.id===stateId); if(!live) return;
+        let nx=startX+dxPix/scaleX, ny=startY+dyPix/scaleY;
+        nx=Math.max(AUTO_R, Math.min(AUTO_VB_W-AUTO_R, nx));
+        ny=Math.max(AUTO_R, Math.min(AUTO_VB_H-AUTO_R, ny));
+        live.x=Math.round(nx); live.y=Math.round(ny);
+        rerender();
+      }
+    }
+    function onUp(){
+      document.removeEventListener('mousemove', onMove);
+      document.removeEventListener('mouseup', onUp);
+      if(!dragging) onStateTap(stateId); else _spRefresh();
+    }
+    document.addEventListener('mousemove', onMove);
+    document.addEventListener('mouseup', onUp);
+  }
+
+  bgRect.addEventListener('click', ev=>{
+    if(readOnly) return;
+    ev.stopPropagation();
+    const r=canvasWrap.getBoundingClientRect();
+    const vbX=(ev.clientX-r.left)/(r.width||1)*AUTO_VB_W;
+    const vbY=(ev.clientY-r.top)/(r.height||1)*AUTO_VB_H;
+    onCanvasBackgroundTap(vbX, vbY);
+  });
+  bgRect.addEventListener('mousedown', ev=>ev.stopPropagation());
+
+  if(!readOnly){
+    toolbar=document.createElement('div'); toolbar.className='el-auto-toolbar';
+    const addBtn=document.createElement('button'); addBtn.type='button'; addBtn.className='el-auto-tbtn';
+    addBtn.innerHTML='<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg> Zustand';
+    addBtn.addEventListener('mousedown',ev=>ev.stopPropagation());
+    addBtn.addEventListener('click',ev=>{
+      ev.stopPropagation();
+      const aLive=getEl(el.id).automaton;
+      pushHistory('Zustand hinzugefügt');
+      const cx=AUTO_VB_W/2+(Math.random()*160-80), cy=AUTO_VB_H/2+(Math.random()*100-50);
+      const st={id:uid(), x:Math.round(cx), y:Math.round(cy), label:_autoNextLabel(aLive), start:aLive.states.length===0, accept:false};
+      aLive.states.push(st);
+      ui.selState=st.id; ui.selTrans=null; ui.focusStateId=st.id;
+      rerender();
+    });
+    connBtn=document.createElement('button'); connBtn.type='button'; connBtn.className='el-auto-tbtn';
+    connBtn.innerHTML='<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle cx="5" cy="12" r="3"/><circle cx="19" cy="12" r="3"/><line x1="8" y1="12" x2="16" y2="12"/></svg> Verbinden';
+    connBtn.addEventListener('mousedown',ev=>ev.stopPropagation());
+    connBtn.addEventListener('click',ev=>{
+      ev.stopPropagation();
+      ui.connectMode=!ui.connectMode; ui.pending=null; ui.selState=null; ui.selTrans=null;
+      rerender();
+    });
+    hintEl=document.createElement('span'); hintEl.className='el-auto-hint';
+    toolbar.appendChild(addBtn); toolbar.appendChild(connBtn); toolbar.appendChild(hintEl);
+    wrap.appendChild(toolbar);
+  }
+
+  wrap.appendChild(canvasWrap);
+
+  function computeTrace(){
+    const a=currentAutomaton();
+    const testStr = input ? input.value : (a.test||'');
+    const r=_autoSimulate(a, testStr);
+    return Object.assign({input:testStr}, r);
+  }
+  function showSimError(msg){
+    clearInterval(ui.playTimer); ui.playTimer=null; ui.simTrace=null;
+    if(tapeRow){ tapeRow.style.display='flex'; tapeRow.innerHTML=`<span class="el-auto-statustext err">${esc(msg)}</span>`; }
+  }
+  function stepOnce(){
+    if(!ui.simTrace){
+      const r=computeTrace(); if(!r.ok){ showSimError(r.error); return; }
+      ui.simTrace=r; ui.simStep=0;
+    } else if(ui.simStep<ui.simTrace.trace.length-1){ ui.simStep++; }
+    clearInterval(ui.playTimer); ui.playTimer=null;
+    rerender();
+  }
+  function startPlay(){
+    const r=computeTrace(); if(!r.ok){ showSimError(r.error); return; }
+    clearInterval(ui.playTimer);
+    ui.simTrace=r; ui.simStep=0;
+    rerender();
+    ui.playTimer=setInterval(()=>{
+      if(ui.simStep>=ui.simTrace.trace.length-1){ clearInterval(ui.playTimer); ui.playTimer=null; return; }
+      ui.simStep++; rerender();
+    },700);
+  }
+  function resetSim(){
+    clearInterval(ui.playTimer); ui.playTimer=null;
+    ui.simTrace=null; ui.simStep=0;
+    rerender();
+  }
+  function renderTape(){
+    if(!tapeRow) return;
+    if(!ui.simTrace){ tapeRow.innerHTML=''; tapeRow.style.display='none'; return; }
+    tapeRow.style.display='flex';
+    const {trace, accepted, input:testStr}=ui.simTrace;
+    let html='<div class="el-auto-tape">';
+    if(!testStr){ html+='<span class="auto-tape-empty">(leeres Wort ε)</span>'; }
+    else{
+      [...testStr].forEach((ch,i)=>{
+        const cls=i<ui.simStep?'done':(i===ui.simStep?'current':'');
+        html+=`<span class="auto-tape-ch ${cls}">${esc(ch)}</span>`;
+      });
+    }
+    html+='</div>';
+    const atEnd=ui.simStep>=trace.length-1;
+    const curSet=trace[ui.simStep].states;
+    let statusHtml;
+    if(curSet.size===0){
+      statusHtml='<span class="el-auto-statustext err">Kein Übergang möglich — der Automat "stirbt" hier.</span>';
+    } else {
+      const names=[...curSet].map(id=>{ const st=currentAutomaton().states.find(s=>s.id===id); return st?st.label:id; }).join(', ');
+      if(atEnd){
+        statusHtml = accepted
+          ? `<span class="el-auto-statustext ok">✓ Akzeptiert — aktiver Zustand {${esc(names)}} ist ein Endzustand</span>`
+          : `<span class="el-auto-statustext err">✗ Verworfen — {${esc(names)}} enthält keinen Endzustand</span>`;
+      } else {
+        statusHtml = `<span class="el-auto-statustext">Aktuell: {${esc(names)}}</span>`;
+      }
+    }
+    tapeRow.innerHTML = html+statusHtml;
+  }
+
+  if(!readOnly || canRun){
+    const simrow=document.createElement('div'); simrow.className='el-auto-simrow';
+    input=document.createElement('input'); input.type='text'; input.className='el-auto-input';
+    input.placeholder='Eingabewort, z. B. ababb'; input.value=el.automaton.test||'';
+    input.autocomplete='off'; input.spellcheck=false;
+    input.addEventListener('mousedown',ev=>ev.stopPropagation());
+    input.addEventListener('keydown',ev=>{ ev.stopPropagation(); if(ev.key==='Enter'){ ev.preventDefault(); startPlay(); } });
+    input.addEventListener('input',()=>{ const a=getEl(el.id); if(a)a.automaton.test=input.value; });
+
+    const stepBtn=document.createElement('button'); stepBtn.type='button'; stepBtn.className='el-auto-stepbtn'; stepBtn.title='Einzelschritt';
+    stepBtn.innerHTML='<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><polygon points="5 4 15 12 5 20 5 4"/><line x1="19" y1="5" x2="19" y2="19"/></svg>';
+    const playBtn=document.createElement('button'); playBtn.type='button'; playBtn.className='el-auto-playbtn'; playBtn.title='Simulation starten';
+    playBtn.innerHTML='<svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"/></svg>';
+    const resetBtn=document.createElement('button'); resetBtn.type='button'; resetBtn.className='el-auto-resetbtn'; resetBtn.title='Zurücksetzen';
+    resetBtn.innerHTML='<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 3-6.7"/><polyline points="3 4 3 9 8 9"/></svg>';
+    [stepBtn,playBtn,resetBtn].forEach(b=>b.addEventListener('mousedown',ev=>ev.stopPropagation()));
+    stepBtn.addEventListener('click',ev=>{ev.stopPropagation();stepOnce();});
+    playBtn.addEventListener('click',ev=>{ev.stopPropagation();startPlay();});
+    resetBtn.addEventListener('click',ev=>{ev.stopPropagation();resetSim();});
+
+    simrow.appendChild(input); simrow.appendChild(stepBtn); simrow.appendChild(playBtn); simrow.appendChild(resetBtn);
+    wrap.appendChild(simrow);
+    tapeRow=document.createElement('div'); tapeRow.className='el-auto-taperow'; tapeRow.style.display='none';
+    wrap.appendChild(tapeRow);
+  }
+
+  rerender();
+  return wrap;
+}
+
+/* ════════════════════════════════════════════════════════════════════════
+   REGULÄRER AUSDRUCK  (Q3: Formale Sprachen)
+   Muster + mehrere Testwörter (eines pro Zeile), Volltreffer- oder
+   Teilstring-Modus, Groß/Klein-Option — Auswertung per nativer RegExp.
+   ════════════════════════════════════════════════════════════════════════ */
+function _regexEvaluate(pattern, opts, testsStr){
+  opts=opts||{};
+  const lines=(testsStr||'').split('\n').map(s=>s.replace(/\r$/,''));
+  const nonEmpty=lines.filter(l=>l.length>0);
+  const flags=opts.icase?'i':'';
+  let re;
+  try{
+    const src = opts.fullMatch!==false ? '^(?:'+pattern+')$' : pattern;
+    re=new RegExp(src, flags);
+  }catch(err){
+    return {ok:false, error:err.message, results:[]};
+  }
+  const results=nonEmpty.map(line=>({input:line, match:re.test(line)}));
+  return {ok:true, error:null, results};
+}
+
+function buildRegexWidget(el, readOnly, canRun){
+  const wrap=document.createElement('div'); wrap.className='el-regex-wrap';
+  el.regex = el.regex || {pattern:'', icase:false, fullMatch:true, tests:'', results:null};
+  const st=el.style||{};
+
+  const patRow=document.createElement('div'); patRow.className='el-regex-patrow';
+  const slash1=document.createElement('span'); slash1.className='el-regex-lbl'; slash1.textContent='/';
+  const patInput=document.createElement('input'); patInput.type='text'; patInput.className='el-regex-pattern';
+  patInput.placeholder='a(b|c)*'; patInput.value=el.regex.pattern||'';
+  patInput.spellcheck=false; patInput.autocomplete='off';
+  patInput.style.color=st.color||'#a3e635'; patInput.style.fontFamily=st.fontFamily||"'JetBrains Mono',monospace"; patInput.style.fontSize=(st.fontSize||13)+'px';
+  const slash2=document.createElement('span'); slash2.className='el-regex-lbl'; slash2.textContent='/';
+  patRow.appendChild(slash1); patRow.appendChild(patInput); patRow.appendChild(slash2);
+  if(!readOnly){
+    patInput.addEventListener('mousedown',ev=>ev.stopPropagation());
+    patInput.addEventListener('keydown',ev=>{ ev.stopPropagation(); if(ev.key==='Enter'){ ev.preventDefault(); doEvaluate(); } });
+    patInput.addEventListener('input',()=>{ const a=getEl(el.id); if(a)a.regex.pattern=patInput.value; });
+  } else { patInput.readOnly=true; }
+
+  const optsRow=document.createElement('div'); optsRow.className='el-regex-optsrow';
+  if(!readOnly){
+    const mkOpt=(labelText, checked, onChange)=>{
+      const lab=document.createElement('label'); lab.className='el-regex-opt';
+      const cb=document.createElement('input'); cb.type='checkbox'; cb.checked=checked;
+      cb.addEventListener('mousedown',ev=>ev.stopPropagation());
+      cb.addEventListener('change',()=>onChange(cb.checked));
+      lab.appendChild(cb); lab.appendChild(document.createTextNode(' '+labelText));
+      return lab;
+    };
+    optsRow.appendChild(mkOpt('Vollständige Übereinstimmung (^…$)', el.regex.fullMatch!==false, v=>{ const a=getEl(el.id); if(a)a.regex.fullMatch=v; }));
+    optsRow.appendChild(mkOpt('Groß/Klein ignorieren', !!el.regex.icase, v=>{ const a=getEl(el.id); if(a)a.regex.icase=v; }));
+    wrap.appendChild(patRow); wrap.appendChild(optsRow);
+  } else {
+    wrap.appendChild(patRow);
+  }
+
+  const testsArea=document.createElement('textarea'); testsArea.className='el-regex-tests';
+  testsArea.placeholder='Ein Testwort pro Zeile …\nabc\nabbccb'; testsArea.value=el.regex.tests||'';
+  testsArea.spellcheck=false; testsArea.readOnly=readOnly;
+  testsArea.style.color=st.color||'#a3e635'; testsArea.style.fontFamily=st.fontFamily||"'JetBrains Mono',monospace"; testsArea.style.fontSize=(st.fontSize||13)+'px';
+  if(!readOnly){
+    testsArea.addEventListener('mousedown',ev=>ev.stopPropagation());
+    testsArea.addEventListener('keydown',ev=>ev.stopPropagation());
+    testsArea.addEventListener('input',()=>{ const a=getEl(el.id); if(a)a.regex.tests=testsArea.value; });
+  }
+  wrap.appendChild(testsArea);
+
+  const resDiv=document.createElement('div'); resDiv.className='el-regex-results';
+
+  function doEvaluate(){
+    const a=getEl(el.id); if(!a) return;
+    const r=_regexEvaluate(a.regex.pattern, {icase:a.regex.icase, fullMatch:a.regex.fullMatch!==false}, a.regex.tests);
+    a.regex.results=r;
+    renderResults(r);
+    _spRefresh();
+  }
+  function renderResults(r){
+    if(!r){ resDiv.innerHTML=''; resDiv.style.display='none'; return; }
+    resDiv.style.display='block';
+    if(!r.ok){
+      resDiv.innerHTML=`<div class="regex-res-err"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg><span>Ungültiger regulärer Ausdruck: ${esc(r.error)}</span></div>`;
+      return;
+    }
+    if(!r.results.length){ resDiv.innerHTML='<div class="regex-res-empty">Keine Testwörter angegeben.</div>'; return; }
+    resDiv.innerHTML=r.results.map(x=>`<div class="regex-res-item ${x.match?'ok':'no'}"><span class="regex-res-mark">${x.match?'✓':'✗'}</span><span class="regex-res-word">${esc(x.input)}</span></div>`).join('');
+  }
+
+  if(!readOnly || canRun){
+    const btnRow=document.createElement('div'); btnRow.className='el-regex-btnrow';
+    const runBtn=document.createElement('button'); runBtn.type='button'; runBtn.className='el-regex-run';
+    runBtn.innerHTML='<svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"/></svg> Auswerten';
+    runBtn.addEventListener('mousedown',ev=>ev.stopPropagation());
+    runBtn.addEventListener('click',ev=>{ ev.stopPropagation(); doEvaluate(); });
+    btnRow.appendChild(runBtn);
+    if(!readOnly){
+      const clearBtn=document.createElement('button'); clearBtn.type='button'; clearBtn.className='el-regex-clear';
+      clearBtn.innerHTML='<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></svg> Leeren';
+      clearBtn.addEventListener('mousedown',ev=>ev.stopPropagation());
+      clearBtn.addEventListener('click',ev=>{ ev.stopPropagation(); const a=getEl(el.id); if(a)a.regex.results=null; renderResults(null); });
+      btnRow.appendChild(clearBtn);
+    }
+    wrap.appendChild(btnRow);
+  }
+  wrap.appendChild(resDiv);
+  if(el.regex.results) renderResults(el.regex.results);
+  return wrap;
+}
+
 
 /* ════════ PASTE (Ctrl+V / Cmd+V) IN EDITOR ════════
    • Image in clipboard  → creates an image element at a sensible position
