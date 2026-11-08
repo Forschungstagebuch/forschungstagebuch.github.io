@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; connect-src https://*.supabase.co https://cdn.jsdelivr.net https://api.languagetool.org; img-src 'self' data: blob: https://*.supabase.co; object-src 'none'; base-uri 'self';">
 <meta name="referrer" content="no-referrer">
+<script>(function(){var t='dark';try{t=localStorage.getItem('ft_theme')||'dark'}catch(e){}document.documentElement.setAttribute('data-theme',['light','dark','blue'].indexOf(t)>-1?t:'dark')})()</script>
 <title>Forschungstagebuch — Informatik</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,700;0,900;1,400&family=JetBrains+Mono:wght@400;500;600&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
@@ -16,7 +17,7 @@
   .db-loading{position:fixed;inset:0;background:rgba(10,10,10,.7);display:flex;align-items:center;justify-content:center;z-index:9999;font-size:14px;color:var(--text2);gap:10px;backdrop-filter:blur(4px)}
   .db-loading-spinner{width:20px;height:20px;border:2px solid var(--border);border-top-color:var(--gold);border-radius:50%;animation:spin .7s linear infinite}
   @keyframes spin{to{transform:rotate(360deg)}}
-  .file-spinner{display:inline-block;width:11px;height:11px;border:1.5px solid rgba(232,160,48,.25);border-top-color:var(--gold);border-radius:50%;animation:spin .7s linear infinite;flex-shrink:0}
+  .file-spinner{display:inline-block;width:11px;height:11px;border:1.5px solid rgba(var(--gold-rgb),.25);border-top-color:var(--gold);border-radius:50%;animation:spin .7s linear infinite;flex-shrink:0}
   .file-status{display:none;align-items:center;gap:5px;font-size:11px;color:var(--gold);white-space:nowrap;margin-right:4px}
   #filesUploadStatus{display:none;align-items:center;gap:7px;font-size:12px;color:var(--gold);padding:8px 0;justify-content:center}
 </style>
@@ -117,6 +118,8 @@
     </div>
   </div>
   <div class="rtb-div"></div>
+  <button class="rtb-btn" id="rtbBtnAutoRepl" onmousedown="evDef(event)" onclick="AUTOREPL.toggle()" title="Auto-Ersetzung ein/aus:  ->  →   &lt;=  ≤   !=  ≠   \eps  ε   (Rücktaste direkt danach macht die Ersetzung rückgängig)" style="font-weight:700">→</button>
+  <div class="rtb-div"></div>
   <button class="rtb-btn" onmousedown="evDef(event)" onclick="rfmt('removeFormat')" title="Format löschen">✕</button>
 </div>
 
@@ -142,6 +145,7 @@
         </div>
       </div>
 
+      <div class="lg-theme-row"><div class="theme-sw" role="group" aria-label="Farbschema"><button type="button" class="theme-btn" data-theme-set="light" title="Hell" aria-label="Hell" onclick="setTheme('light')"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41"/></svg></button><button type="button" class="theme-btn" data-theme-set="dark" title="Dunkel" aria-label="Dunkel" onclick="setTheme('dark')"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"/></svg></button><button type="button" class="theme-btn" data-theme-set="blue" title="Blau" aria-label="Blau" onclick="setTheme('blue')"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22a7 7 0 0 0 7-7c0-2-1-3.9-3-5.5s-3.5-4-4-6.5c-.5 2.5-2 4.9-4 6.5C6 11.1 5 13 5 15a7 7 0 0 0 7 7z"/></svg></button></div></div>
       <label class="fl" for="roleSelect">Rolle</label>
       <select id="roleSelect" class="role-sel">
         <option value="lehrer">Lehrer</option>
@@ -171,18 +175,15 @@
   <div class="topbar open" id="topbar-L">
     <div class="topbar-hd" onclick="toggleTopbar('lehrer')">
       <div class="topbar-hd-left">
-        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" style="color:var(--gold);flex-shrink:0"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>
         <span class="topbar-title">Forschungstagebuch</span>
         <span class="topbar-sep">·</span>
         <span class="topbar-sub-badge">Einträge</span>
         <svg class="topbar-chev" id="topbar-chev-L" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="6 9 12 15 18 9"/></svg>
       </div>
       <div class="topbar-hd-right" onclick="event.stopPropagation()">
-        <span class="n-pill">
-          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
-          Lehrer
-        </span>
-        <button class="btn-out" onclick="logout()">Abmelden</button>
+        <div class="theme-sw" role="group" aria-label="Farbschema"><button type="button" class="theme-btn" data-theme-set="light" title="Hell" aria-label="Hell" onclick="setTheme('light')"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41"/></svg></button><button type="button" class="theme-btn" data-theme-set="dark" title="Dunkel" aria-label="Dunkel" onclick="setTheme('dark')"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"/></svg></button><button type="button" class="theme-btn" data-theme-set="blue" title="Blau" aria-label="Blau" onclick="setTheme('blue')"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22a7 7 0 0 0 7-7c0-2-1-3.9-3-5.5s-3.5-4-4-6.5c-.5 2.5-2 4.9-4 6.5C6 11.1 5 13 5 15a7 7 0 0 0 7 7z"/></svg></button></div>
+        <span class="n-pill"><span class="rico"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.42 10.922a1 1 0 0 0-.019-1.838L12.83 5.18a2 2 0 0 0-1.66 0L2.6 9.08a1 1 0 0 0 0 1.832l8.57 3.908a2 2 0 0 0 1.66 0z"/><path d="M22 10v6"/><path d="M6 12.5V16a6 3 0 0 0 12 0v-3.5"/></svg></span>Lehrer</span>
+        <button class="btn-out" onclick="logout()"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg> Abmelden</button>
       </div>
     </div>
     <div class="topbar-body" id="topbar-body-L">
@@ -210,18 +211,15 @@
   <div class="topbar open" id="topbar-A">
     <div class="topbar-hd" onclick="toggleTopbar('admin')">
       <div class="topbar-hd-left">
-        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" style="color:var(--gold);flex-shrink:0"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>
         <span class="topbar-title">Forschungstagebuch</span>
         <span class="topbar-sep">·</span>
         <span class="topbar-sub-badge">Einträge</span>
         <svg class="topbar-chev" id="topbar-chev-A" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="6 9 12 15 18 9"/></svg>
       </div>
       <div class="topbar-hd-right" onclick="event.stopPropagation()">
-        <span class="n-pill adm">
-          <svg width="17" height="17" viewBox="0 0 26 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0"><circle cx="9" cy="6" r="3.5"/><path d="M2 20c0-3.87 3.13-7 7-7h1"/><circle cx="19" cy="16" r="2"/><path d="M19 13.5v.5M19 18v.5M16.73 14.73l.36.35M21.55 17.55l.36.35M15.5 16H16M22 16h.5M16.73 17.27l.36-.35M21.55 14.45l.36-.35"/></svg>
-          Admin
-        </span>
-        <button class="btn-out" onclick="logout()">Abmelden</button>
+        <div class="theme-sw" role="group" aria-label="Farbschema"><button type="button" class="theme-btn" data-theme-set="light" title="Hell" aria-label="Hell" onclick="setTheme('light')"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41"/></svg></button><button type="button" class="theme-btn" data-theme-set="dark" title="Dunkel" aria-label="Dunkel" onclick="setTheme('dark')"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"/></svg></button><button type="button" class="theme-btn" data-theme-set="blue" title="Blau" aria-label="Blau" onclick="setTheme('blue')"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22a7 7 0 0 0 7-7c0-2-1-3.9-3-5.5s-3.5-4-4-6.5c-.5 2.5-2 4.9-4 6.5C6 11.1 5 13 5 15a7 7 0 0 0 7 7z"/></svg></button></div>
+        <span class="n-pill adm"><span class="rico"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"/><path d="m9 12 2 2 4-4"/></svg></span>Admin</span>
+        <button class="btn-out" onclick="logout()"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg> Abmelden</button>
       </div>
     </div>
     <div class="topbar-body" id="topbar-body-A">
@@ -416,10 +414,7 @@
     <!-- ─── Einstellungen Screen ─── -->
     <div id="adminSettingsSection" style="display:none">
       <div class="settings-card">
-        <div class="settings-card-title" onclick="toggleSettingsCard(this)" style="cursor:pointer;user-select:none">
-          <svg class="settings-chevron" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" style="color:var(--gold);transition:transform .2s"><polyline points="6 9 12 15 18 9"/></svg>
-          Quick Selection
-        </div>
+        <div class="settings-card-title">Quick Selection</div>
         <div class="settings-row">
           <div class="settings-row-left">
             <div class="settings-row-label">Standard Q-Phase</div>
@@ -434,6 +429,7 @@
         </div>
         <div class="settings-save-hint" id="settingsSaveHint"></div>
       </div>
+      <div class="settings-card"><div class="settings-card-title">Editor-Seitenleisten</div><div class="settings-row"><div class="settings-row-left"><div class="settings-row-label">Elemente-Leiste</div><div class="settings-row-hint">Einfügen, Format und Eintrag. Wird in diesem Browser gespeichert.</div></div><select id="settingsDockEd" class="settings-select" onchange="setDock('ed',this.value)"><option value="left">Links</option><option value="top">Oben</option><option value="right">Rechts</option><option value="bottom">Unten</option></select></div><div class="settings-row"><div class="settings-row-left"><div class="settings-row-label">Folien-Leiste</div><div class="settings-row-hint">Folienübersicht im Editor. Wird in diesem Browser gespeichert.</div></div><select id="settingsDockSp" class="settings-select" onchange="setDock('sp',this.value)"><option value="left">Links</option><option value="top">Oben</option><option value="right">Rechts</option><option value="bottom">Unten</option></select></div></div>
     </div>
   </div>
 </div>
@@ -473,7 +469,8 @@
     </button>
     <div class="ed-bar-mid">
       <span class="ed-bar-badge">Bearbeiten</span>
-      <span class="ed-bar-title" id="edBarTitle">—</span>
+      <span class="ed-bar-title ed-bar-title-edit" id="edBarTitle" onclick="barTitleEdit()" title="Titel bearbeiten">—</span>
+      <button class="ed-bar-gear" id="entryGear" onclick="toggleEntryPop(event)" title="Eintrags-Einstellungen"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></button>
     </div>
     <div style="display:flex;align-items:center;gap:8px;flex-shrink:0">
       <span id="edZoomPct" style="font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--text3)">100%</span>
@@ -509,41 +506,33 @@
   <div class="ed-body" id="edBody">
     <!-- Sidebar -->
     <div class="ed-sb" id="edSb">
-      <div class="ed-tab-row">
-        <button class="ed-tab act" id="etb-ins" onclick="edTab('ins')">
-          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-          Einfügen
-        </button>
-        <button class="ed-tab" id="etb-fmt" onclick="edTab('fmt')">
-          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="4" y1="6" x2="20" y2="6"/><line x1="8" y1="12" x2="20" y2="12"/><line x1="4" y1="18" x2="16" y2="18"/></svg>
-          Format
-        </button>
-        <button class="ed-tab" id="etb-sld" onclick="edTab('sld')">
-          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
-          Eintrag
-        </button>
-        <button class="ed-sb-collapse-btn" id="edSbCollapseBtn" onclick="toggleEdSb()" title="Seitenleiste einklappen">
-          <svg id="edSbCollapseIco" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
-        </button>
+      <div class="ed-tab-row" id="edTabRow">
+        <button class="ed-tab act" id="etb-c-inhalt" data-t="inhalt" onclick="edTab('inhalt')">Inhalt</button>
+        <button class="ed-tab" id="etb-c-layout" data-t="layout" onclick="edTab('layout')">Layout</button>
+        <button class="ed-tab" id="etb-c-formen" data-t="formen" onclick="edTab('formen')">Formen</button>
+        <button class="ed-tab" id="etb-c-er" data-t="er" onclick="edTab('er')">ER-Modell</button>
+        <button class="ed-tab" id="etb-c-info" data-t="info" onclick="edTab('info')">Informatik</button>
+        <button class="ed-tab" id="etb-fmt" data-t="fmt" onclick="edTab('fmt')">Format</button>
       </div>
 
       <!-- INSERT panel -->
       <div class="ed-pnl" id="ep-ins">
         <div class="sec-hdr open" onclick="toggleSec(this)"><span>Text</span><span class="sec-chev">▾</span></div>
         <div class="sec-body">
-          <button class="ins-btn" onclick="addEl('title')"><span class="ins-ico" style="font-weight:900;font-size:16px;font-family:'Playfair Display',serif">T</span><span class="ins-lbl"><strong>Überschrift</strong><small>Groß, Playfair</small></span></button>
-          <button class="ins-btn" onclick="addEl('text')"><span class="ins-ico" style="font-size:13px">A</span><span class="ins-lbl"><strong>Textblock</strong><small>Rich Text, formatierbar</small></span></button>
+          <button class="ins-btn" onclick="addEl('title')" oncontextmenu="showElStylePop(event,'title')"><span class="ins-ico" style="font-weight:900;font-size:16px;font-family:'Playfair Display',serif">T</span><span class="ins-lbl"><strong>Überschrift</strong><small>Groß, Playfair</small></span></button>
+          <button class="ins-btn" onclick="addEl('text')" oncontextmenu="showElStylePop(event,'text')"><span class="ins-ico" style="font-size:13px">A</span><span class="ins-lbl"><strong>Textblock</strong><small>Rich Text, formatierbar</small></span></button>
         </div>
         <div class="sec-hdr open" onclick="toggleSec(this)"><span>Code &amp; Medien</span><span class="sec-chev">▾</span></div>
         <div class="sec-body">
-          <button class="ins-btn" onclick="addEl('code')"><span class="ins-ico" style="font-family:monospace;font-size:10px">&lt;/&gt;</span><span class="ins-lbl"><strong>Code-Block</strong><small>Monospace</small></span></button>
-          <button class="ins-btn" onclick="addEl('sql')"><span class="ins-ico" style="font-family:monospace;font-size:10px;color:#a3e635">SQL</span><span class="ins-lbl"><strong>SQL-Block</strong><small>Ausführbare Abfrage</small></span></button>
-          <button class="ins-btn" onclick="addEl('image')"><span class="ins-ico"><svg width="18" height="16" viewBox="0 0 18 16" fill="none" xmlns="http://www.w3.org/2000/svg"><rect x="1" y="1" width="16" height="14" rx="2" stroke="currentColor" stroke-width="1.4"/><circle cx="5.5" cy="5.5" r="1.5" fill="currentColor"/><path d="M1 11l4-4 3 3 2.5-2.5L16 13" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/></svg></span><span class="ins-lbl"><strong>Bild</strong><small>Upload oder D&amp;D</small></span></button>
+          <button class="ins-btn" onclick="addEl('code')" oncontextmenu="showElStylePop(event,'code')"><span class="ins-ico" style="font-family:monospace;font-size:10px">&lt;/&gt;</span><span class="ins-lbl"><strong>Code-Block</strong><small>Monospace</small></span></button>
+          <button class="ins-btn" onclick="addEl('sql')" oncontextmenu="showElStylePop(event,'sql')"><span class="ins-ico" style="font-family:monospace;font-size:10px;color:#a3e635">SQL</span><span class="ins-lbl"><strong>SQL-Block</strong><small>Ausführbare Abfrage</small></span></button>
+          <button class="ins-btn" onclick="addEl('image')" oncontextmenu="showElStylePop(event,'image')"><span class="ins-ico"><svg width="18" height="16" viewBox="0 0 18 16" fill="none" xmlns="http://www.w3.org/2000/svg"><rect x="1" y="1" width="16" height="14" rx="2" stroke="currentColor" stroke-width="1.4"/><circle cx="5.5" cy="5.5" r="1.5" fill="currentColor"/><path d="M1 11l4-4 3 3 2.5-2.5L16 13" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/></svg></span><span class="ins-lbl"><strong>Bild</strong><small>Upload oder D&amp;D</small></span></button>
         </div>
         <div class="sec-hdr open" onclick="toggleSec(this)"><span>Layout</span><span class="sec-chev">▾</span></div>
         <div class="sec-body">
-          <button class="ins-btn" onclick="addEl('divider')"><span class="ins-ico" style="font-size:18px">—</span><span class="ins-lbl"><strong>Trennlinie</strong><small>Horizontal</small></span></button>
-          <button class="ins-btn" onclick="addEl('badge')"><span class="ins-ico">🏷</span><span class="ins-lbl"><strong>Badge</strong><small>Pill-Label</small></span></button>
+          <button class="ins-btn" onclick="addEl('divider')" oncontextmenu="showElStylePop(event,'divider')"><span class="ins-ico" style="font-size:18px">—</span><span class="ins-lbl"><strong>Trennlinie</strong><small>Horizontal</small></span></button>
+          <button class="ins-btn" onclick="addEl('badge')" oncontextmenu="showElStylePop(event,'badge')"><span class="ins-ico">🏷</span><span class="ins-lbl"><strong>Badge</strong><small>Pill-Label</small></span></button>
+          <button class="ins-btn" onclick="addEl('table')" oncontextmenu="showElStylePop(event,'table')"><span class="ins-ico"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 10h18M9 4v16M15 4v16"/></svg></span><span class="ins-lbl"><strong>Tabelle</strong><small>Zeilen &amp; Spalten frei einstellbar</small></span></button>
           <button class="ins-btn marker-draw-btn" id="markerDrawBtn" onclick="toggleMarkerMode()" oncontextmenu="showMarkerStylePop(event)">
             <span class="ins-ico er-ico"><svg viewBox="0 0 36 22"><path id="mspPreviewBg" d="M4 18 Q9 10 18 11 Q27 12 32 4" stroke="#facc15" stroke-width="5" stroke-linecap="round" stroke-linejoin="round" fill="none" opacity="0.55"/><path id="mspPreviewFg" d="M4 18 Q9 10 18 11 Q27 12 32 4" stroke="#facc15" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" fill="none" opacity="0.9"/></svg></span>
             <span class="ins-lbl"><strong>Markierung</strong><small>Freihand, begradigt</small></span>
@@ -551,24 +540,24 @@
         </div>
         <div class="sec-hdr open" onclick="toggleSec(this)"><span>Symbole &amp; Formen</span><span class="sec-chev">▾</span></div>
         <div class="sec-body">
-          <button class="ins-btn" onclick="addEl('sym-rect')" oncontextmenu="showSymStylePop(event,'sym-rect')" data-sym-type="sym-rect"><span class="ins-ico er-ico"><svg viewBox="0 0 36 22"><rect x="2" y="3" width="32" height="16" fill="rgba(232,160,48,.12)" stroke="#e8a030" stroke-width="1.5" rx="1"/></svg></span><span class="ins-lbl"><strong>Rechteck</strong><small>Grundform</small></span></button>
-          <button class="ins-btn" onclick="addEl('sym-rounded-rect')" oncontextmenu="showSymStylePop(event,'sym-rounded-rect')" data-sym-type="sym-rounded-rect"><span class="ins-ico er-ico"><svg viewBox="0 0 36 22"><rect x="2" y="3" width="32" height="16" fill="rgba(232,160,48,.12)" stroke="#e8a030" stroke-width="1.5" rx="5"/></svg></span><span class="ins-lbl"><strong>Abgerundetes Rechteck</strong><small>Mit Radius</small></span></button>
-          <button class="ins-btn" onclick="addEl('sym-circle')" oncontextmenu="showSymStylePop(event,'sym-circle')" data-sym-type="sym-circle"><span class="ins-ico er-ico"><svg viewBox="0 0 36 22"><ellipse cx="18" cy="11" rx="10" ry="10" fill="rgba(232,160,48,.12)" stroke="#e8a030" stroke-width="1.5"/></svg></span><span class="ins-lbl"><strong>Kreis</strong><small>Gleichmäßig</small></span></button>
-          <button class="ins-btn" onclick="addEl('sym-ellipse')" oncontextmenu="showSymStylePop(event,'sym-ellipse')" data-sym-type="sym-ellipse"><span class="ins-ico er-ico"><svg viewBox="0 0 36 22"><ellipse cx="18" cy="11" rx="17" ry="9" fill="rgba(232,160,48,.12)" stroke="#e8a030" stroke-width="1.5"/></svg></span><span class="ins-lbl"><strong>Ellipse</strong><small>Oval</small></span></button>
-          <button class="ins-btn" onclick="addEl('sym-triangle')" oncontextmenu="showSymStylePop(event,'sym-triangle')" data-sym-type="sym-triangle"><span class="ins-ico er-ico"><svg viewBox="0 0 36 22"><polygon points="18,2 34,20 2,20" fill="rgba(232,160,48,.12)" stroke="#e8a030" stroke-width="1.5" stroke-linejoin="round"/></svg></span><span class="ins-lbl"><strong>Dreieck</strong><small>Gleichschenklig</small></span></button>
-          <button class="ins-btn" onclick="addEl('sym-right-tri')" oncontextmenu="showSymStylePop(event,'sym-right-tri')" data-sym-type="sym-right-tri"><span class="ins-ico er-ico"><svg viewBox="0 0 36 22"><polygon points="2,2 34,20 2,20" fill="rgba(232,160,48,.12)" stroke="#e8a030" stroke-width="1.5" stroke-linejoin="round"/></svg></span><span class="ins-lbl"><strong>Rechtes Dreieck</strong><small>90°-Winkel</small></span></button>
-          <button class="ins-btn" onclick="addEl('sym-diamond')" oncontextmenu="showSymStylePop(event,'sym-diamond')" data-sym-type="sym-diamond"><span class="ins-ico er-ico"><svg viewBox="0 0 36 22"><polygon points="18,2 34,11 18,20 2,11" fill="rgba(232,160,48,.12)" stroke="#e8a030" stroke-width="1.5" stroke-linejoin="round"/></svg></span><span class="ins-lbl"><strong>Raute</strong><small>Diamantform</small></span></button>
-          <button class="ins-btn" onclick="addEl('sym-hexagon')" oncontextmenu="showSymStylePop(event,'sym-hexagon')" data-sym-type="sym-hexagon"><span class="ins-ico er-ico"><svg viewBox="0 0 36 22" data-sym-svg><polygon points="35,11 26.5,19.7 9.5,19.7 1,11 9.5,2.3 26.5,2.3" fill="rgba(232,160,48,.12)" stroke="#e8a030" stroke-width="1.5" stroke-linejoin="round"/></svg></span><span class="ins-lbl"><strong>Sechseck</strong><small>Hexagon</small></span></button>
-          <button class="ins-btn" onclick="addEl('sym-parallelogram')" oncontextmenu="showSymStylePop(event,'sym-parallelogram')" data-sym-type="sym-parallelogram"><span class="ins-ico er-ico"><svg viewBox="0 0 36 22"><polygon points="8,2 34,2 28,20 2,20" fill="rgba(232,160,48,.12)" stroke="#e8a030" stroke-width="1.5" stroke-linejoin="round"/></svg></span><span class="ins-lbl"><strong>Parallelogramm</strong><small>Schräg</small></span></button>
-          <button class="ins-btn" onclick="addEl('sym-star')" oncontextmenu="showSymStylePop(event,'sym-star')" data-sym-type="sym-star"><span class="ins-ico er-ico"><svg viewBox="0 0 36 22"><polygon points="18,1 21,9 30,9 23,14 25,22 18,17 11,22 13,14 6,9 15,9" fill="rgba(232,160,48,.12)" stroke="#e8a030" stroke-width="1.5" stroke-linejoin="round"/></svg></span><span class="ins-lbl"><strong>Stern</strong><small>5-zackig</small></span></button>
-          <button class="ins-btn" onclick="addEl('sym-cylinder')" oncontextmenu="showSymStylePop(event,'sym-cylinder')" data-sym-type="sym-cylinder"><span class="ins-ico er-ico"><svg viewBox="0 0 36 22"><ellipse cx="18" cy="4" rx="16" ry="3.5" fill="rgba(232,160,48,.12)" stroke="#e8a030" stroke-width="1.5"/><rect x="2" y="4" width="32" height="13" fill="rgba(232,160,48,.08)" stroke="none"/><line x1="2" y1="4" x2="2" y2="17" stroke="#e8a030" stroke-width="1.5"/><line x1="34" y1="4" x2="34" y2="17" stroke="#e8a030" stroke-width="1.5"/><ellipse cx="18" cy="17" rx="16" ry="3.5" fill="rgba(232,160,48,.12)" stroke="#e8a030" stroke-width="1.5"/></svg></span><span class="ins-lbl"><strong>Zylinder</strong><small>3D-Tonne</small></span></button>
-          <button class="ins-btn" onclick="addEl('sym-arrow')" oncontextmenu="showArrowStylePop(event)"><span class="ins-ico er-ico"><svg id="arrowBtnSvg" viewBox="0 0 36 22"><defs><marker id="ah" markerWidth="7" markerHeight="7" refX="7" refY="3.5" orient="auto"><polygon points="0,0 7,3.5 0,7" fill="#e8a030"/></marker></defs><line x1="2" y1="11" x2="30" y2="11" stroke="#e8a030" stroke-width="2" stroke-linecap="round" marker-end="url(#ah)"/><circle cx="2" cy="11" r="2.5" fill="#3b82f6"/><circle cx="32" cy="11" r="2.5" fill="#3b82f6"/></svg></span><span class="ins-lbl"><strong>Pfeil</strong><small>Andockbar, konfigurierbar</small></span></button>
+          <button class="ins-btn" onclick="addEl('sym-rect')" oncontextmenu="showSymStylePop(event,'sym-rect')" data-sym-type="sym-rect"><span class="ins-ico er-ico"><svg viewBox="0 0 36 22"><rect x="2" y="3" width="32" height="16" fill="currentColor" fill-opacity=".12" stroke="currentColor" stroke-width="1.5" rx="1"/></svg></span><span class="ins-lbl"><strong>Rechteck</strong><small>Grundform</small></span></button>
+          <button class="ins-btn" onclick="addEl('sym-rounded-rect')" oncontextmenu="showSymStylePop(event,'sym-rounded-rect')" data-sym-type="sym-rounded-rect"><span class="ins-ico er-ico"><svg viewBox="0 0 36 22"><rect x="2" y="3" width="32" height="16" fill="currentColor" fill-opacity=".12" stroke="currentColor" stroke-width="1.5" rx="5"/></svg></span><span class="ins-lbl"><strong>Abgerundetes Rechteck</strong><small>Mit Radius</small></span></button>
+          <button class="ins-btn" onclick="addEl('sym-circle')" oncontextmenu="showSymStylePop(event,'sym-circle')" data-sym-type="sym-circle"><span class="ins-ico er-ico"><svg viewBox="0 0 36 22"><ellipse cx="18" cy="11" rx="10" ry="10" fill="currentColor" fill-opacity=".12" stroke="currentColor" stroke-width="1.5"/></svg></span><span class="ins-lbl"><strong>Kreis</strong><small>Gleichmäßig</small></span></button>
+          <button class="ins-btn" onclick="addEl('sym-ellipse')" oncontextmenu="showSymStylePop(event,'sym-ellipse')" data-sym-type="sym-ellipse"><span class="ins-ico er-ico"><svg viewBox="0 0 36 22"><ellipse cx="18" cy="11" rx="17" ry="9" fill="currentColor" fill-opacity=".12" stroke="currentColor" stroke-width="1.5"/></svg></span><span class="ins-lbl"><strong>Ellipse</strong><small>Oval</small></span></button>
+          <button class="ins-btn" onclick="addEl('sym-triangle')" oncontextmenu="showSymStylePop(event,'sym-triangle')" data-sym-type="sym-triangle"><span class="ins-ico er-ico"><svg viewBox="0 0 36 22"><polygon points="18,2 34,20 2,20" fill="currentColor" fill-opacity=".12" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/></svg></span><span class="ins-lbl"><strong>Dreieck</strong><small>Gleichschenklig</small></span></button>
+          <button class="ins-btn" onclick="addEl('sym-right-tri')" oncontextmenu="showSymStylePop(event,'sym-right-tri')" data-sym-type="sym-right-tri"><span class="ins-ico er-ico"><svg viewBox="0 0 36 22"><polygon points="2,2 34,20 2,20" fill="currentColor" fill-opacity=".12" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/></svg></span><span class="ins-lbl"><strong>Rechtes Dreieck</strong><small>90°-Winkel</small></span></button>
+          <button class="ins-btn" onclick="addEl('sym-diamond')" oncontextmenu="showSymStylePop(event,'sym-diamond')" data-sym-type="sym-diamond"><span class="ins-ico er-ico"><svg viewBox="0 0 36 22"><polygon points="18,2 34,11 18,20 2,11" fill="currentColor" fill-opacity=".12" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/></svg></span><span class="ins-lbl"><strong>Raute</strong><small>Diamantform</small></span></button>
+          <button class="ins-btn" onclick="addEl('sym-hexagon')" oncontextmenu="showSymStylePop(event,'sym-hexagon')" data-sym-type="sym-hexagon"><span class="ins-ico er-ico"><svg viewBox="0 0 36 22" data-sym-svg><polygon points="35,11 26.5,19.7 9.5,19.7 1,11 9.5,2.3 26.5,2.3" fill="currentColor" fill-opacity=".12" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/></svg></span><span class="ins-lbl"><strong>Sechseck</strong><small>Hexagon</small></span></button>
+          <button class="ins-btn" onclick="addEl('sym-parallelogram')" oncontextmenu="showSymStylePop(event,'sym-parallelogram')" data-sym-type="sym-parallelogram"><span class="ins-ico er-ico"><svg viewBox="0 0 36 22"><polygon points="8,2 34,2 28,20 2,20" fill="currentColor" fill-opacity=".12" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/></svg></span><span class="ins-lbl"><strong>Parallelogramm</strong><small>Schräg</small></span></button>
+          <button class="ins-btn" onclick="addEl('sym-star')" oncontextmenu="showSymStylePop(event,'sym-star')" data-sym-type="sym-star"><span class="ins-ico er-ico"><svg viewBox="0 0 36 22"><polygon points="18,1 21,9 30,9 23,14 25,22 18,17 11,22 13,14 6,9 15,9" fill="currentColor" fill-opacity=".12" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/></svg></span><span class="ins-lbl"><strong>Stern</strong><small>5-zackig</small></span></button>
+          <button class="ins-btn" onclick="addEl('sym-cylinder')" oncontextmenu="showSymStylePop(event,'sym-cylinder')" data-sym-type="sym-cylinder"><span class="ins-ico er-ico"><svg viewBox="0 0 36 22"><ellipse cx="18" cy="4" rx="16" ry="3.5" fill="currentColor" fill-opacity=".12" stroke="currentColor" stroke-width="1.5"/><rect x="2" y="4" width="32" height="13" fill="currentColor" fill-opacity=".08" stroke="none"/><line x1="2" y1="4" x2="2" y2="17" stroke="currentColor" stroke-width="1.5"/><line x1="34" y1="4" x2="34" y2="17" stroke="currentColor" stroke-width="1.5"/><ellipse cx="18" cy="17" rx="16" ry="3.5" fill="currentColor" fill-opacity=".12" stroke="currentColor" stroke-width="1.5"/></svg></span><span class="ins-lbl"><strong>Zylinder</strong><small>3D-Tonne</small></span></button>
+          <button class="ins-btn" onclick="addEl('sym-arrow')" oncontextmenu="showArrowStylePop(event)"><span class="ins-ico er-ico"><svg id="arrowBtnSvg" viewBox="0 0 36 22"><defs><marker id="ah" markerWidth="7" markerHeight="7" refX="7" refY="3.5" orient="auto"><polygon points="0,0 7,3.5 0,7" fill="currentColor"/></marker></defs><line x1="2" y1="11" x2="30" y2="11" stroke="currentColor" stroke-width="2" stroke-linecap="round" marker-end="url(#ah)"/><circle cx="2" cy="11" r="2.5" fill="#3b82f6"/><circle cx="32" cy="11" r="2.5" fill="#3b82f6"/></svg></span><span class="ins-lbl"><strong>Pfeil</strong><small>Andockbar, konfigurierbar</small></span></button>
         </div>
 
                 <div class="sec-hdr open" onclick="toggleSec(this)"><span>ER-Modell <span style="font-size:9px;font-weight:400;text-transform:none;letter-spacing:0">Hessen</span></span><span class="sec-chev">▾</span></div>
         <div class="sec-body">
-          <button class="ins-btn" onclick="addEl('er-entity')"><span class="ins-ico er-ico"><svg viewBox="0 0 36 22"><rect x="1" y="1" width="34" height="20" fill="rgba(232,160,48,.12)" stroke="#e8a030" stroke-width="1.5" rx="1"/></svg></span><span class="ins-lbl"><strong>Entität</strong><small>Rechteck</small></span></button>
-          <button class="ins-btn" onclick="addEl('er-weak-entity')"><span class="ins-ico er-ico"><svg viewBox="0 0 36 22"><rect x="1" y="1" width="34" height="20" fill="rgba(232,160,48,.12)" stroke="#e8a030" stroke-width="1.5" rx="1"/><rect x="4" y="4" width="28" height="14" fill="none" stroke="#e8a030" stroke-width="1"/></svg></span><span class="ins-lbl"><strong>Schwache Entität</strong><small>Doppelrechteck</small></span></button>
+          <button class="ins-btn" onclick="addEl('er-entity')"><span class="ins-ico er-ico"><svg viewBox="0 0 36 22"><rect x="1" y="1" width="34" height="20" fill="currentColor" fill-opacity=".12" stroke="currentColor" stroke-width="1.5" rx="1"/></svg></span><span class="ins-lbl"><strong>Entität</strong><small>Rechteck</small></span></button>
+          <button class="ins-btn" onclick="addEl('er-weak-entity')"><span class="ins-ico er-ico"><svg viewBox="0 0 36 22"><rect x="1" y="1" width="34" height="20" fill="currentColor" fill-opacity=".12" stroke="currentColor" stroke-width="1.5" rx="1"/><rect x="4" y="4" width="28" height="14" fill="none" stroke="currentColor" stroke-width="1"/></svg></span><span class="ins-lbl"><strong>Schwache Entität</strong><small>Doppelrechteck</small></span></button>
           <button class="ins-btn" onclick="addEl('er-relation')"><span class="ins-ico er-ico"><svg viewBox="0 0 36 22"><polygon points="18,1 35,11 18,21 1,11" fill="rgba(59,130,246,.12)" stroke="#3b82f6" stroke-width="1.5"/></svg></span><span class="ins-lbl"><strong>Beziehungstyp</strong><small>Raute</small></span></button>
           <button class="ins-btn" onclick="addEl('er-weak-relation')"><span class="ins-ico er-ico"><svg viewBox="0 0 36 22"><polygon points="18,1 35,11 18,21 1,11" fill="rgba(59,130,246,.1)" stroke="#3b82f6" stroke-width="1.5"/><polygon points="18,5 31,11 18,17 5,11" fill="none" stroke="#3b82f6" stroke-width="1"/></svg></span><span class="ins-lbl"><strong>Schwacher Beziehungstyp</strong><small>Doppelraute</small></span></button>
           <button class="ins-btn" onclick="addEl('er-attribute')"><span class="ins-ico er-ico"><svg viewBox="0 0 36 22"><ellipse cx="18" cy="11" rx="17" ry="10" fill="rgba(134,239,172,.1)" stroke="#86efac" stroke-width="1.5"/></svg></span><span class="ins-lbl"><strong>Attribut</strong><small>Ellipse</small></span></button>
@@ -583,8 +572,15 @@
 
                 <div class="sec-hdr open" onclick="toggleSec(this)"><span>Automaten &amp; Formale Sprachen <span style="font-size:9px;font-weight:400;text-transform:none;letter-spacing:0">Q3</span></span><span class="sec-chev">▾</span></div>
         <div class="sec-body">
-          <button class="ins-btn" onclick="addEl('automaton')"><span class="ins-ico er-ico"><svg viewBox="0 0 36 22"><line x1="1" y1="11" x2="3" y2="11" stroke="#e8a030" stroke-width="1.5"/><circle cx="9" cy="11" r="6" fill="rgba(232,160,48,.12)" stroke="#e8a030" stroke-width="1.5"/><line x1="15" y1="11" x2="20" y2="11" stroke="#5b9bf5" stroke-width="1.5"/><polygon points="21,11 17,9 17,13" fill="#5b9bf5"/><circle cx="27" cy="11" r="6" fill="rgba(232,160,48,.12)" stroke="#e8a030" stroke-width="1.5"/><circle cx="27" cy="11" r="3.5" fill="none" stroke="#e8a030" stroke-width="1"/></svg></span><span class="ins-lbl"><strong>Endlicher Automat</strong><small>Zustände &amp; Übergänge, simulierbar</small></span></button>
+          <button class="ins-btn" onclick="addEl('automaton')"><span class="ins-ico er-ico"><svg viewBox="0 0 36 22"><line x1="1" y1="11" x2="3" y2="11" stroke="currentColor" stroke-width="1.5"/><circle cx="9" cy="11" r="6" fill="currentColor" fill-opacity=".12" stroke="currentColor" stroke-width="1.5"/><line x1="15" y1="11" x2="20" y2="11" stroke="#5b9bf5" stroke-width="1.5"/><polygon points="21,11 17,9 17,13" fill="#5b9bf5"/><circle cx="27" cy="11" r="6" fill="currentColor" fill-opacity=".12" stroke="currentColor" stroke-width="1.5"/><circle cx="27" cy="11" r="3.5" fill="none" stroke="currentColor" stroke-width="1"/></svg></span><span class="ins-lbl"><strong>Endlicher Automat</strong><small>Zustände &amp; Übergänge, simulierbar</small></span></button>
           <button class="ins-btn" onclick="addEl('regex')"><span class="ins-ico er-ico" style="font-family:'JetBrains Mono',monospace;font-size:12px;color:#a3e635;font-weight:700">/a*/</span><span class="ins-lbl"><strong>Regulärer Ausdruck</strong><small>Muster gegen Testwörter prüfen</small></span></button>
+          <button class="ins-btn" onclick="addEl('mealy')"><span class="ins-ico er-ico"><svg viewBox="0 0 36 22"><line x1="1" y1="14" x2="3" y2="14" stroke="currentColor" stroke-width="1.5"/><circle cx="9" cy="14" r="5.5" fill="currentColor" fill-opacity=".12" stroke="currentColor" stroke-width="1.5"/><line x1="14.5" y1="14" x2="21" y2="14" stroke="#5b9bf5" stroke-width="1.5"/><polygon points="22,14 18,12 18,16" fill="#5b9bf5"/><circle cx="28" cy="14" r="5.5" fill="currentColor" fill-opacity=".12" stroke="currentColor" stroke-width="1.5"/><text x="18" y="9" text-anchor="middle" font-size="7" font-family="JetBrains Mono,monospace" font-weight="700" fill="#7fb0ff">a/1</text></svg></span><span class="ins-lbl"><strong>Mealy-Automat</strong><small>Übergänge Eingabe/Ausgabe</small></span></button>
+          <button class="ins-btn" onclick="addEl('syntax')"><span class="ins-ico er-ico"><svg viewBox="0 0 36 22"><circle cx="3" cy="9" r="1.7" fill="#8a857b"/><line x1="4.7" y1="9" x2="8" y2="9" stroke="#8a857b" stroke-width="1.2"/><rect x="8" y="4" width="11" height="10" rx="5" fill="currentColor" fill-opacity=".12" stroke="currentColor" stroke-width="1.3"/><line x1="19" y1="9" x2="22" y2="9" stroke="#8a857b" stroke-width="1.2"/><rect x="22" y="4" width="11" height="10" rx="2" fill="rgba(91,155,245,.12)" stroke="#5b9bf5" stroke-width="1.3"/><path d="M 27.5 14 V 16.5 Q 27.5 19 25 19 H 15.5 Q 13.5 19 13.5 16.5 V 14" fill="none" stroke="#8a857b" stroke-width="1.2"/></svg></span><span class="ins-lbl"><strong>Syntaxdiagramm</strong><small>aus Regeln bauen &amp; prüfen</small></span></button>
+        </div>
+
+        <div class="sec-hdr open" onclick="toggleSec(this)"><span>Rechnermodelle</span><span class="sec-chev">▾</span></div>
+        <div class="sec-body">
+          <button class="ins-btn" onclick="addEl('regmachine')" oncontextmenu="showElStylePop(event,'regmachine')"><span class="ins-ico er-ico" style="font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:700">RAM</span><span class="ins-lbl"><strong>Registermaschine</strong><small>Programm + Ablaufprotokoll</small></span></button>
         </div>
       </div>
 
@@ -734,6 +730,56 @@
             </div>
           </div>
 
+          <div id="fmtAutoSec" style="display:none">
+            <div class="sec-hdr open" onclick="toggleSec(this)"><span>Automat · JSON</span><span class="sec-chev">▾</span></div>
+            <div class="sec-body">
+              <div class="fmt-hint">Automaten als JSON speichern und laden – oder eine .json-Datei einfach auf die Folie ziehen (auf einen Automaten = ersetzen, sonst = neu einfügen).</div>
+              <div class="fmt-json-grid">
+                <button class="fmt-json-btn" onclick="autoExportJSON()">⬇ Exportieren</button>
+                <button class="fmt-json-btn" onclick="autoPickLocalJSON()">⬆ Importieren</button>
+                <button class="fmt-json-btn" onclick="autoOpenFilesModal('save')">☁ In Dateien</button>
+                <button class="fmt-json-btn" onclick="autoOpenFilesModal('load')">☁ Aus Dateien</button>
+              </div>
+            </div>
+          </div>
+          <div id="fmtTblSec" style="display:none">
+            <div class="sec-hdr open" onclick="toggleSec(this)"><span>Tabelle</span><span class="sec-chev">▾</span></div>
+            <div class="sec-body">
+              <div class="fmt-hint" id="tblDim"></div>
+              <div class="fmt-json-grid">
+                <button class="fmt-json-btn" onclick="tblOp('addRow')">+ Zeile</button>
+                <button class="fmt-json-btn" onclick="tblOp('addCol')">+ Spalte</button>
+                <button class="fmt-json-btn" onclick="tblOp('delRow')">− Zeile</button>
+                <button class="fmt-json-btn" onclick="tblOp('delCol')">− Spalte</button>
+              </div>
+              <label class="fmt-chk-lbl"><input type="checkbox" id="tblHead" onchange="tblSet('header',this.checked)"> Kopfzeile</label>
+              <label class="fmt-chk-lbl"><input type="checkbox" id="tblStripe" onchange="tblSet('striped',this.checked)"> Zebra-Streifen</label>
+              <label class="fmt-chk-lbl"><input type="checkbox" id="tblBorder" onchange="tblSet('border',this.checked)"> Rahmen</label>
+              <label class="fmt-lbl" style="margin-top:8px">Rahmenfarbe</label>
+              <input type="color" class="fmt-inp fmt-color" id="tblBorderCol" oninput="tblSet('borderColor',this.value)">
+              <label class="fmt-lbl">Kopfzeilen-Hintergrund</label>
+              <input type="color" class="fmt-inp fmt-color" id="tblHeadBg" oninput="tblSet('headBg',this.value)">
+              <label class="fmt-lbl">Textfarbe</label>
+              <input type="color" class="fmt-inp fmt-color" id="tblColor" oninput="tblSet('color',this.value)">
+              <label class="fmt-lbl">Schriftgröße</label>
+              <input type="number" class="fmt-inp" id="tblFs" min="8" max="48" oninput="tblSet('fontSize',+this.value)">
+              <label class="fmt-lbl">Zellabstand</label>
+              <input type="number" class="fmt-inp" id="tblPad" min="0" max="40" oninput="tblSet('pad',+this.value)">
+              <label class="fmt-lbl">Ausrichtung</label>
+              <select class="fmt-inp" id="tblAlign" onchange="tblSet('align',this.value)"><option value="left">Links</option><option value="center">Zentriert</option><option value="right">Rechts</option></select>
+            </div>
+          </div>
+          <div id="fmtSynSec" style="display:none">
+            <div class="sec-hdr open" onclick="toggleSec(this)"><span>Syntaxdiagramm</span><span class="sec-chev">▾</span></div>
+            <div class="sec-body">
+              <div class="fmt-hint">Notation:&nbsp;<code>Name = 'a' | B { C } [ D ] ( E | F ) ;</code> &nbsp;· Klick auf einen Baustein im Diagramm springt zur Stelle im Quelltext.</div>
+              <div class="fmt-json-grid">
+                <button class="fmt-json-btn" onclick="synToggleSrc()">✎ Quelltext</button>
+                <button class="fmt-json-btn" onclick="synExportSVG()">⬇ Als SVG</button>
+              </div>
+            </div>
+          </div>
+
           <div class="sec-hdr open" onclick="toggleSec(this)"><span>Hintergrund</span><span class="sec-chev">▾</span></div>
           <div class="sec-body">
             <div style="display:flex;gap:8px;align-items:center;margin-bottom:8px">
@@ -775,28 +821,30 @@
       </div>
 
       <!-- EINTRAG panel -->
-      <div class="ed-pnl" id="ep-sld" style="display:none">
-        <div class="sec-hdr open" onclick="toggleSec(this)"><span>Eintrag-Metadaten</span><span class="sec-chev">▾</span></div>
-        <div class="sec-body">
-          <label class="fmt-lbl">Titel des Eintrags</label>
-          <input type="text" class="fmt-inp" id="sldEntryTitle" placeholder="z.B. Einführung ER-Modell" oninput="edEntry.titel=this.value;document.getElementById('edBarTitle').textContent=this.value||'Neuer Eintrag'">
-          <label class="fmt-lbl">Datum</label>
-          <input type="date" class="fmt-inp" id="sldDate" oninput="edEntry.datum=this.value">
-          <label class="fmt-lbl">Halbjahr</label>
-          <select class="fmt-inp" id="sldQ" onchange="edEntry.q=this.value">
-            <option value="Q1">Q1</option><option value="Q2">Q2</option>
-            <option value="Q3">Q3</option><option value="Q4">Q4</option>
-          </select>
-          <label class="fmt-lbl">Tags (kommagetrennt)</label>
-          <input type="text" class="fmt-inp" id="sldTags" placeholder="ER-Modell, Datenbanken …">
-        </div>
+      
+    </div><!-- /ed-sb -->
+    <!-- Sidebar expand strip (visible only when collapsed) -->
+    <div class="ed-sb-expand-strip" onclick="toggleEdSb()" title="Seitenleiste einklappen">
+      <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+    </div>
 
-        <div class="sec-hdr open" onclick="toggleSec(this)"><span>Aktuelle Folie</span><span class="sec-chev">▾</span></div>
-        <div class="sec-body">
-          <label class="fmt-lbl">Folientitel</label>
-          <input type="text" class="fmt-inp" id="sldSlideTitle" placeholder="Folie 1" oninput="curSlide().title=this.value;renderSpanel()">
-          <label class="fmt-lbl">Format</label>
-          <select class="fmt-inp" id="sldFmt" onchange="curSlide().format=this.value;applySlideSize();setTimeout(fitSlide,30);renderSpanel()">
+    <!-- Slide panel -->
+    <div class="sp-panel" id="spPanel">
+      <div class="sp-head">
+        <span class="sp-lbl">Folien</span>
+      </div>
+      <div class="sp-list" id="spList"></div>
+    </div>
+    <!-- Slide panel expand strip (visible only when collapsed) -->
+    <div class="sp-expand-strip" id="spExpandStrip" onclick="toggleSpPanel()" title="Folien-Panel einklappen">
+      <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+    </div>
+
+    <!-- Canvas -->
+    <div class="ed-cv-area" id="edCvArea"
+         ondragover="evDef(event)" ondrop="onCvDrop(event)"
+         onmousedown="onCvDown(event)">
+      <div class="sl-hdr" id="slHdr" onmousedown="event.stopPropagation()" onkeydown="event.stopPropagation()"><div class="sl-hdr-side"><select class="sl-sel" id="sldFmt" onchange="pushHistory('Folienformat geändert');curSlide().format=this.value;applySlideSize();setTimeout(fitSlide,30);renderSpanel()">
             <option value="16:9">16:9 – Widescreen (Standard)</option>
             <option value="4:3">4:3 – Standard</option>
             <option value="A4-quer">A4 Querformat</option>
@@ -808,60 +856,16 @@
               <option value="wb-v">Whiteboard Vertikal (∞ ↕)</option>
               <option value="wb-inf">Whiteboard Unbegrenzt (∞)</option>
             </optgroup>
-          </select>
-          <div id="fmtSzInfo" class="fmt-hint"></div>
-          <label class="fmt-lbl">Hintergrund</label>
-          <input type="color" class="fmt-inp fmt-color" id="sldBg" oninput="pushHistoryDebounced('Folienfarbe geändert');curSlide().slideBg=this.value;applySlideSize();renderSpanel()">
-          <label class="fmt-chk-lbl"><input type="checkbox" id="sldGrid" checked onchange="toggleGrid(this.checked)"> Punktraster</label>
-          <button class="ed-reset-btn" style="width:100%;margin-top:8px;justify-content:center" onclick="resetSlide()">
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></svg>
-            Folie leeren
-          </button>
-        </div>
-      </div>
-    </div><!-- /ed-sb -->
-    <!-- Sidebar expand strip (visible only when collapsed) -->
-    <div class="ed-sb-expand-strip" onclick="toggleEdSb()" title="Seitenleiste ausklappen">
-      <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
-    </div>
-
-    <!-- Slide panel -->
-    <div class="sp-panel" id="spPanel">
-      <div class="sp-head">
-        <span class="sp-lbl">Folien</span>
-        <div style="display:flex;align-items:center;gap:5px">
-          <button class="sp-add" onclick="addSlide()" title="Neue Folie">+</button>
-          <button class="sp-collapse-btn" id="spCollapseBtn" onclick="toggleSpPanel()" title="Panel einklappen">
-            <svg id="spCollapseIco" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="15 18 9 12 15 6"/></svg>
-          </button>
-        </div>
-      </div>
-      <div class="sp-list" id="spList"></div>
-    </div>
-    <!-- Slide panel expand strip (visible only when collapsed) -->
-    <div class="sp-expand-strip" id="spExpandStrip" onclick="toggleSpPanel()" title="Folien-Panel ausklappen">
-      <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
-    </div>
-
-    <!-- Canvas -->
-    <div class="ed-cv-area" id="edCvArea"
-         ondragover="evDef(event)" ondrop="onCvDrop(event)"
-         onmousedown="onCvDown(event)">
-      <div class="slide-cv grid-on" id="slideCV" onmousedown="onSlideBgDown(event)"></div>
+          </select></div><input type="text" class="sl-title" id="sldSlideTitle" placeholder="Folientitel (optional)" spellcheck="false" autocomplete="off" onkeydown="if(event.key==='Enter'||event.key==='Escape')this.blur()" oninput="pushHistoryDebounced('Folientitel geändert');curSlide().title=this.value;renderSpanel()"><div class="sl-hdr-side sl-hdr-right"><button type="button" class="sl-bgbtn" id="slBgBtn" onclick="toggleBgPop(event)" title="Hintergrund formatieren"><span class="sl-bgsw" id="slBgSw"></span>Hintergrund</button></div></div>
+      <div class="slide-cv" id="slideCV" onmousedown="onSlideBgDown(event)"></div>
       <!-- Status bar -->
       <div class="ed-status-bar" id="edStatusBar">
-        <div class="ed-status-words">
+        <div class="ed-wc" title="Wörteranzahl">
           <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="15" y2="12"/><line x1="3" y1="18" x2="18" y2="18"/></svg>
-          <span id="edWordSlide">0</span> <span class="ed-status-dim">Wörter (Folie)</span>
-          <span class="ed-status-sep">·</span>
-          <span id="edWordEntry">0</span> <span class="ed-status-dim">Wörter (Eintrag)</span>
+          <span class="wc-chip" title="Wörter in dieser Folie"><span>Folie</span><b id="edWordSlide">0</b></span>
+          <span class="wc-chip wc-entry" id="edWcMore" title="Wörter im gesamten Forschungstagebucheintrag"><span>Eintrag</span><b id="edWordEntry">0</b></span>
         </div>
-        <div class="ed-status-lang">
-          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>
-          <button class="ed-lang-btn" id="edLangDe" onclick="setSpellLang('de-DE')" title="Deutsch">DE</button>
-          <span class="ed-status-dim">/</span>
-          <button class="ed-lang-btn" id="edLangEn" onclick="setSpellLang('en-GB')" title="Britisches Englisch">EN</button>
-        </div>
+        <div class="ed-status-lang" title="Sprache der Autokorrektur"><span class="ed-lang-lbl">Autokorrektur</span><div class="ed-lang-seg"><button class="ed-lang-btn" id="edLangDe" onclick="setSpellLang('de-DE')" title="Deutsch">DE</button><button class="ed-lang-btn" id="edLangEn" onclick="setSpellLang('en-GB')" title="Britisches Englisch">EN</button></div></div>
       </div>
     </div>
   </div>
@@ -876,25 +880,25 @@
 <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="script.js"></script>
-      <!-- Paste formatting dialog -->
-      <div class="modal-overlay" id="pasteFmtModal" style="display:none" onclick="if(event.target===this)pasteChoice('cancel')">
-        <div class="modal-box">
-          <div class="modal-title">Text einfügen</div>
-          <p style="color:var(--text2);font-size:13px;margin:0 0 16px">Wie soll die Formatierung des eingefügten Textes behandelt werden?</p>
-          <div class="modal-acts" style="flex-direction:column;gap:8px">
-            <button class="modal-btn-pri" onclick="pasteChoice('keep')">Formatierung übernehmen</button>
-            <button class="modal-btn-pri" onclick="pasteChoice('merge')">Zusammenführen (ohne Farbe/Schrift)</button>
-            <button class="modal-btn-sec" onclick="pasteChoice('plain')">Ohne Formatierung</button>
-            <button class="modal-btn-sec" onclick="pasteChoice('cancel')">Abbrechen</button>
-          </div>
-        </div>
-      </div>
       <!-- Global SVG defs for arrow markers -->
       <svg id="arrow-defs-root" style="position:absolute;width:0;height:0;overflow:hidden;pointer-events:none"><defs id="arrow-defs-inner"></defs></svg>
       <!-- Lasso selection box -->
       <div id="lassoBox"></div>
       <!-- Spell check suggestion popup -->
-      <div id="spellPopup" style="display:none"></div>
+      <div id="entryPop" class="marker-style-pop entry-pop" style="display:none"><div class="msp-hd"><span style="flex:1">Eintrags-Einstellungen</span></div>
+          <label class="fmt-lbl">Titel des Eintrags</label>
+          <input type="text" class="fmt-inp" id="sldEntryTitle" placeholder="z.B. Einführung ER-Modell" oninput="edEntry.titel=this.value;document.getElementById('edBarTitle').textContent=this.value||'Neuer Eintrag'">
+          <label class="fmt-lbl">Datum</label>
+          <input type="date" class="fmt-inp" id="sldDate" oninput="edEntry.datum=this.value">
+          <label class="fmt-lbl">Halbjahr</label>
+          <select class="fmt-inp" id="sldQ" onchange="edEntry.q=this.value">
+            <option value="Q1">Q1</option><option value="Q2">Q2</option>
+            <option value="Q3">Q3</option><option value="Q4">Q4</option>
+          </select>
+          <label class="fmt-lbl">Tags (kommagetrennt)</label>
+          <input type="text" class="fmt-inp" id="sldTags" placeholder="ER-Modell, Datenbanken …">
+        </div>
+    <div id="spellPopup" style="display:none"></div>
       <!-- Marker style defaults popover (right-click on insert-panel button) -->
       <div id="markerStylePop" class="marker-style-pop" style="display:none">
         <div class="msp-hd">
@@ -1011,7 +1015,16 @@
         <div class="erval-grid" id="optGrid"></div>
       </div>
       <!-- Context menu -->
+      <div id="elOptPop" class="el-opt-pop" style="display:none">
+        <div class="el-opt-hd" id="elOptHd"><span id="elOptTitle">Elementoptionen</span><button class="el-opt-x" onclick="closeElOptions()" title="Schließen">✕</button></div>
+        <div class="el-opt-body" id="elOptBody"></div>
+      </div>
       <div id="ctxMenu" class="ctx-menu" style="display:none">
+        <button class="ctx-item ctx-item-opts" id="ctxOptBtn" onclick="openElOptions()">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="4" y1="21" x2="4" y2="14"/><line x1="4" y1="10" x2="4" y2="3"/><line x1="12" y1="21" x2="12" y2="12"/><line x1="12" y1="8" x2="12" y2="3"/><line x1="20" y1="21" x2="20" y2="16"/><line x1="20" y1="12" x2="20" y2="3"/><line x1="1" y1="14" x2="7" y2="14"/><line x1="9" y1="8" x2="15" y2="8"/><line x1="17" y1="16" x2="23" y2="16"/></svg>
+          <span id="ctxOptLbl">Elementoptionen</span>
+        </button>
+        <div class="ctx-sep"></div>
         <button class="ctx-item" onclick="ctxCopy()">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
           Kopieren <span class="ctx-kbd">Strg+C</span>
@@ -1072,6 +1085,25 @@
         </button>
       </div>
       <!-- Custom dictionary modal -->
+      <div id="jsonFilesModal" class="modal-overlay" style="display:none" onclick="if(event.target===this)autoCloseFilesModal()">
+        <div class="modal-box json-modal-box">
+          <div class="modal-hd">
+            <span id="jsonFilesTitle">Automat · Dateien</span>
+            <button class="modal-close" onclick="autoCloseFilesModal()">✕</button>
+          </div>
+          <p class="dict-hint" id="jsonFilesHint"></p>
+          <div id="jsonFilesSave" style="display:none">
+            <label class="fmt-lbl">Dateiname</label>
+            <input id="jsonFilesName" class="fmt-inp" placeholder="automat.json" onkeydown="if(event.key==='Enter')autoSaveToFiles()">
+            <label class="fmt-lbl">Ordner im Dateien-Bereich (optional)</label>
+            <input id="jsonFilesFolder" class="fmt-inp" placeholder="z. B. Automaten" onkeydown="if(event.key==='Enter')autoSaveToFiles()">
+            <button class="json-primary-btn" onclick="autoSaveToFiles()">☁ In Dateien speichern</button>
+          </div>
+          <div id="jsonFilesLoad" style="display:none"><div id="jsonFilesList" class="dict-word-list"></div></div>
+          <div id="jsonFilesStatus" class="json-status"></div>
+        </div>
+      </div>
+      <input type="file" id="autoJsonInput" accept=".json,application/json" style="display:none" onchange="autoLocalJSONChosen(this)">
       <div id="dictModal" class="modal-overlay" style="display:none" onclick="if(event.target===this)SC.closeDictModal()">
         <div class="modal-box dict-modal-box">
           <div class="modal-hd">
