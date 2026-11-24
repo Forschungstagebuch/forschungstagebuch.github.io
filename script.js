@@ -868,117 +868,71 @@ function wbBounds(slide){
 }
 
 
-/* ════════ THUMBNAIL GENERATOR ════════ */
-/* ════════ THUMBNAIL GENERATOR (CSS transform approach — no clipping) ════════ */
-function mkThumb(slide, tw){
-  const sz=slSz(slide), sc=tw/sz.w, ph=Math.round(sz.h*sc);
-  const bg=slide.slideBg||'#0c0c0c';
-  const sorted=(slide.elements||[]).slice().sort((a,b)=>(a.z||0)-(b.z||0));
-
-  // Build elements at NATURAL size (no scaling), then CSS-transform the whole slide
-  const items=sorted.map(el=>{
-    const st=el.style||{};
-    let posStyle='', inner='';
-
-    if(el.type==='er-line'){
-      const lx=Math.min(el.x1,el.x2), ly=Math.min(el.y1,el.y2);
-      const lw=Math.abs(el.x2-el.x1)+2*ER_LINE_PAD, lh=Math.abs(el.y2-el.y1)+2*ER_LINE_PAD;
-      posStyle=`left:${lx-ER_LINE_PAD}px;top:${ly-ER_LINE_PAD}px;width:${lw}px;height:${Math.max(2,lh)}px`;
-      const sx1=el.x1-lx+ER_LINE_PAD, sy1=el.y1-ly+ER_LINE_PAD, sx2=el.x2-lx+ER_LINE_PAD, sy2=el.y2-ly+ER_LINE_PAD;
-      const erS=el.erStyle||{};
-      const sw2=erS.strokeWidth||2;
-      const da2=erS.dashed?`stroke-dasharray="${sw2*2.5} ${sw2*2}"`:'';
-      inner=`<svg style="position:absolute;inset:0;width:100%;height:100%;overflow:visible"><line x1="${sx1}" y1="${sy1}" x2="${sx2}" y2="${sy2}" stroke="${erS.stroke||'#888077'}" stroke-width="${sw2}" stroke-linecap="round" ${da2}/></svg>`;
-    } else if(el.type==='marker'){
-      const ms=el.markerStyle||{};
-      const sw3=ms.strokeWidth||14, pad3=Math.ceil(sw3/2)+2;
-      posStyle=`left:${(el.x||0)-pad3}px;top:${(el.y||0)-pad3}px;width:${(el.w||4)+pad3*2}px;height:${(el.h||4)+pad3*2}px;overflow:visible`;
-      const pts3=(el.points||[]).map(p=>`${p.x},${p.y}`).join(' ');
-      inner=`<svg style="position:absolute;inset:0;width:100%;height:100%;overflow:visible" viewBox="${-pad3} ${-pad3} ${(el.w||4)+pad3*2} ${(el.h||4)+pad3*2}"><polyline points="${pts3}" stroke="${ms.color||'#facc15'}" stroke-width="${sw3}" stroke-linecap="round" stroke-linejoin="round" fill="none" opacity="${ms.opacity!=null?ms.opacity:0.35}"/></svg>`;
-    } else {
-      const ex=el.x||0, ey=el.y||0, ew=Math.max(1,el.w||10), eh=Math.max(1,el.h||10);
-      const bgS=(st.background&&st.background!=='transparent')?`background:${st.background};`:'';
-      const radS=st.borderRadius?`border-radius:${st.borderRadius}px;`:'';
-      const bdS=(st.borderWidth&&st.borderWidth>0)?`border:${st.borderWidth}px solid ${st.borderColor||'#888077'};box-sizing:border-box;`:'';
-      posStyle=`left:${ex}px;top:${ey}px;width:${ew}px;height:${eh}px;overflow:hidden;${bgS}${radS}${bdS}`;
-
-      if(el.type==='title'||el.type==='text'){
-        // Render at natural size — text fully visible, no font scaling hacks needed
-        inner=`<div style="font-size:${st.fontSize||14}px;color:${st.color||'#888077'};font-family:${st.fontFamily||'sans-serif'};font-weight:${st.fontWeight||400};text-align:${st.textAlign||'left'};line-height:${st.lineHeight||1.6};padding:6px 12px;box-sizing:border-box;overflow:hidden;height:100%">${el.html||''}</div>`;
-      } else if(el.type==='code'){
-        const txt=(el.html||'').replace(/<br\s*\/?>/gi,'\n').replace(/<[^>]+>/g,'');
-        inner=`<div style="background:#030303;height:100%;padding:10px 12px;font-size:${st.fontSize||12}px;color:#7dd3fc;font-family:'JetBrains Mono',monospace;overflow:hidden;white-space:pre;line-height:1.6;box-sizing:border-box">${esc(txt)}</div>`;
-      } else if(el.type==='badge'){
-        inner=`<div style="background:rgba(232,160,48,.1);border:1px solid rgba(232,160,48,.2);color:#e8a030;border-radius:100px;padding:5px 14px;font-size:12px;font-family:monospace;display:inline-flex;align-items:center">${esc(el.text||'')}</div>`;
-      } else if(el.type==='divider'){
-        inner=`<div style="display:flex;align-items:center;height:100%;padding:0 8px"><hr style="border:none;border-top:2px solid rgba(232,160,48,.3);width:100%;margin:0"></div>`;
-      } else if(el.type==='sql'){
-        // Use buildInnerContent so thumbnail is pixel-identical to editor/viewer
-        const _tmpSql=document.createElement('div');
-        _tmpSql.style.cssText=`width:${ew}px;height:${eh}px;overflow:hidden;box-sizing:border-box;border-radius:${st.borderRadius||0}px`;
-        const _sqlDom=buildInnerContent(el,true,true);
-        _tmpSql.appendChild(_sqlDom);
-        // _renderSqlResult already called inside buildInnerContent if el.sqlResult exists,
-        // but el-sql-result starts display:none — force it visible if result present
-        if(el.sqlResult){
-          const _r=_tmpSql.querySelector('.el-sql-result');
-          if(_r)_r.style.display='block';
-        }
-        inner=_tmpSql.innerHTML;
-      } else if(el.type==='image'&&el.src){
-        inner=`<img src="${el.src}" style="width:100%;height:100%;object-fit:contain">`;
-      } else if(el.type==='sym-arrow'){
-        const b2=arrBounds(el);
-        posStyle=`left:${b2.lx}px;top:${b2.ly}px;width:${b2.w}px;height:${Math.max(2,b2.h)}px;overflow:visible`;
-        // Build via DOM for correct geometry-based arrowheads (no url(#id) needed)
-        const _svgEl=_buildArrowSVGEl(el,b2);
-        inner=_svgEl.outerHTML;
-      } else if(el.type&&el.type.startsWith('sym-')&&el.type!=='sym-arrow'){
-        const symS2=el.symStyle||{};
-        const opStyle=symS2.opacity!=null&&symS2.opacity<1?`opacity:${symS2.opacity};`:'';
-        const svg2=symShapeSVG(el.type,ew,eh,symS2.stroke,symS2.fill,symS2.strokeWidth||2,symS2.dashed);
-        const tc2=el.style?.color||'#e4ddd0';const fs2=el.style?.fontSize||13;
-        inner=`<svg viewBox="0 0 ${ew} ${eh}" width="${ew}" height="${eh}" style="position:absolute;inset:0;overflow:visible;${opStyle}">${svg2}</svg>`
-             +(el.text?`<div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:${fs2}px;color:${tc2};text-align:center;padding:4px;overflow:hidden">${esc(el.text)}</div>`:'');
-      } else if(el.type&&el.type.startsWith('er-')){
-        const erS=el.erStyle||{};
-        const svg=erShapeSVG(el.type,ew,eh,erS.stroke,erS.fill,erS.strokeWidth||2,erS.dashed);
-        const tc = el.type==='er-cardinality' ? '#22d3ee'
-                 : el.type==='er-optionality'  ? '#f87171'
-                 : (el.style?.color||'#e4ddd0');
-        const ff=el.style?.fontFamily||"'DM Sans',sans-serif";
-        const fw=el.style?.fontWeight||600;
-        const fs=el.style?.fontSize||13;
-        const tdec=el.type==='er-key-attribute'?'underline':'none';
-        inner=`<svg viewBox="0 0 ${ew} ${eh}" width="${ew}" height="${eh}" style="position:absolute;inset:0;overflow:visible">${svg}</svg>`
-             +`<div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:${fs}px;color:${tc};font-family:${ff};font-weight:${fw};text-align:center;text-decoration:${tdec};padding:4px;overflow:hidden">${esc(el.text||'')}</div>`;
-      } else if(el.type){
-        // Generic fallback: use buildInnerContent so future element types render automatically
-        const _tmp=document.createElement('div');
-        _tmp.style.cssText=`width:${ew}px;height:${eh}px;overflow:hidden;box-sizing:border-box`;
-        _tmp.appendChild(buildInnerContent(el,true));
-        inner=_tmp.innerHTML;
-      }
-    }
-    return `<div style="position:absolute;${posStyle}">${inner}</div>`;
-  }).join('');
-
-  // Whiteboard slides: auf den Inhaltsrahmen zuschneiden, mittig, mit begrenzter Höhe
-  if(isWB(slide)){
-    const bb=wbBounds(slide), th=wbThumbH(slide,tw), wsc=Math.min(tw/bb.w,th/bb.h);
-    const ox=(tw-bb.w*wsc)/2-bb.x*wsc, oy=(th-bb.h*wsc)/2-bb.y*wsc;
-    return `<div style="width:${tw}px;height:${th}px;overflow:hidden;border-radius:4px;position:relative;flex-shrink:0;background:${bg}">
-      <div style="position:absolute;left:${ox.toFixed(1)}px;top:${oy.toFixed(1)}px;width:${sz.w}px;height:${sz.h}px;transform:scale(${wsc.toFixed(6)});transform-origin:0 0;pointer-events:none">
-        ${items}
-      </div>
-    </div>`;
+/* ════════ VORSCHAU (Eintragsliste + Folienleiste) ════════
+   Dieselbe Pipeline wie die Leseansicht (buildSlideEl): echtes DOM statt HTML-String. Strings verlieren Feldwerte
+   (Programmtext, Startwerte, Regex-Tests …) und erben Schrift-/Zeilenhöhen der Umgebung – daher die alten Darstellungsfehler.
+   Die Vorschau skaliert das DOM per transform und ist rein lesend: pointer-events:none + inert; ein Klick landet beim
+   umgebenden Element (Leseansicht bzw. Editor). */
+const _thumbHosts=new Set();
+const _thumbRO=typeof ResizeObserver!=='undefined'?new ResizeObserver(es=>es.forEach(en=>_thumbFit(en.target,en.contentRect.width))):null;
+const _thumbIO=typeof IntersectionObserver!=='undefined'?new IntersectionObserver(es=>es.forEach(en=>{
+  if(en.isIntersecting){_thumbIO.unobserve(en.target); _thumbBuild(en.target);}
+}),{rootMargin:'800px 0px'}):null;
+/* Fenster: normale Folien exakt im Seitenverhältnis; Whiteboards begrenzt (0,4–0,75), Inhaltsausschnitt mittig */
+function _thumbRatio(sl){const v=slView(sl); return isWB(sl)?Math.max(.4,Math.min(.75,v.h/v.w)):v.h/v.w;}
+function _thumbFit(host,hw){
+  if(hw)host._hw=hw; hw=host._hw;
+  const wrap=host._wrap; if(!wrap||!hw)return;
+  const v=host._v, hh=hw*host._r, k=Math.min(hw/v.w,hh/v.h);
+  wrap.style.transform='translate('+((hw-v.w*k)/2).toFixed(2)+'px,'+((hh-v.h*k)/2).toFixed(2)+'px) scale('+k.toFixed(6)+')';
+  wrap.style.visibility='';
+}
+function _thumbBuild(host){
+  if(host._wrap)return;
+  try{
+    const wrap=buildSlideEl(host._sl,true);
+    wrap.style.visibility='hidden';                    /* erst zeigen, wenn skaliert (kein Aufblitzen in Originalgröße) */
+    host.appendChild(wrap); host._wrap=wrap;
+    if(!host._hw&&host.isConnected)host._hw=host.clientWidth;
+    _thumbFit(host);
+  }catch(err){console.warn('Vorschau konnte nicht gebaut werden:',err);}
+}
+/* tw gesetzt → feste Breite, sofort gebaut (Folienleiste); sonst volle Breite, gebaut sobald sichtbar (Eintragsliste) */
+function mkThumb(slide,tw){
+  const host=document.createElement('div'), r=_thumbRatio(slide);
+  host.className='thumb-host'; host.setAttribute('aria-hidden','true'); host.setAttribute('inert','');
+  host.style.background=slide.slideBg||'#0c0c0c';
+  host.style.aspectRatio='1 / '+r.toFixed(5);
+  host._sl=slide; host._v=slView(slide); host._r=r;
+  if(tw){
+    host.style.width=tw+'px'; host._hw=tw; _thumbBuild(host);
+  }else{
+    _thumbHosts.add(host);
+    if(_thumbRO)_thumbRO.observe(host);
+    if(_thumbIO)_thumbIO.observe(host); else _thumbBuild(host);
   }
-  // Use zoom (not transform:scale) so the inner div's layout size matches its visual size → no clipping
-  return `<div style="width:${tw}px;height:${ph}px;overflow:hidden;border-radius:4px;position:relative;flex-shrink:0;background:${bg}">
-    <div style="position:absolute;top:0;left:0;width:${sz.w}px;height:${sz.h}px;zoom:${sc.toFixed(6)};pointer-events:none">
-      ${items}
-    </div>
-  </div>`;
+  return host;
+}
+function _thumbSweep(){      /* Hosts verworfener Listen abmelden (sonst halten die Observer sie fest) */
+  _thumbHosts.forEach(h=>{
+    if(h.isConnected)return;
+    _thumbHosts.delete(h); if(_thumbRO)_thumbRO.unobserve(h); if(_thumbIO)_thumbIO.unobserve(h);
+  });
+}
+/* Platzhalter .ec-slide-preview[data-th="id:index"] durch echte Vorschauen ersetzen – nach dem innerHTML der Liste aufrufen */
+function mountThumbs(root){
+  _thumbSweep();
+  const all=load(), hosts=[];
+  root.querySelectorAll('.ec-slide-preview[data-th]').forEach(box=>{
+    const [id,si]=box.dataset.th.split(':'), e=all.find(x=>String(x.id)===id), sl=e&&(e.slides||[])[+si];
+    box.removeAttribute('data-th'); if(!sl)return;
+    const h=mkThumb(sl); box.appendChild(h); hosts.push(h);
+  });
+  /* Sichtbarer Bereich sofort bauen (kein Aufblitzen leerer Flächen beim Neuzeichnen, z. B. beim Tippen in der Suche);
+     der Rest folgt per IntersectionObserver. Erst alle Maße lesen, dann bauen – vermeidet Layout-Thrashing. */
+  const lim=innerHeight+800, near=[];
+  hosts.forEach(h=>{const r=h.getBoundingClientRect(); if(r.width&&r.bottom>-800&&r.top<lim){h._hw=r.width; near.push(h);}});
+  near.forEach(h=>{if(_thumbIO)_thumbIO.unobserve(h); _thumbBuild(h);});
 }
 
 /* ════════ RENDER ENTRY CARDS ════════ */
@@ -988,17 +942,12 @@ function entryCard(e, idx, isAdmin){
     :`<span class="tag">${esc(t)}</span>`).join('')
     +(isAdmin?`<span class="tag tag-add" title="Tag hinzufügen" onclick="event.stopPropagation();addETag(${e.id},this)">+ Tag</span>`:'');
   const slides=e.slides||[];
-  // tw = width of the rendered preview
-  // Lehrer: .ec padding left+right = 24+24px → 928-48 = 880px
-  // Admin:  .ec.adm-pad padding left=42px, right=24px → 928-66 = 862px
-  const tw = 880;
+  // Vorschau: Platzhalter – mountThumbs() hängt nach dem Einfügen die echte, auf die Kartenbreite skalierte Folie ein
   const slideItems=slides.map((sl,si)=>{
     const lbl=slTitle(sl)?`<div class="ec-slide-lbl">${esc(slTitle(sl))}</div>`:'';
     return `<div class="ec-slide-item" onclick="${isAdmin?`openEditor(${e.id},${si})`:`openViewer(${e.id},${si})`}">
       ${lbl}
-      <div class="ec-slide-preview" style="line-height:0">
-        ${mkThumb(sl,tw)}
-      </div>
+      <div class="ec-slide-preview" data-th="${e.id}:${si}"></div>
       <div class="ec-slide-hint">${isAdmin?'✎ Bearbeiten':'⤢ Vollbild'}</div>
     </div>`;
   }).join('');
@@ -1029,7 +978,7 @@ function renderL(){
   if(!list.length){c.innerHTML=`<div class="empty"><div class="empty-i">📓</div><h3>${s?'Keine Treffer':'Noch keine Einträge für '+q}</h3><p>${s?'Anderen Begriff versuchen.':'Noch nichts dokumentiert.'}</p></div>`;return;}
   let html='', lm='';
   list.forEach((e,i)=>{const m=fmtM(e.datum);if(m!==lm){html+=`<div class="month-sep">${m}</div>`;lm=m;}html+=entryCard(e,i,false);});
-  c.innerHTML=html;
+  c.innerHTML=html; mountThumbs(c);
   const _bL=document.getElementById('sortBtnL');
   if(_bL&&_bL.value!==_sortL)_bL.value=_sortL;
 }
@@ -1039,7 +988,7 @@ function renderA(){
   if(!list.length){c.innerHTML=`<div class="empty"><div class="empty-i">📓</div><h3>${s?'Keine Treffer':'Keine Einträge für '+q}</h3><p>${s?'Anderen Begriff.':'Neuer Eintrag erstellen.'}</p></div>`;return;}
   let html='', lm='';
   list.forEach((e,i)=>{const m=fmtM(e.datum);if(m!==lm){html+=`<div class="month-sep">${m}</div>`;lm=m;}html+=entryCard(e,i,true);});
-  c.innerHTML=html;
+  c.innerHTML=html; mountThumbs(c);
   const _bA=document.getElementById('sortBtnA');
   if(_bA&&_bA.value!==_sortA)_bA.value=_sortA;
 }
@@ -1157,50 +1106,57 @@ document.addEventListener('DOMContentLoaded',()=>{
     if(!allowedCtrl&&!nav){ev.preventDefault();}
   });
 });
+/* ════════ EINE Render-Pipeline für Folien ════════
+   Leseansicht UND alle Vorschauen (Eintragsliste, Folienleiste) bauen eine Folie hierüber – so können sie nicht auseinanderlaufen.
+   canRun: SQL-Leiste zeigen (Lehrer-Ansicht). Rückgabe: .viewer-slide-el im natürlichen Maß (slView). */
+function buildSlideEl(sl,canRun){
+  const sz=slView(sl);
+  const wrap=document.createElement('div'); wrap.className='viewer-slide-el';
+  wrap.style.cssText=`width:${sz.w}px;height:${sz.h}px;background:${sl.slideBg||'#0c0c0c'}`;
+  const stage=document.createElement('div'); stage.style.cssText=`position:absolute;left:${-sz.x}px;top:${-sz.y}px`; wrap.appendChild(stage);
+  (sl.elements||[]).slice().sort((a,b)=>(a.z||0)-(b.z||0)).forEach(el=>{
+    if(el.type==='er-line'){
+      const b=lnBounds(el), erS=el.erStyle||{};
+      const d=document.createElement('div');
+      d.style.cssText=`position:absolute;left:${b.lx}px;top:${b.ly}px;width:${b.w}px;height:${b.h}px;z-index:${el.z||1};pointer-events:none;overflow:visible`;
+      const sx1=el.x1-b.lx,sy1=el.y1-b.ly,sx2=el.x2-b.lx,sy2=el.y2-b.ly;
+      const sw=erS.strokeWidth||2; const da=erS.dashed?`stroke-dasharray="${sw*2.5} ${sw*2}"`:'';
+      d.innerHTML=`<svg style="position:absolute;inset:0;width:100%;height:100%;overflow:visible"><line x1="${sx1}" y1="${sy1}" x2="${sx2}" y2="${sy2}" stroke="${erS.stroke||'#888077'}" stroke-width="${sw}" stroke-linecap="round" ${da}/></svg>`;
+      stage.appendChild(d);
+    } else if(el.type==='sym-arrow'){
+      const b=arrBounds(el);
+      const d=document.createElement('div');
+      d.style.cssText=`position:absolute;left:${b.lx}px;top:${b.ly}px;width:${b.w}px;height:${b.h}px;z-index:${el.z||1};pointer-events:none;overflow:visible`;
+      d.appendChild(_buildArrowSVGEl(el,b));
+      stage.appendChild(d);
+    } else if(el.type==='marker'){
+      const ms=el.markerStyle||{};
+      const sw2=ms.strokeWidth||14, pad2=Math.ceil(sw2/2)+2;
+      const d=document.createElement('div');
+      d.style.cssText=`position:absolute;left:${(el.x||0)-pad2}px;top:${(el.y||0)-pad2}px;width:${(el.w||4)+pad2*2}px;height:${(el.h||4)+pad2*2}px;z-index:${el.z||1};pointer-events:none;overflow:visible`;
+      const pts=(el.points||[]).map(p=>`${p.x},${p.y}`).join(' ');
+      d.innerHTML=`<svg style="position:absolute;inset:0;width:100%;height:100%;overflow:visible" viewBox="${-pad2} ${-pad2} ${(el.w||4)+pad2*2} ${(el.h||4)+pad2*2}"><polyline points="${pts}" stroke="${ms.color||'#facc15'}" stroke-width="${sw2}" stroke-linecap="round" stroke-linejoin="round" fill="none" opacity="${ms.opacity!=null?ms.opacity:0.35}"/></svg>`;
+      stage.appendChild(d);
+    } else {
+      const st=el.style||{};
+      const d=document.createElement('div'); d.className='ro-el';
+      d.style.cssText=`left:${el.x||0}px;top:${el.y||0}px;width:${el.w||10}px;height:${Math.max(1,el.h||10)}px;z-index:${el.z||1};border-radius:${st.borderRadius||0}px`;
+      if(st.background&&st.background!=='transparent')d.style.background=st.background;
+      if(st.borderWidth&&st.borderWidth>0)d.style.border=`${st.borderWidth}px solid ${st.borderColor||'#888077'}`;
+      const inn2=document.createElement('div'); inn2.className='ro-in';
+      inn2.appendChild(buildInnerContent(el,true,canRun)); d.appendChild(inn2); stage.appendChild(d);
+    }
+  });
+  return wrap;
+}
 function renderViewer(){
   const inn=document.getElementById('viewerInner'); inn.innerHTML='';
   inn.style.transform=''; inn.style.transformOrigin='top center';
   (vEntry.slides||[]).forEach((sl,si)=>{
-    const sz=slView(sl);
     const block=document.createElement('div'); block.className='viewer-slide-block';
     const lbl=document.createElement('div'); lbl.className='viewer-slide-lbl';
     {const tt=slTitle(sl); lbl.textContent=tt; if(!tt)lbl.style.display='none';}
-    const wrap=document.createElement('div'); wrap.className='viewer-slide-el';
-    wrap.style.cssText=`width:${sz.w}px;height:${sz.h}px;background:${sl.slideBg||'#0c0c0c'}`;
-    const stage=document.createElement('div'); stage.style.cssText=`position:absolute;left:${-sz.x}px;top:${-sz.y}px`; wrap.appendChild(stage);
-    (sl.elements||[]).slice().sort((a,b)=>(a.z||0)-(b.z||0)).forEach(el=>{
-      if(el.type==='er-line'){
-        const b=lnBounds(el), erS=el.erStyle||{};
-        const d=document.createElement('div');
-        d.style.cssText=`position:absolute;left:${b.lx}px;top:${b.ly}px;width:${b.w}px;height:${b.h}px;z-index:${el.z||1};pointer-events:none;overflow:visible`;
-        const sx1=el.x1-b.lx,sy1=el.y1-b.ly,sx2=el.x2-b.lx,sy2=el.y2-b.ly;
-        const sw=erS.strokeWidth||2; const da=erS.dashed?`stroke-dasharray="${sw*2.5} ${sw*2}"`:'';
-        d.innerHTML=`<svg style="position:absolute;inset:0;width:100%;height:100%;overflow:visible"><line x1="${sx1}" y1="${sy1}" x2="${sx2}" y2="${sy2}" stroke="${erS.stroke||'#888077'}" stroke-width="${sw}" stroke-linecap="round" ${da}/></svg>`;
-        stage.appendChild(d);
-      } else if(el.type==='sym-arrow'){
-        const b=arrBounds(el);
-        const d=document.createElement('div');
-        d.style.cssText=`position:absolute;left:${b.lx}px;top:${b.ly}px;width:${b.w}px;height:${b.h}px;z-index:${el.z||1};pointer-events:none;overflow:visible`;
-        d.appendChild(_buildArrowSVGEl(el,b));
-        stage.appendChild(d);
-      } else if(el.type==='marker'){
-        const ms=el.markerStyle||{};
-        const sw2=ms.strokeWidth||14, pad2=Math.ceil(sw2/2)+2;
-        const d=document.createElement('div');
-        d.style.cssText=`position:absolute;left:${(el.x||0)-pad2}px;top:${(el.y||0)-pad2}px;width:${(el.w||4)+pad2*2}px;height:${(el.h||4)+pad2*2}px;z-index:${el.z||1};pointer-events:none;overflow:visible`;
-        const pts=(el.points||[]).map(p=>`${p.x},${p.y}`).join(' ');
-        d.innerHTML=`<svg style="position:absolute;inset:0;width:100%;height:100%;overflow:visible" viewBox="${-pad2} ${-pad2} ${(el.w||4)+pad2*2} ${(el.h||4)+pad2*2}"><polyline points="${pts}" stroke="${ms.color||'#facc15'}" stroke-width="${sw2}" stroke-linecap="round" stroke-linejoin="round" fill="none" opacity="${ms.opacity!=null?ms.opacity:0.35}"/></svg>`;
-        stage.appendChild(d);
-      } else {
-        const st=el.style||{};
-        const d=document.createElement('div'); d.className='ro-el';
-        d.style.cssText=`left:${el.x||0}px;top:${el.y||0}px;width:${el.w||10}px;height:${Math.max(1,el.h||10)}px;z-index:${el.z||1};border-radius:${st.borderRadius||0}px`;
-        if(st.background&&st.background!=='transparent')d.style.background=st.background;
-        if(st.borderWidth&&st.borderWidth>0)d.style.border=`${st.borderWidth}px solid ${st.borderColor||'#888077'}`;
-        const inn2=document.createElement('div'); inn2.className='ro-in';
-        inn2.appendChild(buildInnerContent(el,true,curRole==='lehrer')); d.appendChild(inn2); stage.appendChild(d);
-      }
-    });
+    const wrap=buildSlideEl(sl,curRole==='lehrer');
     block.appendChild(lbl); block.appendChild(wrap);
     inn.appendChild(block);
   });
@@ -1258,7 +1214,7 @@ function openEditor(id, slideIdx=0){
   };
   document.getElementById('editorView').classList.add('open');
   edTab('ins'); cvScale=1; cvOffX=0; cvOffY=0;
-  populateSlideMeta(); renderSlide(); renderSpanel(); setTimeout(fitSlide,50);
+  populateSlideMeta(); renderSlide(); renderSpanel(); fitSlide(); setTimeout(fitSlide,50);
   SC.init(); // start loading dictionaries in background
   setTimeout(updateWordCount, 200);
   // Set initial language button state
@@ -1315,7 +1271,7 @@ function populateSlideMeta(){
   document.getElementById('sldSlideTitle').value=slTitle(sl);
   document.getElementById('sldFmt').value=sl.format||'16:9';
   {const f=document.getElementById('sldFmt'); if(f)f.title=FMT[sl.format||'16:9']?.label||'';}
-  _bgFill();
+  _sldFmtInfo(); _bgFill();
 }
 
 /* ── Slide management ── */
@@ -1361,8 +1317,9 @@ function renderSpanel(){
     const tw=144, sz=slSz(sl), th=isWB(sl)?wbThumbH(sl,tw):Math.round(tw*sz.h/sz.w); lastTh=th;
     const item=document.createElement('div'); item.className='sp-item'+(i===edSlideIdx?' active':'');
     item.draggable=true; item.dataset.idx=i;
-    item.innerHTML=`<div class="sp-item-thumb" style="height:${th}px">${mkThumb(sl,tw)}<span class="sp-num">${i+1}</span></div>
+    item.innerHTML=`<div class="sp-item-thumb" style="height:${th}px"><span class="sp-num">${i+1}</span></div>
       <div class="sp-item-foot"><input class="sp-item-title-inp" value="${esc(slTitle(sl))}" placeholder="Folie ${i+1}" title="Doppelklick zum Umbenennen" data-idx="${i}"><button class="sp-item-del" onclick="event.stopPropagation();deleteSlide(${i})">×</button></div>`;
+    {const tb=item.querySelector('.sp-item-thumb'); tb.insertBefore(mkThumb(sl,tw),tb.firstChild);}
     item.addEventListener('click',ev=>{if(ev.target.tagName!=='INPUT'&&ev.target.tagName!=='BUTTON')switchSlide(i);});
     const inp=item.querySelector('.sp-item-title-inp');
     inp.addEventListener('click',ev=>ev.stopPropagation());
@@ -1419,7 +1376,7 @@ function applySlideSize(){
   const sz=slSz(sl), slide=document.getElementById('slideCV');
   const fmt=FMT[sl.format||'16:9']||FMT['16:9'];
   slide.style.width=sz.w+'px'; slide.style.height=sz.h+'px';
-  slide.style.background=sl.slideBg||'#0c0c0c'; _bgFill();
+  slide.style.background=sl.slideBg||'#0c0c0c'; _sldFmtInfo(); _bgFill();
   // Whiteboard: show grid pattern and remove hard clip
   if(fmt.wb){
     slide.classList.add('wb-mode');
@@ -1429,44 +1386,47 @@ function applySlideSize(){
     delete slide.dataset.wbMode;
   }
 }
+/* Standard-Zoom = Folie füllt die freie Arbeitsfläche. Früher war bei 100 % Schluss, dadurch wirkte die Folie auf großen Bildschirmen winzig. */
+const FIT_MAX=3;
 function fitSlide(){
   const sl=curSlide(); if(!sl)return;
   const sz=slSz(sl), c=_cvCenter();
   if(isWB(sl)){
     // Whiteboard: Inhalt (oder Startbereich) auf die Bildschirmmitte legen
     const bb=wbBounds(sl), vw=Math.max(bb.w,960), vh=Math.max(bb.h,540);
-    cvScale=Math.min(2*c.hw/vw,2*c.hh/vh,1);
+    cvScale=Math.min(2*c.hw/vw,2*c.hh/vh,FIT_MAX);
     cvOffX=c.x-(bb.x+bb.w/2)*cvScale;
     cvOffY=c.y-(bb.y+bb.h/2)*cvScale;
   } else {
-    cvScale=Math.min(2*c.hw/sz.w,2*c.hh/sz.h,1);
+    cvScale=Math.min(2*c.hw/sz.w,2*c.hh/sz.h,FIT_MAX);
     cvOffX=c.x-sz.w*cvScale/2; cvOffY=c.y-sz.h*cvScale/2;
   }
   applyTf();
 }
-/* Bildschirmmitte relativ zur Arbeitsfläche + nutzbare Halbbreite/-höhe um diese Mitte.
-   Gerechnet wird, als wären alle Leisten ausgeklappt – so ändert Ein-/Ausklappen weder Position noch Größe. */
+/* Mitte der freien Arbeitsfläche (relativ zur Arbeitsfläche) + nutzbare Halbbreite/-höhe um diese Mitte.
+   Gerechnet wird, als wären alle Leisten ausgeklappt – so ändert Ein-/Ausklappen weder Position noch Größe.
+   Früher wurde um die FENSTERmitte gerechnet; bei Leisten oben/unten (verschieden hoch) blieb dadurch ein großer Teil
+   der Arbeitsfläche ungenutzt und die Folie startete winzig. Jetzt gilt: gesamte freie Fläche abzüglich Rand und Statusleiste. */
 const _DK_FULL={ed:{w:252,h:236},sp:{w:158,h:178}};
+const _CV_PAD=24, _CV_SB=26;   /* Rand um die Folie · Höhe der Statusleiste (liegt am unteren Rand der Arbeitsfläche) */
 function _cvCenter(){
   const a=document.getElementById('edCvArea').getBoundingClientRect();
   let L=a.left,R=a.right,T=a.top,B=a.bottom;
   [['ed','edSb'],['sp','spPanel']].forEach(([k,id])=>{
     const p=document.getElementById(id);
     if(!p||!p.classList.contains('collapsed')||getComputedStyle(p).display==='none')return;
-    const s=_dock[k], v=(s==='top'||s==='bottom'), d=(v?_DK_FULL[k].h:_DK_FULL[k].w)-18;
+    const s=_dock[k], v=(s==='top'||s==='bottom'), d=(v?_DK_FULL[k].h:_DK_FULL[k].w);   /* die 18-px-Streifen sind immer sichtbar → eingeklappt fehlt genau die Leistengröße */
     if(s==='left')L+=d; else if(s==='right')R-=d; else if(s==='top')T+=d; else B-=d;
   });
-  const cx=window.innerWidth/2, cy=window.innerHeight/2;
-  let hw=Math.min(cx-L,R-cx)-40, hh=Math.min(cy-T-56,B-cy-40);
+  const hw=(R-L)/2-_CV_PAD, hh=(B-T-_CV_SB)/2-_CV_PAD;
   if(hw<60||hh<60){ // sehr kleines Fenster: Mitte der Arbeitsfläche nehmen
     return {x:a.width/2,y:a.height/2,hw:Math.max(30,(a.width-80)/2),hh:Math.max(30,(a.height-80)/2)};
   }
-  return {x:cx-a.left,y:cy-a.top,hw,hh};
+  return {x:(L+R)/2-a.left,y:(T+B-_CV_SB)/2-a.top,hw,hh};
 }
 function applyTf(){
   document.getElementById('slideCV').style.transform=`translate(${cvOffX}px,${cvOffY}px) scale(${cvScale})`;
   document.getElementById('edZoomPct').textContent=Math.round(cvScale*100)+'%';
-  _posSlHdr();
   // Re-render spell underlay positions after zoom/pan since they use getBoundingClientRect
   clearTimeout(applyTf._scTimer);
   applyTf._scTimer=setTimeout(()=>{
@@ -8811,7 +8771,7 @@ function edTab(name){
   if(name==='ins')name=_insCat;
   const cat=_INS_CATS.includes(name), main=cat?'ins':name;
   if(cat)_insCat=name;
-  ['ins','fmt'].forEach(n=>{document.getElementById('ep-'+n).style.display=n===main?'block':'none';});
+  ['ins','fmt','sld'].forEach(n=>{const p=document.getElementById('ep-'+n); if(p){p.hidden=n!==main; p.style.display='';}});
   document.querySelectorAll('#edTabRow .ed-tab').forEach(b=>b.classList.toggle('act',b.dataset.t===name));
   if(cat)document.querySelectorAll('#ep-ins>[data-cat]').forEach(e=>e.classList.toggle('cat-off',e.dataset.cat!==name));
 }
@@ -8883,16 +8843,19 @@ function addETag(id,el){
 }
 
 
-/* ════════ Folientitel (optional) + Folien-Kopf über der Folie ════════ */
+/* ════════ Folientitel (optional) ════════ */
 /* Leer oder automatisch erzeugte „Folie N“ gelten als „kein Titel“ */
 function slTitle(sl){const t=((sl&&sl.title)||'').trim(); return /^Folie \d+$/i.test(t)?'':t;}
-/* Kopf (Titel, Format, Hintergrund) klebt direkt über der Folie und folgt Zoom und Verschieben */
-function _posSlHdr(){
-  const h=document.getElementById('slHdr'), a=document.getElementById('edCvArea'), sl=curSlide(); if(!h||!a||!sl)return;
-  const wb=isWB(sl), aw=a.clientWidth, sw=wb?aw:slSz(sl).w*cvScale;
-  const w=Math.min(aw-24,Math.max(940,sw)), cx=wb?aw/2:cvOffX+sw/2;
-  const left=Math.max(12,Math.min(aw-w-12,cx-w/2)), top=wb?8:Math.max(8,cvOffY-h.offsetHeight-10);
-  h.style.width=w+'px'; h.style.transform='translate('+left+'px,'+top+'px)';
+/* Titel aus dem Folie-Tab live in die Folienleiste spiegeln (ohne alle Vorschauen neu zu bauen) */
+function _spTitleSync(){
+  const inp=document.querySelector('#spList .sp-item.active .sp-item-title-inp'), sl=curSlide();
+  if(inp&&sl&&document.activeElement!==inp)inp.value=slTitle(sl);
+}
+/* Foliengröße in Pixeln unter der Formatauswahl */
+function _sldFmtInfo(){
+  const el=document.getElementById('sldFmtInfo'), sl=curSlide(); if(!el||!sl)return;
+  const f=FMT[sl.format||'16:9']||FMT['16:9'];
+  el.textContent=f.wb?'Unbegrenzte Arbeitsfläche – in Leseansicht und Vorschau zählt der Inhaltsbereich.':f.w+' × '+f.h+' px';
 }
 
 
@@ -8904,12 +8867,12 @@ function slView(sl){
 function wbThumbH(sl,tw){const v=slView(sl); return Math.max(Math.round(tw*.4),Math.min(Math.round(tw*.75),Math.round(tw*v.h/v.w)));}
 
 
-/* Felder im Folien-Kopf (und das Titelfeld in der Leiste) verlieren den Fokus beim Klick daneben.
+/* Felder im Folie-Tab (und das Titelfeld in der Leiste) verlieren den Fokus beim Klick daneben.
    Die Arbeitsfläche ruft bei mousedown preventDefault() auf (Lasso/Verschieben) – das hat den Fokuswechsel bisher verhindert. */
 document.addEventListener('mousedown',e=>{
   const a=document.activeElement; if(!a||a===document.body)return;
-  const hdr=a.closest&&a.closest('#slHdr');
-  const away=hdr?!hdr.contains(e.target):(a.classList.contains('ed-bar-title-inp')&&e.target!==a);
+  const pnl=a.closest&&a.closest('#ep-sld');
+  const away=pnl?!pnl.contains(e.target):(a.classList.contains('ed-bar-title-inp')&&e.target!==a);
   if(away)a.blur();
 },true);
 
@@ -8934,7 +8897,7 @@ function updateWordCount(){
   b.parentNode.title=ew.toLocaleString('de-DE')+(ew===1?' Wort':' Wörter')+' im gesamten Forschungstagebucheintrag (alle Folien)';
 }
 
-/* ════════ HINTERGRUND FORMATIEREN (Folien-Kopf, rechts) ════════ */
+/* ════════ FOLIE-Tab: Hintergrund formatieren (inline in der Seitenleiste) ════════ */
 const _BG_PRE=[{n:'Standard',a:'#0c0c0c'},{n:'Schwarz',a:'#000000'},{n:'Graphit',a:'#1c1e24'},{n:'Papier',a:'#f4efe4'},{n:'Weiß',a:'#ffffff'},
   {n:'Nachtblau',a:'#0f1b33',b:'#1d2f55',g:160},{n:'Waldgrün',a:'#0e1a14',b:'#1f3a2b',g:160},{n:'Abendrot',a:'#1a0f14',b:'#3d1c2c',g:150}];
 /* strukturierte Daten; alte Folien (nur slideBg) werden abgeleitet */
@@ -8954,48 +8917,27 @@ function _bgEdit(mut,force){
   sl.bg=b; sl.slideBg=_bgCss(b); applySlideSize(); _spRefresh();
 }
 function _bgFill(){
-  const sl=curSlide(); if(!sl)return;
-  const b=_bgOf(sl), sw=document.getElementById('slBgSw'), p=document.getElementById('bgPop');
-  if(sw)sw.style.background=sl.slideBg||_bgCss(b);
-  if(!p)return;
-  p.classList.toggle('is-grad',b.mode==='gradient');
-  p.querySelectorAll('.bg-seg button').forEach(x=>x.classList.toggle('on',x.dataset.m===b.mode));
+  const sl=curSlide(), root=document.getElementById('sldBg'); if(!sl||!root)return;
+  const b=_bgOf(sl);
+  root.classList.toggle('is-grad',b.mode==='gradient');
+  root.querySelectorAll('.bg-seg button').forEach(x=>x.classList.toggle('on',x.dataset.m===b.mode));
   [['bgC1',b.c1],['bgC2',b.c2],['bgAng',b.angle]].forEach(([id,v])=>{const i=document.getElementById(id); if(i&&document.activeElement!==i)i.value=v;});
-  document.getElementById('bgAngV').textContent=b.angle+'°';
+  const av=document.getElementById('bgAngV'); if(av)av.textContent=b.angle+'°';
 }
-function _bgPopBuild(){
-  const p=document.createElement('div'); p.id='bgPop'; p.className='marker-style-pop bg-pop'; p.style.display='none';
-  p.innerHTML='<div class="msp-hd"><span style="flex:1">Hintergrund formatieren</span></div>'
-    +'<div class="bg-seg"><button type="button" data-m="solid">Einfarbig</button><button type="button" data-m="gradient">Verlauf</button></div>'
-    +'<div class="bg-presets"></div>'
-    +'<div class="msp-row"><span class="msp-lbl">Farbe</span><input type="color" class="msp-color" id="bgC1"></div>'
-    +'<div class="msp-row bg-g"><span class="msp-lbl">Farbe 2</span><input type="color" class="msp-color" id="bgC2"></div>'
-    +'<div class="msp-row bg-g"><span class="msp-lbl">Winkel</span><input type="range" class="msp-range" id="bgAng" min="0" max="360" step="5"><span class="msp-val" id="bgAngV"></span></div>'
-    +'<div class="bg-foot"><button type="button" class="bg-reset">Zurücksetzen</button></div>';
-  document.body.appendChild(p);
-  const pre=p.querySelector('.bg-presets');
+/* einmalig: Farbfelder (Presets) erzeugen und Bedienelemente verdrahten */
+function _bgInit(){
+  const root=document.getElementById('sldBg'); if(!root||root.dataset.ready)return; root.dataset.ready='1';
+  const pre=document.getElementById('bgPresets');
   _BG_PRE.forEach(x=>{
-    const b=document.createElement('button'); b.type='button'; b.title=x.n;
+    const b=document.createElement('button'); b.type='button'; b.title=x.n; b.setAttribute('aria-label',x.n);
     b.style.background=x.b?'linear-gradient('+(x.g||160)+'deg,'+x.a+','+x.b+')':x.a;
     b.onclick=()=>_bgEdit(o=>Object.assign(o,{mode:x.b?'gradient':'solid',c1:x.a,c2:x.b||o.c2,angle:x.g||o.angle}),true);
     pre.appendChild(b);
   });
-  p.querySelectorAll('.bg-seg button').forEach(b=>b.onclick=()=>_bgEdit(o=>{o.mode=b.dataset.m;},true));
-  p.querySelector('#bgC1').oninput=e=>_bgEdit(o=>{o.c1=e.target.value;});
-  p.querySelector('#bgC2').oninput=e=>_bgEdit(o=>{o.c2=e.target.value;});
-  p.querySelector('#bgAng').oninput=e=>_bgEdit(o=>{o.angle=+e.target.value;});
-  p.querySelector('.bg-reset').onclick=()=>_bgEdit(o=>Object.assign(o,{mode:'solid',c1:'#0c0c0c'}),true);
-  return p;
+  root.querySelectorAll('.bg-seg button').forEach(b=>b.onclick=()=>_bgEdit(o=>{o.mode=b.dataset.m;},true));
+  document.getElementById('bgC1').oninput=e=>_bgEdit(o=>{o.c1=e.target.value;});
+  document.getElementById('bgC2').oninput=e=>_bgEdit(o=>{o.c2=e.target.value;});
+  document.getElementById('bgAng').oninput=e=>_bgEdit(o=>{o.angle=+e.target.value;});
+  document.getElementById('bgReset').onclick=()=>_bgEdit(o=>Object.assign(o,{mode:'solid',c1:'#0c0c0c'}),true);
 }
-function toggleBgPop(ev){
-  ev.stopPropagation();
-  const p=document.getElementById('bgPop')||_bgPopBuild(), b=document.getElementById('slBgBtn');
-  if(p.style.display==='block'){p.style.display='none'; b.classList.remove('on'); return;}
-  _closeAllStylePops(); _bgFill();
-  const r=b.getBoundingClientRect(); p.style.display='block'; b.classList.add('on');
-  p.style.top=(r.bottom+8)+'px'; p.style.left=Math.max(8,Math.min(innerWidth-p.offsetWidth-8,r.right-p.offsetWidth))+'px';
-}
-document.addEventListener('mousedown',e=>{
-  const p=document.getElementById('bgPop');
-  if(p&&p.style.display==='block'&&!p.contains(e.target)&&!e.target.closest('#slBgBtn')){p.style.display='none'; document.getElementById('slBgBtn').classList.remove('on');}
-},true);
+_bgInit();
