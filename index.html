@@ -512,6 +512,7 @@
         <button class="ed-tab" id="etb-c-formen" data-t="formen" onclick="edTab('formen')">Formen</button>
         <button class="ed-tab" id="etb-c-er" data-t="er" onclick="edTab('er')">ER-Modell</button>
         <button class="ed-tab" id="etb-c-info" data-t="info" onclick="edTab('info')">Informatik</button>
+        <button class="ed-tab" id="etb-sld" data-t="sld" onclick="edTab('sld')">Folie</button>
         <button class="ed-tab" id="etb-fmt" data-t="fmt" onclick="edTab('fmt')">Format</button>
       </div>
 
@@ -585,7 +586,7 @@
       </div>
 
       <!-- FORMAT panel -->
-      <div class="ed-pnl" id="ep-fmt" style="display:none">
+      <div class="ed-pnl" id="ep-fmt" hidden>
         <div class="fmt-empty" id="fmtEmpty"><div style="font-size:28px;margin-bottom:10px;opacity:.25">🖱️</div><p>Element anklicken<br>zum Formatieren</p></div>
         <div id="fmtCtrl" style="display:none">
           <div class="fmt-type-pill" id="fmtTypePill">Element</div>
@@ -820,6 +821,46 @@
         </div>
       </div>
 
+      <!-- FOLIE panel: Titel · Größe · Hintergrund der aktuellen Folie -->
+      <div class="ed-pnl" id="ep-sld" hidden>
+        <div class="sld-sec">
+          <div class="sec-hdr open" onclick="toggleSec(this)"><span>Folientitel</span><span class="sec-chev">▾</span></div>
+          <div class="sec-body">
+            <input type="text" class="fmt-inp" id="sldSlideTitle" placeholder="Folientitel (optional)" spellcheck="false" autocomplete="off" onkeydown="event.stopPropagation();if(event.key==='Enter'||event.key==='Escape')this.blur()" oninput="pushHistoryDebounced('Folientitel geändert');curSlide().title=this.value;_spTitleSync()">
+            <div class="fmt-hint">Erscheint zentriert über der Folie – in der Leseansicht und in der Eintragsliste.</div>
+          </div>
+        </div>
+        <div class="sld-sec">
+          <div class="sec-hdr open" onclick="toggleSec(this)"><span>Foliengröße</span><span class="sec-chev">▾</span></div>
+          <div class="sec-body">
+            <select class="fmt-inp" id="sldFmt" onchange="pushHistory('Folienformat geändert');curSlide().format=this.value;applySlideSize();setTimeout(fitSlide,30);renderSpanel()">
+              <option value="16:9">16:9 – Widescreen (Standard)</option>
+              <option value="4:3">4:3 – Standard</option>
+              <option value="A4-quer">A4 Querformat</option>
+              <option value="A4-hoch">A4 Hochformat</option>
+              <option value="A3-quer">A3 Querformat</option>
+              <option value="A3-hoch">A3 Hochformat</option>
+              <optgroup label="── Whiteboard ──">
+                <option value="wb-h">Whiteboard Horizontal (∞ →)</option>
+                <option value="wb-v">Whiteboard Vertikal (∞ ↕)</option>
+                <option value="wb-inf">Whiteboard Unbegrenzt (∞)</option>
+              </optgroup>
+            </select>
+            <div class="fmt-hint" id="sldFmtInfo"></div>
+          </div>
+        </div>
+        <div class="sld-sec" id="sldBg">
+          <div class="sec-hdr open" onclick="toggleSec(this)"><span>Hintergrund</span><span class="sec-chev">▾</span></div>
+          <div class="sec-body">
+            <div class="bg-seg"><button type="button" data-m="solid">Einfarbig</button><button type="button" data-m="gradient">Verlauf</button></div>
+            <div class="bg-presets" id="bgPresets"></div>
+            <div class="msp-row bg-c1"><span class="msp-lbl">Farbe</span><input type="color" class="msp-color" id="bgC1" aria-label="Hintergrundfarbe"><span style="flex:1"></span><button type="button" class="bg-reset" id="bgReset">Zurücksetzen</button></div>
+            <div class="msp-row bg-g bg-c2"><span class="msp-lbl">Farbe 2</span><input type="color" class="msp-color" id="bgC2" aria-label="Hintergrundfarbe 2"></div>
+            <div class="msp-row bg-g bg-ang"><span class="msp-lbl">Winkel</span><input type="range" class="msp-range" id="bgAng" min="0" max="360" step="5" aria-label="Verlaufswinkel"><span class="msp-val" id="bgAngV"></span></div>
+          </div>
+        </div>
+      </div>
+
       <!-- EINTRAG panel -->
       
     </div><!-- /ed-sb -->
@@ -844,19 +885,6 @@
     <div class="ed-cv-area" id="edCvArea"
          ondragover="evDef(event)" ondrop="onCvDrop(event)"
          onmousedown="onCvDown(event)">
-      <div class="sl-hdr" id="slHdr" onmousedown="event.stopPropagation()" onkeydown="event.stopPropagation()"><div class="sl-hdr-side"><select class="sl-sel" id="sldFmt" onchange="pushHistory('Folienformat geändert');curSlide().format=this.value;applySlideSize();setTimeout(fitSlide,30);renderSpanel()">
-            <option value="16:9">16:9 – Widescreen (Standard)</option>
-            <option value="4:3">4:3 – Standard</option>
-            <option value="A4-quer">A4 Querformat</option>
-            <option value="A4-hoch">A4 Hochformat</option>
-            <option value="A3-quer">A3 Querformat</option>
-            <option value="A3-hoch">A3 Hochformat</option>
-            <optgroup label="── Whiteboard ──">
-              <option value="wb-h">Whiteboard Horizontal (∞ →)</option>
-              <option value="wb-v">Whiteboard Vertikal (∞ ↕)</option>
-              <option value="wb-inf">Whiteboard Unbegrenzt (∞)</option>
-            </optgroup>
-          </select></div><input type="text" class="sl-title" id="sldSlideTitle" placeholder="Folientitel (optional)" spellcheck="false" autocomplete="off" onkeydown="if(event.key==='Enter'||event.key==='Escape')this.blur()" oninput="pushHistoryDebounced('Folientitel geändert');curSlide().title=this.value;renderSpanel()"><div class="sl-hdr-side sl-hdr-right"><button type="button" class="sl-bgbtn" id="slBgBtn" onclick="toggleBgPop(event)" title="Hintergrund formatieren"><span class="sl-bgsw" id="slBgSw"></span>Hintergrund</button></div></div>
       <div class="slide-cv" id="slideCV" onmousedown="onSlideBgDown(event)"></div>
       <!-- Status bar -->
       <div class="ed-status-bar" id="edStatusBar">
