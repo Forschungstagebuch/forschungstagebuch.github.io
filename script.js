@@ -1563,7 +1563,7 @@ function buildElDOM(el){
   return wrap;
 }
 
-function typeLabel(t){return{regmachine:'Registermaschine',title:'Überschrift',text:'Text',code:'Code',sql:'SQL',image:'Bild',divider:'Linie',badge:'Badge',marker:'Markierung','er-entity':'Entität','er-weak-entity':'Schwache Entität','er-relation':'Beziehungstyp','er-weak-relation':'Schw. Beziehungstyp','er-attribute':'Attribut','er-key-attribute':'Schlüsselattr.','er-multi-attribute':'Mehrwertiger Attr.','er-derived-attr':'Abgel. Attribut','er-isa':'IS-A','er-line':'Verbindungslinie','er-cardinality':'Kardinalität','er-optionality':'Optionalität','sym-rect':'Rechteck','sym-rounded-rect':'Abg. Rechteck','sym-circle':'Kreis','sym-ellipse':'Ellipse','sym-triangle':'Dreieck','sym-right-tri':'Rechtes Dreieck','sym-diamond':'Raute','sym-hexagon':'Sechseck','sym-parallelogram':'Parallelogramm','sym-star':'Stern','sym-cylinder':'Zylinder','sym-arrow':'Pfeil','automaton':'Endlicher Automat','mealy':'Mealy-Automat','syntax':'Syntaxdiagramm','regex':'Regulärer Ausdruck',table:'Tabelle'}[t]||t;}
+function typeLabel(t){return{regmachine:'Registermaschine',title:'Überschrift',text:'Text',code:'Code',sql:'SQL',image:'Bild',divider:'Linie',badge:'Badge',marker:'Markierung','er-entity':'Entität','er-weak-entity':'Schwache Entität','er-relation':'Beziehungstyp','er-weak-relation':'Schw. Beziehungstyp','er-attribute':'Attribut','er-key-attribute':'Schlüsselattr.','er-multi-attribute':'Mehrwertiger Attr.','er-derived-attr':'Abgel. Attribut','er-isa':'IS-A','er-line':'Verbindungslinie','er-cardinality':'Kardinalität','er-optionality':'Optionalität','sym-rect':'Rechteck','sym-rounded-rect':'Abg. Rechteck','sym-circle':'Kreis','sym-ellipse':'Ellipse','sym-triangle':'Dreieck','sym-right-tri':'Rechtes Dreieck','sym-diamond':'Raute','sym-hexagon':'Sechseck','sym-parallelogram':'Parallelogramm','sym-star':'Stern','sym-cylinder':'Zylinder','sym-arrow':'Pfeil','automaton':'Endlicher Automat','mealy':'Mealy-Automat','syntax':'Syntaxdiagramm','regex':'Regulärer Ausdruck','grammar':'Grammatik',table:'Tabelle'}[t]||t;}
 
 function _closestLI(node, root){
   while(node&&node!==root){if(node.nodeName==='LI')return node;node=node.parentNode;}
@@ -1772,6 +1772,7 @@ function buildInnerContent(el, readOnly, canRunSql=false){
   if(el.type==='automaton'||el.type==='mealy'){ return buildAutomatonWidget(el, readOnly, canRunSql); }
   if(el.type==='syntax'){ return buildSyntaxWidget(el, readOnly, canRunSql); }
   if(el.type==='regex'){ return buildRegexWidget(el, readOnly, canRunSql); }
+  if(el.type==='grammar'){ return buildGrammarWidget(el, readOnly, canRunSql); }
   if(el.type==='regmachine'){ return buildRegMachine(el, readOnly); }
   if(el.type==='image'){
     const wrap=document.createElement('div'); wrap.className='el-img-wrap';
@@ -2619,17 +2620,18 @@ function addEl(type){
   else if(type==='code') Object.assign(el,{x:60,y:80,w:380,h:200,html:'// Code hier',style:{fontSize:13,fontFamily:"'JetBrains Mono',monospace",color:'#7dd3fc',background:'#030303',borderRadius:8}});
   else if(type==='sql') Object.assign(el,{x:60,y:80,w:420,h:260,sql:'SELECT * FROM entries LIMIT 10;',sqlResult:null,style:{fontSize:13,fontFamily:"'JetBrains Mono',monospace",color:'#a3e635',background:'#030303',borderRadius:8}});
   else if(type==='automaton'){
-    const s0={id:uid(),x:110,y:160,label:'q0',start:true,accept:false};
-    Object.assign(el,{x:60,y:80,w:560,h:400,automaton:{states:[s0],transitions:[],test:''},style:{background:'#030303',borderRadius:8}});
+    const s0={id:uid(),x:100,y:150,label:'q0',start:true,accept:false};
+    Object.assign(el,{x:60,y:80,w:560,h:400,automaton:{states:[s0],transitions:[],test:'',px:1},style:{background:'#030303',borderRadius:8}});
   }
   else if(type==='mealy'){
-    const s0={id:uid(),x:110,y:160,label:'q0',start:true,accept:false};
-    Object.assign(el,{x:60,y:80,w:560,h:440,automaton:{states:[s0],transitions:[],test:''},style:{background:'#030303',borderRadius:8}});
+    const s0={id:uid(),x:100,y:150,label:'q0',start:true,accept:false};
+    Object.assign(el,{x:60,y:80,w:560,h:440,automaton:{states:[s0],transitions:[],test:'',px:1},style:{background:'#030303',borderRadius:8}});
   }
   else if(type==='table'){ Object.assign(el,{x:60,y:80,w:420,h:116,table:_tblDefault(3,3),style:{background:'transparent',borderRadius:6}}); setTimeout(()=>_tblFit(id),80); }
   else if(type==='syntax') Object.assign(el,{x:60,y:80,w:660,h:470,syntax:{source:SYN_DEFAULT_SRC,test:''},style:{background:'#030303',borderRadius:8}});
   else if(type==='regmachine') Object.assign(el,{x:60,y:60,w:660,h:500,rm:{prog:_RM_DEF,init:'R1=3, R2=4'},style:{fontSize:12,background:'#030303',borderRadius:8}});
   else if(type==='regex') Object.assign(el,{x:60,y:80,w:420,h:320,regex:{pattern:'',icase:false,fullMatch:true,tests:'',results:null},style:{fontSize:13,fontFamily:"'JetBrains Mono',monospace",color:'#a3e635',background:'#030303',borderRadius:8}});
+  else if(type==='grammar') Object.assign(el,{x:60,y:30,w:700,h:490,grammar:{rules:[{id:uid(),lhs:'S',rhs:'aSb | ab'}],start:'',test:'aabb',sym:'auto',n:6},style:{fontSize:13,background:'#030303',borderRadius:8}});
   else if(type==='image') Object.assign(el,{x:60,y:80,w:280,h:200,style:{background:'transparent',borderRadius:4}});
   else if(type==='divider') Object.assign(el,{x:40,y:Math.round(sz.h/2),w:Math.min(sz.w-80,880),h:4,style:{background:'transparent',borderRadius:0}});
   else if(type==='badge') Object.assign(el,{x:60,y:80,w:200,h:40,text:'Badge',style:{background:'transparent',borderRadius:0}});
@@ -5652,11 +5654,17 @@ function closeSqlModal(){
 
 /* ════════════════════════════════════════════════════════════════════════
    ENDLICHER AUTOMAT  (Q3: Formale Sprachen & Automaten)
-   Selbstständiges Widget: Zustände & Übergänge per Klick/Tipp erstellen,
-   NEA + ε-Übergänge unterstützt, Eingaben schrittweise simulierbar.
+   Selbstständiges Widget: Zustände & Übergänge per Klick/Ziehen erstellen, NEA + ε-Übergänge,
+   Eingaben schrittweise simulierbar.
+   Zeichenfläche: Koordinaten sind PIXEL relativ zur Leinwand (links oben). Die Leinwand ist so groß wie
+   das Element – beim Vergrößern/Verkleinern ändert sich nur der sichtbare Ausschnitt, die Zustände
+   behalten ihre Größe. Ein Übergang, der auf demselben Zustand endet, wird zur Schleife.
    ════════════════════════════════════════════════════════════════════════ */
-const AUTO_VB_W=600, AUTO_VB_H=300;   // feste logische Zeichenfläche (SVG viewBox)
-const AUTO_R=26;                       // Zustandsradius in viewBox-Einheiten
+const AUTO_R=26;                                   // Zustandsradius in px – bleibt beim Skalieren des Elements konstant
+const AUTO_GRID=10;                                // Raster beim Platzieren/Verschieben (Alt gedrückt = frei)
+const AUTO_PAD=4;                                  // Mindestabstand Zustand ↔ Leinwandrand
+const AUTO_LEGACY_W=600, AUTO_LEGACY_H=300;       // frühere logische Zeichenfläche (nur zum Umrechnen alter Daten)
+const AUTO_CHROME_EDIT=86;                         // Höhe von Werkzeugleiste + Eingabezeile im Editor
 
 function _autoSymbols(label){
   return (label||'').split(',').map(s=>s.trim()).filter(s=>s.length>0);
@@ -5711,98 +5719,115 @@ function _autoSimulate(automaton, input){
   return {ok:true, trace, accepted, stuck:cur.size===0};
 }
 
-/* Baut den kompletten grafischen SVG-Inhalt (Zustände, Pfeile, Start-Pfeil,
-   unsichtbare Klick-Flächen für Übergänge) als String. Enthält KEINEN Text —
-   Beschriftungen sind editierbare HTML-Overlays (siehe _autoBuildLabelsLayer). */
-function _autoBuildSVG(automaton, sel){
+function _autoClamp(v,lo,hi){ return Math.max(lo, Math.min(hi, v)); }
+
+/* Ältere Automaten speicherten Koordinaten in einer logischen 600×300-Fläche, die auf das Element gestreckt wurde.
+   Einmalig in Pixel umrechnen – das Bild bleibt dadurch unverändert, ab dann skaliert nichts mehr mit. */
+function _autoMigrate(el, readOnly, canRun){
+  const a=el.automaton; if(!a||a.px) return;
+  const cw=Math.max(120, el.w||560);
+  const ch=Math.max(100, (el.h||400)-(readOnly?(canRun?45:0):AUTO_CHROME_EDIT));
+  const kx=cw/AUTO_LEGACY_W, ky=ch/AUTO_LEGACY_H;
+  (a.states||[]).forEach(s=>{ s.x=Math.round(s.x*kx); s.y=Math.round(s.y*ky); });
+  a.px=1;
+}
+
+/* ── Geometrie ── */
+/* Kante eines Übergangs: SVG-Pfad, Pfeilspitze, Beschriftungsposition.
+   Normale Übergänge: gerade Linie oder quadratische Kurve (t.bend = Abstand des Scheitels von der Sehne in px;
+   ohne Angabe 0, bzw. 24 wenn es einen Rückweg gibt). Schleifen: t.angle = Richtung vom Zustandsmittelpunkt (Standard: oben). */
+function _autoEdgeGeom(a, t, from, to){
+  const R=AUTO_R;
+  if(from.id===to.id){
+    const th=(typeof t.angle==='number')?t.angle:-Math.PI/2;
+    const dl=0.62, spread=0.55, reach=46;
+    const pt=(r,ang)=>[from.x+r*Math.cos(ang), from.y+r*Math.sin(ang)];
+    const [x1,y1]=pt(R,th-dl), [x2,y2]=pt(R,th+dl);
+    const [c1x,c1y]=pt(R+reach,th-dl*spread), [c2x,c2y]=pt(R+reach,th+dl*spread);
+    const ax=(x1+3*c1x+3*c2x+x2)/8, ay=(y1+3*c1y+3*c2y+y2)/8;
+    return {loop:true, d:`M ${x1} ${y1} C ${c1x} ${c1y}, ${c2x} ${c2y}, ${x2} ${y2}`,
+            tipX:x2, tipY:y2, endAng:Math.atan2(y2-c2y,x2-c2x),
+            lx:ax+Math.cos(th)*16, ly:ay+Math.sin(th)*16, ax, ay, th};
+  }
+  const dx=to.x-from.x, dy=to.y-from.y, dist=Math.hypot(dx,dy)||1, ux=dx/dist, uy=dy/dist;
+  const nx=-uy, ny=ux;
+  const hasRev=!!_autoFindTrans(a,t.to,t.from);
+  const bend=(typeof t.bend==='number')?t.bend:(hasRev?24:0);
+  const mx=(from.x+to.x)/2, my=(from.y+to.y)/2;
+  const kx=mx+nx*bend*2, ky=my+ny*bend*2;
+  const l0=Math.hypot(kx-from.x,ky-from.y)||1, l1=Math.hypot(kx-to.x,ky-to.y)||1;
+  const sx=from.x+(kx-from.x)/l0*R, sy=from.y+(ky-from.y)/l0*R;
+  const ex=to.x+(kx-to.x)/l1*R,     ey=to.y+(ky-to.y)/l1*R;
+  const ax=(sx+2*kx+ex)/4, ay=(sy+2*ky+ey)/4;
+  let sgn=bend>0?1:(bend<0?-1:0);
+  if(sgn===0) sgn=(ny<-0.05||(Math.abs(ny)<=0.05&&nx>0))?1:-1;      // gerade Linie: Beschriftung oberhalb
+  return {loop:false, d:bend===0?`M ${sx} ${sy} L ${ex} ${ey}`:`M ${sx} ${sy} Q ${kx} ${ky} ${ex} ${ey}`,
+          tipX:ex, tipY:ey, endAng:Math.atan2(ey-ky,ex-kx),
+          lx:ax+nx*sgn*14, ly:ay+ny*sgn*14, ax, ay, nx, ny, mx, my};
+}
+
+/* Baut den grafischen SVG-Inhalt (Übergänge, dann Zustände) als String. Enthält KEINEN Text –
+   Beschriftungen sind editierbare HTML-Overlays (siehe _autoBuildLabelsLayer). Optik komplett per CSS. */
+function _autoBuildSVG(a, sel){
   sel=sel||{};
-  const states=automaton.states||[], transitions=automaton.transitions||[];
-  const activeSet=sel.active||null;
+  const states=a.states||[], transitions=a.transitions||[], R=AUTO_R;
+  const live=sel.active||null;
   const byId=id=>states.find(s=>s.id===id);
-  let shapes='', hits='';
-
+  let edges='', sts='';
   transitions.forEach(t=>{
-    const from=byId(t.from), to=byId(t.to);
-    if(!from||!to) return;
-    const isSel=sel.transId===t.id;
-    const col=isSel?'#f5c060':'#5b9bf5';
-    const sw=isSel?3:2;
-    let d, endAng;
-    if(from.id===to.id){
-      const cx=from.x, topEdgeY=from.y-AUTO_R;
-      const x1=cx-16, y1=topEdgeY+8, x2=cx+16, y2=topEdgeY+8;
-      const c1x=cx-16, c1y=topEdgeY-34, c2x=cx+16, c2y=topEdgeY-34;
-      d=`M ${x1} ${y1} C ${c1x} ${c1y}, ${c2x} ${c2y}, ${x2} ${y2}`;
-      endAng=Math.atan2(y2-c2y, x2-c2x);
-    } else {
-      const reverse=_autoFindTrans(automaton, t.to, t.from);
-      const dx=to.x-from.x, dy=to.y-from.y, dist=Math.hypot(dx,dy)||1;
-      const ux=dx/dist, uy=dy/dist;
-      const sx=from.x+ux*AUTO_R, sy=from.y+uy*AUTO_R;
-      const ex=to.x-ux*AUTO_R, ey=to.y-uy*AUTO_R;
-      if(reverse){
-        const nx=-uy, ny=ux, bow=18;
-        const cxp=(sx+ex)/2+nx*bow, cyp=(sy+ey)/2+ny*bow;
-        d=`M ${sx} ${sy} Q ${cxp} ${cyp} ${ex} ${ey}`;
-        endAng=Math.atan2(ey-cyp, ex-cxp);
-      } else {
-        d=`M ${sx} ${sy} L ${ex} ${ey}`;
-        endAng=Math.atan2(dy,dx);
-      }
-    }
-    const tipX = from.id===to.id ? (from.x+16) : (from.id!==to.id ? null : null);
-    shapes+=`<path d="${d}" fill="none" stroke="${col}" stroke-width="${sw}"/>`;
-    // Pfeilspitze: Endpunkt der jeweiligen Kurve/Linie
-    let endX, endY;
-    if(from.id===to.id){ endX=from.x+16; endY=(from.y-AUTO_R)+8; }
-    else {
-      const reverse2=_autoFindTrans(automaton, t.to, t.from);
-      const dx2=to.x-from.x, dy2=to.y-from.y, dist2=Math.hypot(dx2,dy2)||1;
-      const ux2=dx2/dist2, uy2=dy2/dist2;
-      endX=to.x-ux2*AUTO_R; endY=to.y-uy2*AUTO_R;
-    }
-    shapes+=_arrowHead('filled', endX, endY, endAng, 10, col, sw);
-    hits+=`<path data-trans-id="${t.id}" d="${d}" fill="none" stroke="transparent" stroke-width="16" style="cursor:pointer;pointer-events:stroke"/>`;
+    const from=byId(t.from), to=byId(t.to); if(!from||!to) return;
+    const g=_autoEdgeGeom(a,t,from,to);
+    edges+=`<g class="auto-edge${sel.transId===t.id?' sel':''}" data-edge-id="${t.id}">`+
+           `<path class="auto-edge-hit" data-trans-id="${t.id}" d="${g.d}"/>`+
+           `<path class="auto-edge-line" d="${g.d}"/>`+
+           _arrowHead('filled', g.tipX, g.tipY, g.endAng, 10, '#5b9bf5', 2)+`</g>`;
   });
-
   states.forEach(s=>{
-    const isSel=sel.stateId===s.id, isPending=sel.pending===s.id;
-    const isActive=activeSet&&activeSet.has(s.id);
-    const stroke=(isSel||isPending)?'#f5c060':'#e8a030';
-    const sw=(isSel||isPending)?3:2;
-    if(isActive){
-      shapes+=`<circle cx="${s.x}" cy="${s.y}" r="${AUTO_R+9}" fill="none" stroke="#a3e635" stroke-width="2.5" opacity=".9"><animate attributeName="r" values="${AUTO_R+8};${AUTO_R+13};${AUTO_R+8}" dur="1.1s" repeatCount="indefinite"/></circle>`;
-    }
-    if(isPending){
-      shapes+=`<circle cx="${s.x}" cy="${s.y}" r="${AUTO_R+7}" fill="none" stroke="#f5c060" stroke-width="2" stroke-dasharray="4 4" opacity=".8"/>`;
-    } else if(isSel){
-      shapes+=`<circle cx="${s.x}" cy="${s.y}" r="${AUTO_R+6}" fill="none" stroke="#f5c060" stroke-width="1.5" opacity=".55"/>`;
-    }
+    const isSel=sel.stateId===s.id, isPend=sel.pending===s.id, isLive=!!(live&&live.has(s.id));
+    const acc=!!s.accept && sel.kind!=='mealy';
+    let g=`<g class="auto-st${isSel?' sel':''}${isPend?' pend':''}${isLive?' live':''}${acc?' acc':''}">`;
+    if(isLive) g+=`<circle class="auto-st-live" cx="${s.x}" cy="${s.y}" r="${R+9}"><animate attributeName="r" values="${R+8};${R+13};${R+8}" dur="1.1s" repeatCount="indefinite"/></circle>`;
+    if(isPend) g+=`<circle class="auto-st-pend" cx="${s.x}" cy="${s.y}" r="${R+7}"/>`;
+    else if(isSel) g+=`<circle class="auto-st-halo" cx="${s.x}" cy="${s.y}" r="${R+6}"/>`;
     if(s.start){
-      const x2=s.x-AUTO_R, x1=x2-22;
-      shapes+=`<line x1="${x1}" y1="${s.y}" x2="${x2-8}" y2="${s.y}" stroke="#e8a030" stroke-width="2.2" stroke-linecap="round"/>`;
-      shapes+=_arrowHead('filled', x2, s.y, 0, 10, '#e8a030', 2.2);
+      const x2=s.x-R, x1=x2-24;
+      g+=`<line class="auto-start-line" x1="${x1}" y1="${s.y}" x2="${x2-8}" y2="${s.y}"/>`+_arrowHead('filled', x2, s.y, 0, 10, '#e8a030', 2.2);
     }
-    shapes+=`<circle data-state-id="${s.id}" cx="${s.x}" cy="${s.y}" r="${AUTO_R}" fill="rgba(232,160,48,.10)" stroke="${stroke}" stroke-width="${sw}" style="cursor:pointer"/>`;
-    if(s.accept && sel.kind!=='mealy'){
-      shapes+=`<circle cx="${s.x}" cy="${s.y}" r="${AUTO_R-5}" fill="none" stroke="${stroke}" stroke-width="1.4" style="pointer-events:none"/>`;
-    }
+    g+=`<circle class="auto-st-body" data-state-id="${s.id}" cx="${s.x}" cy="${s.y}" r="${R}"/>`;
+    if(acc) g+=`<circle class="auto-st-acc" cx="${s.x}" cy="${s.y}" r="${R-5}"/>`;
+    sts+=g+'</g>';
   });
-  return shapes+hits;
+  return edges+sts;
+}
+
+/* Günstigste Richtung für eine neue Schleife: oben, sonst dort, wo am meisten Platz ist */
+function _autoLoopAngle(a, s, w, h){
+  const cands=[-Math.PI/2, 0, Math.PI/2, Math.PI];
+  let best=cands[0], bestScore=-1e9;
+  cands.forEach((th,i)=>{
+    const d=AUTO_R+34, px=s.x+Math.cos(th)*d, py=s.y+Math.sin(th)*d;
+    let score=-i*0.5;                                   // Reihenfolge als Tie-Break: oben, rechts, unten, links
+    if(w&&h){ score-= Math.max(0,22-px)*3 + Math.max(0,px-(w-22))*3 + Math.max(0,22-py)*3 + Math.max(0,py-(h-22))*3; }
+    if(th===Math.PI && s.start) score-=40;             // dort sitzt der Startpfeil
+    (a.states||[]).forEach(o=>{ if(o.id!==s.id){ const dd=Math.hypot(o.x-px,o.y-py); if(dd<AUTO_R+24) score-=(AUTO_R+24-dd)*2; } });
+    if(score>bestScore){ bestScore=score; best=th; }
+  });
+  return best;
 }
 
 function _autoQueueFocus(span){
   requestAnimationFrame(()=>{
+    if(!span.isConnected) return;          // wurde inzwischen durch ein Neuzeichnen ersetzt
     span.focus();
     const range=document.createRange(); range.selectNodeContents(span); range.collapse(false);
     const sel=window.getSelection(); sel.removeAllRanges(); sel.addRange(range);
   });
 }
-function _autoMiniBtn(text, active, onClick, danger){
+function _autoMiniBtn(text, active, onClick, danger, title){
   const b=document.createElement('button'); b.type='button';
   b.className='auto-mini-btn'+(active?' active':'')+(danger?' danger':'');
-  b.textContent=text;
-  b.addEventListener('mousedown',ev=>ev.stopPropagation());
+  b.textContent=text; if(title) b.title=title;
+  b.addEventListener('mousedown',ev=>{ev.stopPropagation(); ev.preventDefault();});   // Fokus bleibt auf der Leinwand
   b.addEventListener('click',ev=>{ev.stopPropagation();onClick();});
   return b;
 }
@@ -5813,7 +5838,10 @@ function _autoWireLabelEditing(span, getLiveObj, prop, isTransition, kind){
   span.addEventListener('focus', ()=>{ histPushed=false; });
   span.addEventListener('keydown', ev=>{
     ev.stopPropagation();
-    if(ev.key==='Enter'){ ev.preventDefault(); span.blur(); }
+    if(ev.key==='Enter'||ev.key==='Escape'){
+      ev.preventDefault();
+      const cv=span.closest('.el-auto-canvas'); span.blur(); if(cv) cv.focus({preventScroll:true});
+    }
   });
   span.addEventListener('paste', ev=>{
     ev.preventDefault(); ev.stopPropagation();
@@ -5835,44 +5863,47 @@ function _autoWireLabelEditing(span, getLiveObj, prop, isTransition, kind){
   });
 }
 
-/* Editierbare Beschriftungen + kontextuelle Mini-Toolbars als HTML-Overlay
-   (SVG <text> kann nicht zuverlässig contentEditable sein). */
-function _autoBuildLabelsLayer(el, automaton, ui, readOnly, rerenderFn){
+/* Gestrichelte Vorschau-Linie (grün) von einem Zustand zu einem Punkt – Ende am Rand des Ziels bzw. der Geister-Kreises */
+function _autoPrevEdge(from, x, y){
+  const R=AUTO_R, dx=x-from.x, dy=y-from.y, d=Math.hypot(dx,dy)||1, ux=dx/d, uy=dy/d;
+  if(d<=2*R+2) return '';
+  const sx=from.x+ux*R, sy=from.y+uy*R, ex=x-ux*R, ey=y-uy*R;
+  return `<path class="auto-prev-line" d="M ${sx} ${sy} L ${ex} ${ey}"/>`+_arrowHead('filled',ex,ey,Math.atan2(dy,dx),10,'#a3e635',2);
+}
+
+/* Editierbare Beschriftungen + kontextuelle Mini-Leisten als HTML-Overlay (SVG <text> ist nicht zuverlässig editierbar).
+   Alle Positionen sind Pixel relativ zur Leinwand. `api` stellt die Aktionen des Widgets bereit. */
+function _autoBuildLabelsLayer(el, automaton, ui, readOnly, api){
+  const isMealy=el.type==='mealy', kind=isMealy?'mealy':'dfa';
   const focusStateId=ui.focusStateId, focusTransId=ui.focusTransId;
-  const isMealy=el.type==='mealy';
   ui.focusStateId=null; ui.focusTransId=null;
-  const frag=document.createElement('div'); frag.className='el-auto-labels';
+  const frag=document.createDocumentFragment();
   const states=automaton.states||[], transitions=automaton.transitions||[];
+  const live=()=>{ const e=getEl(el.id); return (e&&e.automaton)||automaton; };
 
   states.forEach(s=>{
     const span=document.createElement('span'); span.className='auto-state-label';
-    span.style.left=(s.x/AUTO_VB_W*100)+'%'; span.style.top=(s.y/AUTO_VB_H*100)+'%';
-    span.contentEditable=readOnly?'false':'true';
+    span.style.left=s.x+'px'; span.style.top=s.y+'px';
+    span.contentEditable=readOnly?'false':'true'; span.spellcheck=false;
     span.textContent=s.label||'';
-    if(!readOnly) _autoWireLabelEditing(span, ()=>{ const a=getEl(el.id); return a?a.automaton.states.find(x=>x.id===s.id):null; }, 'label', false, isMealy?'mealy':'dfa');
+    if(!readOnly) _autoWireLabelEditing(span, ()=>live().states.find(x=>x.id===s.id), 'label', false, kind);
     frag.appendChild(span);
     if(focusStateId===s.id) _autoQueueFocus(span);
   });
 
   transitions.forEach(t=>{
-    const from=states.find(x=>x.id===t.from), to=states.find(x=>x.id===t.to);
-    if(!from||!to) return;
-    let px,py;
-    if(from.id===to.id){ px=from.x; py=from.y-AUTO_R-38; }
-    else {
-      const reverse=_autoFindTrans(automaton, t.to, t.from);
-      const dx=to.x-from.x, dy=to.y-from.y, dist=Math.hypot(dx,dy)||1;
-      if(reverse){ const nx=-dy/dist, ny=dx/dist, bow=18; px=(from.x+to.x)/2+nx*bow; py=(from.y+to.y)/2+ny*bow-9; }
-      else { px=(from.x+to.x)/2; py=(from.y+to.y)/2-9; }
-    }
-    const span=document.createElement('span'); span.className='auto-trans-label';
-    if(ui.selTrans===t.id) span.classList.add('sel');
-    span.style.left=(Math.max(6,Math.min(AUTO_VB_W-6,px))/AUTO_VB_W*100)+'%';
-    span.style.top=(py/AUTO_VB_H*100)+'%';
-    span.contentEditable=readOnly?'false':'true';
+    const from=states.find(x=>x.id===t.from), to=states.find(x=>x.id===t.to); if(!from||!to) return;
+    const g=_autoEdgeGeom(automaton,t,from,to);
+    const span=document.createElement('span');
+    span.className='auto-trans-label'+(ui.selTrans===t.id?' sel':'')+(isMealy?' mealy':'');
+    span.style.left=g.lx+'px'; span.style.top=g.ly+'px';
+    span.contentEditable=readOnly?'false':'true'; span.spellcheck=false;
     span.textContent=isMealy?_mealyNormalize(t.label):_autoLabelDisplay(t.label);
-    if(isMealy) span.classList.add('mealy');
-    if(!readOnly) _autoWireLabelEditing(span, ()=>{ const a=getEl(el.id); return a?a.automaton.transitions.find(x=>x.id===t.id):null; }, 'label', true, isMealy?'mealy':'dfa');
+    if(!readOnly){
+      _autoWireLabelEditing(span, ()=>live().transitions.find(x=>x.id===t.id), 'label', true, kind);
+      // erster Klick auf die Beschriftung wählt den Übergang aus und öffnet sie zum Bearbeiten
+      span.addEventListener('mousedown', ev=>{ if(document.activeElement===span) return; ev.preventDefault(); api.editTrans(t.id); });
+    }
     frag.appendChild(span);
     if(focusTransId===t.id) _autoQueueFocus(span);
   });
@@ -5881,67 +5912,26 @@ function _autoBuildLabelsLayer(el, automaton, ui, readOnly, rerenderFn){
     const s=states.find(x=>x.id===ui.selState);
     if(s){
       const bar=document.createElement('div'); bar.className='auto-mini-bar';
-      bar.style.left=(s.x/AUTO_VB_W*100)+'%';
-      bar.style.top=(Math.max(0,s.y-AUTO_R)/AUTO_VB_H*100)+'%';
-      bar.appendChild(_autoMiniBtn(s.start?'★ Start':'☆ Start', s.start, ()=>{
-        pushHistory('Startzustand geändert');
-        const a=getEl(el.id).automaton;
-        a.states.forEach(x=>x.start=false);
-        const live=a.states.find(x=>x.id===s.id); if(live)live.start=true;
-        rerenderFn();
-      }));
-      if(!isMealy) bar.appendChild(_autoMiniBtn(s.accept?'◎ Akz.':'○ Akz.', s.accept, ()=>{
-        pushHistory('Akzeptierend umgeschaltet');
-        const live=getEl(el.id).automaton.states.find(x=>x.id===s.id); if(live)live.accept=!live.accept;
-        rerenderFn();
-      }));
-      bar.appendChild(_autoMiniBtn('↺ Schleife', false, ()=>{
-        pushHistory('Selbstschleife hinzugefügt');
-        const a=getEl(el.id).automaton;
-        let t=_autoFindTrans(a, s.id, s.id);
-        if(!t){ t={id:uid(), from:s.id, to:s.id, label:''}; a.transitions.push(t); }
-        ui.focusTransId=t.id; ui.selTrans=t.id; ui.selState=null;
-        rerenderFn();
-      }));
-      bar.appendChild(_autoMiniBtn('🗑', false, ()=>{
-        pushHistory('Zustand gelöscht');
-        const a=getEl(el.id).automaton;
-        a.states=a.states.filter(x=>x.id!==s.id);
-        a.transitions=a.transitions.filter(t=>t.from!==s.id&&t.to!==s.id);
-        ui.selState=null;
-        rerenderFn(); _spRefresh();
-      }, true));
+      bar.dataset.ax=s.x; bar.dataset.ay=s.y-AUTO_R-8; bar.dataset.by=s.y+AUTO_R+8;
+      bar.appendChild(_autoMiniBtn(s.start?'★ Start':'☆ Start', s.start, ()=>api.setStart(s.id), false, 'Als Startzustand festlegen'));
+      if(!isMealy) bar.appendChild(_autoMiniBtn(s.accept?'◎ Akz.':'○ Akz.', s.accept, ()=>api.toggleAccept(s.id), false, 'Akzeptierender Zustand (Endzustand)'));
+      bar.appendChild(_autoMiniBtn('↺ Schleife', false, ()=>api.addLoop(s.id), false, 'Schleife an diesem Zustand'));
+      bar.appendChild(_autoMiniBtn('→ Übergang', false, ()=>api.startLink(s.id), false, 'Übergang von diesem Zustand aus zeichnen'));
+      bar.appendChild(_autoMiniBtn('🗑', false, ()=>api.deleteState(s.id), true, 'Zustand löschen (Entf)'));
       frag.appendChild(bar);
     }
   }
   if(!readOnly && ui.selTrans){
     const t=transitions.find(x=>x.id===ui.selTrans);
-    if(t){
-      const from=states.find(x=>x.id===t.from), to=states.find(x=>x.id===t.to);
-      if(from&&to){
-        let px,py;
-        if(from.id===to.id){ px=from.x; py=from.y-AUTO_R-56; }
-        else { px=(from.x+to.x)/2; py=Math.min(from.y,to.y)-30; }
-        const bar=document.createElement('div'); bar.className='auto-mini-bar';
-        bar.style.left=(Math.max(6,Math.min(AUTO_VB_W-6,px))/AUTO_VB_W*100)+'%';
-        bar.style.top=(py/AUTO_VB_H*100)+'%';
-        if(!isMealy) bar.appendChild(_autoMiniBtn('ε', false, ()=>{
-          pushHistory('Übergang bearbeitet');
-          const live=getEl(el.id).automaton.transitions.find(x=>x.id===t.id);
-          const cur=_autoSymbols(live.label);
-          if(!cur.some(_autoIsEps)) cur.push('ε');
-          live.label=cur.join(', ');
-          rerenderFn();
-        }));
-        bar.appendChild(_autoMiniBtn('🗑', false, ()=>{
-          pushHistory('Übergang gelöscht');
-          const a=getEl(el.id).automaton;
-          a.transitions=a.transitions.filter(x=>x.id!==t.id);
-          ui.selTrans=null;
-          rerenderFn(); _spRefresh();
-        }, true));
-        frag.appendChild(bar);
-      }
+    const from=t&&states.find(x=>x.id===t.from), to=t&&states.find(x=>x.id===t.to);
+    if(t&&from&&to){
+      const g=_autoEdgeGeom(automaton,t,from,to);
+      const bar=document.createElement('div'); bar.className='auto-mini-bar';
+      bar.dataset.ax=g.lx; bar.dataset.ay=g.ly-18; bar.dataset.by=g.ly+18;
+      if(!isMealy) bar.appendChild(_autoMiniBtn('ε', false, ()=>api.addEps(t.id), false, 'ε-Übergang ergänzen'));
+      if(typeof t.bend==='number'||typeof t.angle==='number') bar.appendChild(_autoMiniBtn('⌒ Form', false, ()=>api.resetShape(t.id), false, 'Form zurücksetzen'));
+      bar.appendChild(_autoMiniBtn('🗑', false, ()=>api.deleteTrans(t.id), true, 'Übergang löschen (Entf)'));
+      frag.appendChild(bar);
     }
   }
   return frag;
@@ -5949,163 +5939,429 @@ function _autoBuildLabelsLayer(el, automaton, ui, readOnly, rerenderFn){
 
 function buildAutomatonWidget(el, readOnly, canRun){
   const wrap=document.createElement('div'); wrap.className='el-auto-wrap';
-  el.automaton = el.automaton || {states:[], transitions:[], test:''};
+  el.automaton = el.automaton || {states:[], transitions:[], test:'', px:1};
   const isMealy=el.type==='mealy'; if(isMealy) wrap.classList.add('is-mealy');
+  _autoMigrate(el, readOnly, canRun);
+  const kind=isMealy?'mealy':'dfa', R=AUTO_R;
 
-  const ui = { selState:null, selTrans:null, pending:null, connectMode:false,
-               focusStateId:null, focusTransId:null,
-               simTrace:null, simStep:0, playTimer:null };
+  const ui={ selState:null, selTrans:null, pending:null, connectMode:false,
+             focusStateId:null, focusTransId:null, simTrace:null, simStep:0, playTimer:null,
+             mouse:null, overBg:false, drag:null, link:null, guides:null, lastTap:null };
 
   let toolbar=null, hintEl=null, connBtn=null, input=null, tapeRow=null;
 
-  const canvasWrap=document.createElement('div'); canvasWrap.className='el-auto-canvas';
-  const svg=mkSVGEl('svg'); svg.setAttribute('viewBox',`0 0 ${AUTO_VB_W} ${AUTO_VB_H}`);
-  svg.setAttribute('preserveAspectRatio','none'); svg.classList.add('el-auto-svg');
-  const bgRect=mkSVGEl('rect');
-  bgRect.setAttribute('x','0'); bgRect.setAttribute('y','0');
-  bgRect.setAttribute('width',String(AUTO_VB_W)); bgRect.setAttribute('height',String(AUTO_VB_H));
-  bgRect.setAttribute('fill','transparent'); bgRect.style.cursor=readOnly?'default':'copy';
-  svg.appendChild(bgRect);
-  const labelsHost=document.createElement('div');
-  canvasWrap.appendChild(svg); canvasWrap.appendChild(labelsHost);
+  /* ── Leinwand: SVG ohne viewBox → 1 Einheit = 1 px, die Größe folgt dem Element ── */
+  const canvasWrap=document.createElement('div'); canvasWrap.className='el-auto-canvas'+(readOnly?' ro':'');
+  if(!readOnly) canvasWrap.tabIndex=0;
+  const svg=mkSVGEl('svg'); svg.classList.add('el-auto-svg');
+  const bgRect=mkSVGEl('rect'); bgRect.setAttribute('width','100%'); bgRect.setAttribute('height','100%');
+  bgRect.setAttribute('fill','transparent'); bgRect.classList.add('auto-bg');
+  const gMain=mkSVGEl('g'), gOver=mkSVGEl('g'); gOver.setAttribute('pointer-events','none');
+  svg.appendChild(bgRect); svg.appendChild(gMain); svg.appendChild(gOver);
+  const labelsHost=document.createElement('div'); labelsHost.className='el-auto-labels';
+  const outsideEl=document.createElement('div'); outsideEl.className='el-auto-outside'; outsideEl.style.display='none';
+  canvasWrap.appendChild(svg); canvasWrap.appendChild(labelsHost); canvasWrap.appendChild(outsideEl);
 
-  function currentAutomaton(){ const a=getEl(el.id); return a?a.automaton:el.automaton; }
+  /* ── Hilfen ── */
+  const aLive=()=>{ const e=getEl(el.id); return (e&&e.automaton)||el.automaton; };
+  const stateById=id=>aLive().states.find(s=>s.id===id);
+  const transById=id=>aLive().transitions.find(t=>t.id===id);
+  const size=()=>({w:canvasWrap.clientWidth||0, h:canvasWrap.clientHeight||0});
+  function scaleK(){ const r=canvasWrap.getBoundingClientRect(); return (r.width/(canvasWrap.clientWidth||1))||1; }   // Folie ist im Editor skaliert
+  function toCanvas(ev){ const r=canvasWrap.getBoundingClientRect(), k=scaleK(); return {x:(ev.clientX-r.left)/k, y:(ev.clientY-r.top)/k}; }
+  function stateAt(x,y,exclude,slack){
+    const st=aLive().states;
+    for(let i=st.length-1;i>=0;i--){ const s=st[i]; if(s.id!==exclude && Math.hypot(s.x-x,s.y-y)<=R+(slack||0)) return s; }
+    return null;
+  }
+  const minX=isStart=>R+AUTO_PAD+(isStart?30:0);          // Startzustand braucht links Platz für den Pfeil
+  function snapPos(x,y,isStart,free){
+    const {w,h}=size();
+    const nx=free?x:Math.round(x/AUTO_GRID)*AUTO_GRID, ny=free?y:Math.round(y/AUTO_GRID)*AUTO_GRID;
+    const lx=minX(isStart), ly=R+AUTO_PAD;
+    const hx=w>1?Math.max(lx,w-R-AUTO_PAD):Infinity, hy=h>1?Math.max(ly,h-R-AUTO_PAD):Infinity;
+    return {x:Math.round(_autoClamp(nx,lx,hx)), y:Math.round(_autoClamp(ny,ly,hy))};
+  }
+  function focusCanvas(){ try{ canvasWrap.focus({preventScroll:true}); }catch(e){} }
+  function invalidateSim(){ clearInterval(ui.playTimer); ui.playTimer=null; ui.simTrace=null; ui.simStep=0; }
 
+  /* rAF-Bündelung: pro Frame höchstens ein Neuzeichnen beim Ziehen */
+  let rafMain=0, fnMain=null, rafOv=0;
+  function schedule(fn){ fnMain=fn; if(!rafMain) rafMain=requestAnimationFrame(()=>{ rafMain=0; const f=fnMain; fnMain=null; if(f) f(); }); }
+  function flush(){ if(rafMain){ cancelAnimationFrame(rafMain); rafMain=0; } if(fnMain){ const f=fnMain; fnMain=null; f(); } }
+  function scheduleOverlay(){ if(rafOv) return; rafOv=requestAnimationFrame(()=>{ rafOv=0; updateOverlay(); }); }
+
+  /* ── Zeichnen ── */
   function rerender(){
-    const a=currentAutomaton();
-    const activeIds = ui.simTrace ? ui.simTrace.trace[ui.simStep].states : null;
-    while(svg.children.length>1) svg.removeChild(svg.lastChild);
-    svg.insertAdjacentHTML('beforeend', _autoBuildSVG(a, {stateId:ui.selState, transId:ui.selTrans, pending:ui.pending, active:activeIds, kind:isMealy?'mealy':'dfa'}));
-    if(!readOnly){
-      svg.querySelectorAll('[data-state-id]').forEach(node=>{
-        node.addEventListener('mousedown', ev=>onStateMouseDown(ev, node.dataset.stateId));
-      });
-      svg.querySelectorAll('[data-trans-id]').forEach(node=>{
-        node.addEventListener('mousedown', ev=>{ ev.stopPropagation(); onTransTap(node.dataset.transId); });
-      });
-    }
+    const a=aLive();
+    const activeIds=ui.simTrace?ui.simTrace.trace[ui.simStep].states:null;
+    gMain.innerHTML=_autoBuildSVG(a,{stateId:ui.selState,transId:ui.selTrans,pending:ui.pending,active:activeIds,kind});
     labelsHost.innerHTML='';
-    labelsHost.appendChild(_autoBuildLabelsLayer(el, a, ui, readOnly, rerender));
-    if(hintEl) hintEl.textContent = ui.connectMode
-      ? (ui.pending? 'Zielzustand antippen (oder freie Fläche für neuen Zustand)…' : 'Startzustand für Übergang antippen…')
-      : (isMealy?'Freie Fläche: neuer Zustand · Beschriftung: Eingabe/Ausgabe, z. B. a/1':'Freie Fläche: neuer Zustand · Zustand antippen: bearbeiten');
+    labelsHost.appendChild(_autoBuildLabelsLayer(el,a,ui,readOnly,api));
+    canvasWrap.classList.toggle('connecting', !!ui.connectMode);
+    layoutBars(); updateOverlay(); updateHint(); updateOutside(); renderTape();
     if(connBtn) connBtn.classList.toggle('active', ui.connectMode);
-    renderTape();
     _spRefresh();
   }
-
-  function addOrFocusTransition(automaton, from, to){
-    let t=_autoFindTrans(automaton, from, to);
-    if(!t){ t={id:uid(), from, to, label:''}; automaton.transitions.push(t); }
-    ui.selTrans=t.id; ui.selState=null; ui.focusTransId=t.id;
+  function layoutBars(){
+    const {w,h}=size();
+    labelsHost.querySelectorAll('.auto-mini-bar').forEach(bar=>{
+      const bw=bar.offsetWidth, bh=bar.offsetHeight;
+      const ax=+bar.dataset.ax, ay=+bar.dataset.ay, by=+bar.dataset.by;
+      const left=w>1?_autoClamp(ax,bw/2+4,Math.max(bw/2+4,w-bw/2-4)):ax;
+      let top=ay;                                        // translate(-50%,-100%): top = Unterkante der Leiste
+      if(top-bh<4 && (h<=1||by+bh+8<=h)) top=by+bh;     // oben kein Platz → unter das Element
+      bar.style.left=left+'px'; bar.style.top=top+'px';
+    });
   }
+  function hintText(){
+    if(ui.connectMode) return ui.pending?'Ziel anklicken · derselbe Zustand = Schleife · Esc':'Startzustand anklicken · Esc: beenden';
+    if(ui.selState) return 'Ziehen: verschieben · Doppelklick: umbenennen · Entf';
+    if(ui.selTrans) return isMealy?'Beschriftung: Eingabe/Ausgabe, z. B. a/1':'Linie ziehen: biegen · Doppelklick: beschriften';
+    return 'Klick: neuer Zustand · Umschalt+Ziehen: verbinden';
+  }
+  function updateHint(){ if(hintEl) hintEl.textContent=hintText(); }
 
-  function onStateTap(stateId){
-    if(ui.connectMode){
-      if(ui.pending===null){ ui.pending=stateId; }
-      else if(ui.pending===stateId){ ui.pending=null; }
-      else {
-        const aLive=getEl(el.id).automaton;
-        pushHistory('Übergang hinzugefügt');
-        addOrFocusTransition(aLive, ui.pending, stateId);
-        ui.pending=stateId;
+  /* Overlay: Geister-Zustand, Vorschau-Linie/-Schleife und Ausrichtungslinien – ohne die Zeichnung neu aufzubauen */
+  function updateOverlay(){
+    let html='';
+    const a=aLive();
+    if(ui.guides) ui.guides.forEach(g=>{
+      html+= g.x!=null ? `<line class="auto-guide" x1="${g.x}" y1="0" x2="${g.x}" y2="100%"/>` : `<line class="auto-guide" x1="0" y1="${g.y}" x2="100%" y2="${g.y}"/>`;
+    });
+    const m=ui.mouse;
+    if(!readOnly && m && !ui.drag){
+      const over=stateAt(m.x,m.y,null,0);
+      const srcId=ui.link?ui.link.from:(ui.connectMode?ui.pending:null);
+      const from=srcId?stateById(srcId):null;
+      if(from){
+        if(over&&over.id===from.id){
+          const sz=size(), g=_autoEdgeGeom(a,{from:from.id,to:from.id,angle:_autoLoopAngle(a,from,sz.w,sz.h)},from,from);
+          html+=`<path class="auto-prev-line" d="${g.d}"/>`+_arrowHead('filled',g.tipX,g.tipY,g.endAng,10,'#a3e635',2);
+        } else if(over){
+          html+=_autoPrevEdge(from, over.x, over.y);
+        } else {
+          const p=snapPos(m.x,m.y,false,false);
+          html+=_autoPrevEdge(from,p.x,p.y)+`<circle class="auto-ghost" cx="${p.x}" cy="${p.y}" r="${R}"/>`;
+        }
+      } else if(!over && ui.overBg && (ui.connectMode||(!ui.selState&&!ui.selTrans))){
+        const p=snapPos(m.x,m.y,false,false);
+        html+=`<circle class="auto-ghost" cx="${p.x}" cy="${p.y}" r="${R}"/>`;
       }
-    } else {
-      if(ui.selState===stateId){ ui.selState=null; }
-      else { ui.selState=stateId; ui.selTrans=null; }
     }
+    gOver.innerHTML=html;
+  }
+
+  /* Zustände, die nach dem Verkleinern außerhalb der Leinwand liegen, bleiben erhalten – ein Hinweis bietet „Einpassen“ an */
+  function updateOutside(){
+    if(readOnly) return;
+    const {w,h}=size(); if(w<=1||h<=1) return;
+    const n=aLive().states.filter(s=>s.x<8||s.y<8||s.x>w-8||s.y>h-8).length;
+    if(n===outsideEl._n) return;
+    outsideEl._n=n; outsideEl.innerHTML='';
+    if(!n){ outsideEl.style.display='none'; return; }
+    outsideEl.style.display='flex';
+    const txt=document.createElement('span'); txt.textContent=(n===1?'1 Zustand liegt':n+' Zustände liegen')+' außerhalb der Fläche';
+    const btn=document.createElement('button'); btn.type='button'; btn.textContent='Einpassen';
+    btn.addEventListener('mousedown',ev=>{ev.stopPropagation();ev.preventDefault();});
+    btn.addEventListener('click',ev=>{ev.stopPropagation();fitInside();});
+    outsideEl.appendChild(txt); outsideEl.appendChild(btn);
+  }
+
+  /* ── Modell-Aktionen ── */
+  function newStateAt(a,x,y){
+    const first=a.states.length===0;
+    const p=snapPos(x,y,first,false);
+    const st={id:uid(), x:p.x, y:p.y, label:_autoNextLabel(a), start:first, accept:false};
+    a.states.push(st); return st;
+  }
+  function resolveOverlaps(id){                 // Zustände dürfen sich nicht überdecken
+    const a=aLive(), s=a.states.find(x=>x.id===id); if(!s) return;
+    const minD=2*R+10;
+    for(let it=0;it<6;it++){
+      let moved=false;
+      for(const o of a.states){
+        if(o.id===s.id) continue;
+        const dx=s.x-o.x, dy=s.y-o.y, d=Math.hypot(dx,dy);
+        if(d<minD){
+          const ux=d?dx/d:1, uy=d?dy/d:0, p=snapPos(o.x+ux*minD,o.y+uy*minD,s.start,true);
+          if(p.x!==s.x||p.y!==s.y){ s.x=p.x; s.y=p.y; moved=true; }
+        }
+      }
+      if(!moved) break;
+    }
+  }
+  function addOrFocusTransition(a, from, to){
+    let t=_autoFindTrans(a,from,to);
+    if(!t){
+      t={id:uid(), from, to, label:''};
+      if(from===to){ const s=a.states.find(x=>x.id===from), sz=size(); t.angle=+_autoLoopAngle(a,s,sz.w,sz.h).toFixed(4); }
+      a.transitions.push(t);
+    }
+    ui.selTrans=t.id; ui.selState=null; ui.focusTransId=t.id;
+    return t;
+  }
+  function connect(from,to){                    // derselbe Zustand → Schleife
+    const a=aLive();
+    if(!_autoFindTrans(a,from,to)) pushHistory(from===to?'Schleife hinzugefügt':'Übergang hinzugefügt');
+    invalidateSim();
+    return addOrFocusTransition(a,from,to);
+  }
+  function deleteSelection(){
+    if(ui.selState) api.deleteState(ui.selState); else if(ui.selTrans) api.deleteTrans(ui.selTrans);
+  }
+  function fitInside(){
+    pushHistory('Zustände eingepasst');
+    const a=aLive();
+    a.states.forEach(s=>{ const p=snapPos(s.x,s.y,s.start,true); s.x=p.x; s.y=p.y; });
+    a.states.forEach(s=>resolveOverlaps(s.id));
+    outsideEl._n=undefined; rerender();
+  }
+  function findFreeSpot(a){                      // nächster freier Platz neben dem ausgewählten/letzten Zustand
+    const {w,h}=size(), step=2*R+36;
+    const anchor=(ui.selState&&stateById(ui.selState))||a.states[a.states.length-1]||null;
+    const ax=anchor?anchor.x:minX(true)+10, ay=anchor?anchor.y:Math.round((h||300)/2/AUTO_GRID)*AUTO_GRID;
+    const maxX=w>1?w-R-AUTO_PAD:ax+6*step, maxY=h>1?h-R-AUTO_PAD:ay+3*step;
+    const xs=[], ys=[];
+    for(let x=minX(a.states.length===0); x<=maxX; x+=step/2) xs.push(Math.round(x/AUTO_GRID)*AUTO_GRID);
+    for(let y=R+AUTO_PAD+6; y<=maxY; y+=step/2) ys.push(Math.round(y/AUTO_GRID)*AUTO_GRID);
+    const cands=[];
+    xs.forEach(x=>ys.forEach(y=>cands.push({x,y,score:Math.hypot(x-ax-step,y-ay)+(x<ax?25:0)})));
+    cands.sort((p,q)=>p.score-q.score);
+    for(const c of cands){ if(a.states.every(s=>Math.hypot(s.x-c.x,s.y-c.y)>=step-6)) return c; }
+    return {x:ax+Math.round(step/2), y:ay+Math.round(step/2)};
+  }
+  function addStateButton(){
+    const a=aLive();
+    pushHistory('Zustand hinzugefügt'); invalidateSim();
+    const sp=findFreeSpot(a), st=newStateAt(a,sp.x,sp.y); resolveOverlaps(st.id);
+    ui.selState=st.id; ui.selTrans=null; ui.focusStateId=st.id;
     rerender();
   }
-  function onTransTap(transId){
-    if(ui.selTrans===transId){ ui.selTrans=null; }
-    else { ui.selTrans=transId; ui.selState=null; }
+  function toggleConnect(on){
+    ui.connectMode=(typeof on==='boolean')?on:!ui.connectMode;
+    ui.pending=null; ui.selState=null; ui.selTrans=null; rerender();
+  }
+
+  const api={
+    size,
+    editTrans(id){ ui.selTrans=id; ui.selState=null; ui.focusTransId=id; rerender(); },
+    setStart(id){
+      pushHistory('Startzustand geändert'); invalidateSim();
+      const a=aLive(); a.states.forEach(x=>x.start=false);
+      const s=stateById(id); if(s){ s.start=true; const p=snapPos(s.x,s.y,true,true); s.x=p.x; s.y=p.y; }
+      rerender();
+    },
+    toggleAccept(id){ pushHistory('Akzeptierend umgeschaltet'); invalidateSim(); const s=stateById(id); if(s) s.accept=!s.accept; rerender(); },
+    addLoop(id){ connect(id,id); rerender(); },
+    startLink(id){ ui.connectMode=true; ui.pending=id; ui.selState=null; ui.selTrans=null; rerender(); },
+    deleteState(id){
+      pushHistory('Zustand gelöscht'); invalidateSim();
+      const a=aLive(); a.states=a.states.filter(x=>x.id!==id); a.transitions=a.transitions.filter(t=>t.from!==id&&t.to!==id);
+      if(ui.pending===id) ui.pending=null; ui.selState=null; rerender();
+    },
+    deleteTrans(id){ pushHistory('Übergang gelöscht'); invalidateSim(); const a=aLive(); a.transitions=a.transitions.filter(x=>x.id!==id); ui.selTrans=null; rerender(); },
+    addEps(id){
+      pushHistory('Übergang bearbeitet'); const t=transById(id); if(!t) return;
+      const cur=_autoSymbols(t.label); if(!cur.some(_autoIsEps)) cur.push('ε'); t.label=cur.join(', '); rerender();
+    },
+    resetShape(id){
+      pushHistory('Form zurückgesetzt'); const t=transById(id); if(!t) return;
+      delete t.bend;
+      if(t.from===t.to){ const sz=size(); t.angle=+_autoLoopAngle(aLive(),stateById(t.from),sz.w,sz.h).toFixed(4); } else delete t.angle;
+      rerender();
+    }
+  };
+
+  /* ── Zeiger: Zustand ── */
+  function isDbl(kindKey,id){
+    const now=Date.now(), L=ui.lastTap, d=!!(L&&L.kind===kindKey&&L.id===id&&now-L.t<380);
+    ui.lastTap=d?null:{kind:kindKey,id,t:now}; return d;
+  }
+  function onStateTap(id){
+    if(ui.connectMode){
+      if(ui.pending===null) ui.pending=id;
+      else { connect(ui.pending,id); ui.pending=id; }       // derselbe Zustand nochmals → Schleife
+      rerender(); return;
+    }
+    const dbl=isDbl('s',id);
+    ui.selState=id; ui.selTrans=null;
+    if(dbl) ui.focusStateId=id;
     rerender();
   }
-  function onCanvasBackgroundTap(vbX, vbY){
-    const aLive=getEl(el.id).automaton;
-    pushHistory('Zustand hinzugefügt');
-    const st={id:uid(), x:Math.round(vbX), y:Math.round(vbY), label:_autoNextLabel(aLive), start:aLive.states.length===0, accept:false};
-    aLive.states.push(st);
-    if(ui.connectMode && ui.pending!==null){
-      addOrFocusTransition(aLive, ui.pending, st.id);
-    } else {
-      ui.selState=null; ui.selTrans=null;
-    }
+  function onTransTap(id){
+    const dbl=isDbl('t',id);
+    ui.selTrans=id; ui.selState=null;
+    if(dbl) ui.focusTransId=id;
+    rerender();
+  }
+  function onBgClick(p){
+    if(!ui.connectMode && (ui.selState||ui.selTrans)){ ui.selState=null; ui.selTrans=null; rerender(); return; }   // erster Klick: nur abwählen
+    const a=aLive(), withLink=ui.connectMode&&ui.pending!==null&&!!stateById(ui.pending);
+    pushHistory(withLink?'Zustand & Übergang hinzugefügt':'Zustand hinzugefügt'); invalidateSim();
+    const st=newStateAt(a,p.x,p.y); resolveOverlaps(st.id);
+    if(withLink) addOrFocusTransition(a,ui.pending,st.id);
     if(ui.connectMode) ui.pending=st.id;
     rerender();
   }
-  function onStateMouseDown(ev, stateId){
-    if(readOnly) return;
-    ev.stopPropagation(); ev.preventDefault();
-    const state=currentAutomaton().states.find(s=>s.id===stateId); if(!state) return;
-    const startClientX=ev.clientX, startClientY=ev.clientY;
-    const startX=state.x, startY=state.y;
-    let dragging=false;
-    function onMove(mv){
-      const dxPix=mv.clientX-startClientX, dyPix=mv.clientY-startClientY;
-      if(!dragging && Math.hypot(dxPix,dyPix)>4){ dragging=true; pushHistory('Zustand verschoben'); }
-      if(dragging){
-        const r=canvasWrap.getBoundingClientRect();
-        const scaleX=r.width/AUTO_VB_W||1, scaleY=r.height/AUTO_VB_H||1;
-        const live=currentAutomaton().states.find(s=>s.id===stateId); if(!live) return;
-        let nx=startX+dxPix/scaleX, ny=startY+dyPix/scaleY;
-        nx=Math.max(AUTO_R, Math.min(AUTO_VB_W-AUTO_R, nx));
-        ny=Math.max(AUTO_R, Math.min(AUTO_VB_H-AUTO_R, ny));
-        live.x=Math.round(nx); live.y=Math.round(ny);
+  function finishLink(fromId, target, p){
+    const a=aLive();
+    if(target){ connect(fromId,target.id); }
+    else {
+      pushHistory('Zustand & Übergang hinzugefügt'); invalidateSim();
+      const st=newStateAt(a,p.x,p.y); resolveOverlaps(st.id);
+      addOrFocusTransition(a,fromId,st.id);
+    }
+    ui.pending=null; rerender();
+  }
+  function beginStatePointer(ev,id){
+    const st=stateById(id); if(!st) return;
+    const linkGesture=ui.connectMode||ev.shiftKey;
+    const sx=ev.clientX, sy=ev.clientY, ox=st.x, oy=st.y, k=scaleK();
+    let mode=null, lastEv=ev;
+    function applyMove(){
+      const mv=lastEv;
+      if(mode==='move'){
+        const live=stateById(id); if(!live) return;
+        let nx=ox+(mv.clientX-sx)/k, ny=oy+(mv.clientY-sy)/k;
+        const guides=[];
+        if(mv.altKey){ const p=snapPos(nx,ny,live.start,true); nx=p.x; ny=p.y; }
+        else {
+          let gx=null, gy=null;                           // Einrasten an Mitte/Höhe anderer Zustände (±6 px)
+          aLive().states.forEach(o=>{
+            if(o.id===id) return;
+            if(Math.abs(o.x-nx)<=6&&(gx===null||Math.abs(o.x-nx)<Math.abs(gx-nx))) gx=o.x;
+            if(Math.abs(o.y-ny)<=6&&(gy===null||Math.abs(o.y-ny)<Math.abs(gy-ny))) gy=o.y;
+          });
+          const gridP=snapPos(nx,ny,live.start,false), freeP=snapPos(gx!==null?gx:nx, gy!==null?gy:ny, live.start, true);
+          nx=(gx!==null)?freeP.x:gridP.x; ny=(gy!==null)?freeP.y:gridP.y;
+          if(gx!==null&&nx===gx) guides.push({x:gx});
+          if(gy!==null&&ny===gy) guides.push({y:gy});
+        }
+        live.x=Math.round(nx); live.y=Math.round(ny); ui.guides=guides.length?guides:null;
         rerender();
+      } else if(mode==='link'){ ui.mouse=toCanvas(mv); updateOverlay(); }
+    }
+    function onMove(mv){
+      lastEv=mv;
+      if(mode===null && Math.hypot(mv.clientX-sx,mv.clientY-sy)>4){
+        if(linkGesture){ mode='link'; ui.link={from:id}; ui.mouse=toCanvas(mv); canvasWrap.classList.add('linking'); }
+        else { mode='move'; pushHistory('Zustand verschoben'); ui.drag={id}; ui.selState=id; ui.selTrans=null; canvasWrap.classList.add('dragging'); }
       }
+      if(mode) schedule(applyMove);
     }
-    function onUp(){
-      document.removeEventListener('mousemove', onMove);
-      document.removeEventListener('mouseup', onUp);
-      if(!dragging) onStateTap(stateId); else _spRefresh();
+    function onUp(up){
+      document.removeEventListener('mousemove',onMove); document.removeEventListener('mouseup',onUp);
+      lastEv=up; flush();
+      canvasWrap.classList.remove('dragging','linking');
+      if(mode==='move'){ ui.drag=null; ui.guides=null; resolveOverlaps(id); rerender(); _spRefresh(); }
+      else if(mode==='link'){ const p=toCanvas(up), target=stateAt(p.x,p.y,null,6); ui.link=null; finishLink(id,target,p); }
+      else onStateTap(id);
     }
-    document.addEventListener('mousemove', onMove);
-    document.addEventListener('mouseup', onUp);
+    document.addEventListener('mousemove',onMove); document.addEventListener('mouseup',onUp);
+  }
+  /* ── Zeiger: Übergang (Klick = auswählen, Ziehen = biegen bzw. Schleife drehen) ── */
+  function beginEdgePointer(ev,tid){
+    const t0=transById(tid); if(!t0) return;
+    const sx=ev.clientX, sy=ev.clientY; let dragging=false, lastEv=ev;
+    function applyBend(){
+      const live=transById(tid); if(!live) return;
+      const from=stateById(live.from), to=stateById(live.to); if(!from||!to) return;
+      const p=toCanvas(lastEv);
+      if(from.id===to.id){
+        let ang=Math.atan2(p.y-from.y,p.x-from.x); const step=Math.PI/4, near=Math.round(ang/step)*step;
+        if(Math.abs(ang-near)<0.16) ang=near;           // rastet bei 0°/45°/90° … ein
+        live.angle=+ang.toFixed(4);
+      } else {
+        const dx=to.x-from.x, dy=to.y-from.y, d=Math.hypot(dx,dy)||1, nx=-dy/d, ny=dx/d;
+        let b=(p.x-(from.x+to.x)/2)*nx+(p.y-(from.y+to.y)/2)*ny;
+        const hasRev=!!_autoFindTrans(aLive(),live.to,live.from);
+        if(Math.abs(b)<7) b=hasRev?(b<0?-10:10):0;       // nahe an der Geraden → gerade
+        if(b===0) delete live.bend; else live.bend=_autoClamp(Math.round(b),-260,260);
+      }
+      rerender();
+    }
+    function onMove(mv){
+      lastEv=mv;
+      if(!dragging && Math.hypot(mv.clientX-sx,mv.clientY-sy)>4){
+        dragging=true; pushHistory(t0.from===t0.to?'Schleife gedreht':'Übergang gebogen');
+        ui.selTrans=tid; ui.selState=null; canvasWrap.classList.add('dragging');
+      }
+      if(dragging) schedule(applyBend);
+    }
+    function onUp(up){
+      document.removeEventListener('mousemove',onMove); document.removeEventListener('mouseup',onUp);
+      lastEv=up; flush(); canvasWrap.classList.remove('dragging');
+      if(dragging){ rerender(); _spRefresh(); } else onTransTap(tid);
+    }
+    document.addEventListener('mousemove',onMove); document.addEventListener('mouseup',onUp);
+  }
+  function beginBgPointer(ev){
+    const sx=ev.clientX, sy=ev.clientY;
+    function onUp(up){
+      document.removeEventListener('mouseup',onUp);
+      if(Math.hypot(up.clientX-sx,up.clientY-sy)<=4) onBgClick(toCanvas(up));
+    }
+    document.addEventListener('mouseup',onUp);
   }
 
-  bgRect.addEventListener('click', ev=>{
-    if(readOnly) return;
-    ev.stopPropagation();
-    const r=canvasWrap.getBoundingClientRect();
-    const vbX=(ev.clientX-r.left)/(r.width||1)*AUTO_VB_W;
-    const vbY=(ev.clientY-r.top)/(r.height||1)*AUTO_VB_H;
-    onCanvasBackgroundTap(vbX, vbY);
-  });
-  bgRect.addEventListener('mousedown', ev=>ev.stopPropagation());
+  /* ── Tastatur (nur wenn die Leinwand selbst den Fokus hat) ── */
+  function onKey(ev){
+    if(ev.target!==canvasWrap) return;
+    const k=ev.key, mod=ev.ctrlKey||ev.metaKey||ev.altKey;
+    const stop=()=>{ ev.preventDefault(); ev.stopPropagation(); };
+    if(k==='Escape'){
+      stop();
+      if(ui.pending!==null) ui.pending=null; else if(ui.connectMode) ui.connectMode=false; else { ui.selState=null; ui.selTrans=null; }
+      rerender();
+    } else if((k==='Delete'||k==='Backspace')&&!mod&&(ui.selState||ui.selTrans)){ stop(); deleteSelection(); }
+    else if(k==='Enter'&&!mod&&(ui.selState||ui.selTrans)){
+      stop(); if(ui.selState) ui.focusStateId=ui.selState; else ui.focusTransId=ui.selTrans; rerender();
+    } else if(k.startsWith('Arrow')&&ui.selState&&!mod){
+      stop();
+      const live=stateById(ui.selState); if(!live) return;
+      const d=ev.shiftKey?20:5, dx=k==='ArrowLeft'?-d:k==='ArrowRight'?d:0, dy=k==='ArrowUp'?-d:k==='ArrowDown'?d:0;
+      pushHistoryDebounced('Zustand verschoben');
+      const p=snapPos(live.x+dx,live.y+dy,live.start,true); live.x=p.x; live.y=p.y; rerender();
+    } else if((k==='c'||k==='C')&&!mod){ stop(); toggleConnect(); }
+  }
 
   if(!readOnly){
+    canvasWrap.addEventListener('mousedown',ev=>ev.stopPropagation());
+    svg.addEventListener('mousedown',ev=>{
+      if(ev.button!==0) return;
+      ev.preventDefault(); focusCanvas();
+      const st=ev.target.closest&&ev.target.closest('[data-state-id]');
+      const tr=ev.target.closest&&ev.target.closest('[data-trans-id]');
+      if(st) beginStatePointer(ev,st.dataset.stateId);
+      else if(tr) beginEdgePointer(ev,tr.dataset.transId);
+      else beginBgPointer(ev);
+    });
+    canvasWrap.addEventListener('mousemove',ev=>{
+      if(ui.drag||ui.link) return;
+      ui.mouse=toCanvas(ev); ui.overBg=(ev.target===bgRect); scheduleOverlay();
+    });
+    canvasWrap.addEventListener('mouseleave',()=>{ if(ui.drag||ui.link) return; ui.mouse=null; ui.overBg=false; scheduleOverlay(); });
+    canvasWrap.addEventListener('keydown',onKey);
+
     toolbar=document.createElement('div'); toolbar.className='el-auto-toolbar';
-    const addBtn=document.createElement('button'); addBtn.type='button'; addBtn.className='el-auto-tbtn';
+    const addBtn=document.createElement('button'); addBtn.type='button'; addBtn.className='el-auto-tbtn'; addBtn.title='Neuen Zustand hinzufügen';
     addBtn.innerHTML='<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg> Zustand';
-    addBtn.addEventListener('mousedown',ev=>ev.stopPropagation());
-    addBtn.addEventListener('click',ev=>{
-      ev.stopPropagation();
-      const aLive=getEl(el.id).automaton;
-      pushHistory('Zustand hinzugefügt');
-      const cx=AUTO_VB_W/2+(Math.random()*160-80), cy=AUTO_VB_H/2+(Math.random()*100-50);
-      const st={id:uid(), x:Math.round(cx), y:Math.round(cy), label:_autoNextLabel(aLive), start:aLive.states.length===0, accept:false};
-      aLive.states.push(st);
-      ui.selState=st.id; ui.selTrans=null; ui.focusStateId=st.id;
-      rerender();
-    });
-    connBtn=document.createElement('button'); connBtn.type='button'; connBtn.className='el-auto-tbtn';
+    addBtn.addEventListener('mousedown',ev=>{ev.stopPropagation();ev.preventDefault();});
+    addBtn.addEventListener('click',ev=>{ev.stopPropagation();addStateButton();});
+    connBtn=document.createElement('button'); connBtn.type='button'; connBtn.className='el-auto-tbtn'; connBtn.title='Übergänge zeichnen (C)';
     connBtn.innerHTML='<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle cx="5" cy="12" r="3"/><circle cx="19" cy="12" r="3"/><line x1="8" y1="12" x2="16" y2="12"/></svg> Verbinden';
-    connBtn.addEventListener('mousedown',ev=>ev.stopPropagation());
-    connBtn.addEventListener('click',ev=>{
-      ev.stopPropagation();
-      ui.connectMode=!ui.connectMode; ui.pending=null; ui.selState=null; ui.selTrans=null;
-      rerender();
-    });
+    connBtn.addEventListener('mousedown',ev=>{ev.stopPropagation();ev.preventDefault();});
+    connBtn.addEventListener('click',ev=>{ev.stopPropagation();focusCanvas();toggleConnect();});
     hintEl=document.createElement('span'); hintEl.className='el-auto-hint';
     toolbar.appendChild(addBtn); toolbar.appendChild(connBtn); toolbar.appendChild(hintEl);
     wrap.appendChild(toolbar);
   }
-
   wrap.appendChild(canvasWrap);
 
+  /* ── Simulation ── */
   function computeTrace(){
-    const a=currentAutomaton();
+    const a=aLive();
     const testStr = input ? input.value : (a.test||'');
     const r=isMealy?_mealySimulate(a, testStr):_autoSimulate(a, testStr);
     return Object.assign({input:testStr}, r);
@@ -6132,16 +6388,12 @@ function buildAutomatonWidget(el, readOnly, canRun){
       ui.simStep++; rerender();
     },700);
   }
-  function resetSim(){
-    clearInterval(ui.playTimer); ui.playTimer=null;
-    ui.simTrace=null; ui.simStep=0;
-    rerender();
-  }
+  function resetSim(){ invalidateSim(); rerender(); }
   function renderTape(){
     if(!tapeRow) return;
-    if(!ui.simTrace){ tapeRow.innerHTML=''; tapeRow.style.display='none'; return; }
+    if(!ui.simTrace){ if(tapeRow.dataset.err==='1') return; tapeRow.innerHTML=''; tapeRow.style.display='none'; return; }
     tapeRow.style.display='flex';
-    if(isMealy){ tapeRow.innerHTML=_mealyTapeHTML(ui.simTrace, ui.simStep, currentAutomaton()); return; }
+    if(isMealy){ tapeRow.innerHTML=_mealyTapeHTML(ui.simTrace, ui.simStep, aLive()); return; }
     const {trace, accepted, input:testStr}=ui.simTrace;
     let html='<div class="el-auto-tape">';
     if(!testStr){ html+='<span class="auto-tape-empty">(leeres Wort ε)</span>'; }
@@ -6158,7 +6410,7 @@ function buildAutomatonWidget(el, readOnly, canRun){
     if(curSet.size===0){
       statusHtml='<span class="el-auto-statustext err">Kein Übergang möglich — der Automat "stirbt" hier.</span>';
     } else {
-      const names=[...curSet].map(id=>{ const st=currentAutomaton().states.find(s=>s.id===id); return st?st.label:id; }).join(', ');
+      const names=[...curSet].map(id=>{ const st=aLive().states.find(s=>s.id===id); return st?st.label:id; }).join(', ');
       if(atEnd){
         statusHtml = accepted
           ? `<span class="el-auto-statustext ok">✓ Akzeptiert — aktiver Zustand {${esc(names)}} ist ein Endzustand</span>`
@@ -6192,11 +6444,604 @@ function buildAutomatonWidget(el, readOnly, canRun){
 
     simrow.appendChild(input); simrow.appendChild(stepBtn); simrow.appendChild(playBtn); simrow.appendChild(resetBtn);
     wrap.appendChild(simrow);
+    // Ablaufprotokoll schwebt über der Leinwand (statt sie zu verkleinern) – die Zustände bleiben an ihrem Platz
     tapeRow=document.createElement('div'); tapeRow.className='el-auto-taperow'; tapeRow.style.display='none';
-    wrap.appendChild(tapeRow);
+    tapeRow.addEventListener('mousedown',ev=>ev.stopPropagation());
+    canvasWrap.appendChild(tapeRow);
   }
 
+  if(!readOnly && typeof ResizeObserver!=='undefined'){
+    new ResizeObserver(()=>{ layoutBars(); updateOutside(); }).observe(canvasWrap);   // Element größer/kleiner → nur der Ausschnitt ändert sich
+  }
   rerender();
+  return wrap;
+}
+
+/* ════════════════════════════════════════════════════════════════════════
+   GRAMMATIK  (Q3: Formale Sprachen & Automaten)
+   Regeln als Zeilen »linke Seite → Alternativen (mit |)« eingeben. Daraus entstehen automatisch N, Σ, S,
+   der Chomsky-Typ und Hinweise. Außerdem: Ableiten per Klick, Wortproblem, Beispielwörter, Ableitungsbaum.
+   Schreibweise: Symbole einzeln (aSb) oder durch Leerzeichen getrennt (Satz → Subjekt Verb).
+   Nichtterminale: Großbuchstabe am Anfang, <Name> oder eine einzelne linke Seite. Alles andere sind Terminale
+   ("…" erzwingt ein Terminal). ε, λ, eps oder "" stehen für das leere Wort.
+   ════════════════════════════════════════════════════════════════════════ */
+const GR_EPS_ALT=new Set(['ε','λ','eps','epsilon','lambda','""',"''"]);
+const GR_EPS_TOK=new Set(['ε','λ','eps','epsilon','lambda']);
+const GR_UPPER=/^[A-ZÄÖÜ]/;
+const GR_SEARCH_NODES=30000, GR_GEN_NODES=15000;
+
+/* ── Lexer: zerlegt Text in Leerraum, »|« und Symbole (mit Position, damit die Färbung exakt passt) ── */
+function _grLex(s, wordMode){
+  const ch=Array.from(String(s==null?'':s)), out=[]; let i=0;
+  while(i<ch.length){
+    const c=ch[i];
+    if(/\s/.test(c)){ let j=i; while(j<ch.length&&/\s/.test(ch[j])) j++; out.push({k:'ws',x:ch.slice(i,j).join('')}); i=j; continue; }
+    if(c==='|'){ out.push({k:'bar',x:'|'}); i++; continue; }
+    if(c==='"'||c==="'"){
+      let j=i+1; while(j<ch.length&&ch[j]!==c) j++;
+      if(j<ch.length){ const x=ch.slice(i,j+1).join(''), inner=ch.slice(i+1,j).join(''); out.push({k:'tok',x,t:inner,q:true,empty:inner===''}); i=j+1; continue; }
+    }
+    if(c==='<'){
+      let j=i+1; while(j<ch.length&&!/[\s<>|]/.test(ch[j])) j++;
+      if(j<ch.length&&ch[j]==='>'&&j>i+1){ const x=ch.slice(i,j+1).join(''); out.push({k:'tok',x,t:x,nt:true}); i=j+1; continue; }
+    }
+    if(wordMode){
+      let j=i; while(j<ch.length&&!/[\s|]/.test(ch[j])&&!(j>i&&(ch[j]==='"'||ch[j]==="'"||ch[j]==='<'))) j++;
+      if(j===i) j=i+1;
+      const x=ch.slice(i,j).join(''); out.push({k:'tok',x,t:x}); i=j;
+    } else { out.push({k:'tok',x:c,t:c}); i++; }
+  }
+  return out;
+}
+function _grAlts(s, wordMode){                       // → Liste von Alternativen, jede eine Segmentliste
+  const alts=[[]];
+  _grLex(s,wordMode).forEach(seg=>{ if(seg.k==='bar') alts.push([]); else alts[alts.length-1].push(seg); });
+  return alts;
+}
+function _grAltText(segs){ return segs.map(x=>x.x).join('').trim(); }
+function _grAltTokens(segs){                         // Symbole einer Alternative; ε-Wörter ergeben die leere Liste
+  const text=_grAltText(segs);
+  if(text===''||GR_EPS_ALT.has(text.toLowerCase())) return [];
+  return segs.filter(x=>x.k==='tok').filter(t=>t.q?!t.empty:!GR_EPS_TOK.has(t.t.toLowerCase()));
+}
+
+/* ── Grammatik analysieren ── */
+function _grParse(g){
+  const rules=(g&&Array.isArray(g.rules))?g.rules:[];
+  const txt=v=>String(v==null?'':v);
+  const spaced=s=>/\S\s+\S/.test(txt(s).trim());
+  const altTexts=r=>_grAlts(r.rhs,false).map(_grAltText);
+  const wordHeur=rules.some(r=>spaced(r.lhs)||altTexts(r).some(spaced)||/^[A-ZÄÖÜ][A-Za-zÄÖÜäöüß0-9_]*[a-zäöüß][A-Za-zÄÖÜäöüß0-9_]*$/.test(txt(r.lhs).trim()));
+  const sym=(g&&g.sym)||'auto';
+  const wordMode=sym==='word'?true:(sym==='char'?false:wordHeur);
+  const prods=[], issues=[], lhsSingle=new Set();
+  rules.forEach((r,ri)=>{
+    const lhsToks=_grAltTokens(_grLex(r.lhs,wordMode));
+    const alts=_grAlts(r.rhs,wordMode);
+    const hasContent=txt(r.lhs).trim()!==''||txt(r.rhs).trim()!=='';
+    if(!lhsToks.length){ if(hasContent) issues.push({lvl:'err',msg:`Regel ${ri+1}: linke Seite fehlt`}); return; }
+    if(txt(r.rhs).trim()===''){ issues.push({lvl:'warn',msg:`Regel ${ri+1}: rechte Seite fehlt (leeres Wort: ε)`}); return; }
+    if(lhsToks.length===1&&!lhsToks[0].q) lhsSingle.add(lhsToks[0].t);
+    alts.forEach((a,ai)=>prods.push({ri,ai,lhs:lhsToks.slice(),rhs:_grAltTokens(a)}));
+  });
+  const nt=new Set(), tset=new Set(), order=[];
+  const symOf=t=>{
+    const s=t.t, isNT=!t.q&&(t.nt||GR_UPPER.test(s)||lhsSingle.has(s));
+    if(isNT){ if(!nt.has(s)){ nt.add(s); order.push(s); } } else tset.add(s);
+    return s;
+  };
+  prods.forEach(p=>{ p.lhs=p.lhs.map(symOf); p.rhs=p.rhs.map(symOf); });
+  let start=(g&&g.start&&nt.has(g.start))?g.start:'';
+  if(!start&&prods.length){ start=prods[0].lhs.find(s=>nt.has(s))||prods[0].lhs[0]; }
+  const seenRi=new Set();
+  prods.forEach(p=>{ if(!p.lhs.some(s=>nt.has(s))&&!seenRi.has(p.ri)){ seenRi.add(p.ri); issues.push({lvl:'err',msg:`Regel ${p.ri+1}: die linke Seite braucht ein Nichtterminal`}); } });
+  const defined=new Set(); prods.forEach(p=>p.lhs.forEach(s=>{ if(nt.has(s)) defined.add(s); }));
+  order.filter(s=>!defined.has(s)).forEach(s=>issues.push({lvl:'warn',msg:`„${s}“ hat keine Regel`}));
+  const isCF=prods.length>0&&prods.every(p=>p.lhs.length===1&&nt.has(p.lhs[0]));
+  const nonContracting=prods.every(p=>p.rhs.length>=p.lhs.length||(p.rhs.length===0&&p.lhs.length===1&&p.lhs[0]===start&&!prods.some(q=>q.rhs.includes(start))));
+  const P={wordMode,prods,nt,t:new Set([...tset].filter(s=>!nt.has(s))),order,start,isCF,nonContracting,issues,defined};
+  if(isCF&&start){
+    const ml=_grMinLen(P);
+    order.forEach(s=>{ if(defined.has(s)&&ml[s]===Infinity) issues.push({lvl:'warn',msg:`„${s}“ erzeugt kein Wort (nicht produktiv)`}); });
+    const reach=new Set([start]); let ch=true;
+    while(ch){ ch=false; prods.forEach(p=>{ if(reach.has(p.lhs[0])) p.rhs.forEach(s=>{ if(nt.has(s)&&!reach.has(s)){ reach.add(s); ch=true; } }); }); }
+    order.forEach(s=>{ if(!reach.has(s)) issues.push({lvl:'info',msg:`„${s}“ ist vom Startsymbol aus nicht erreichbar`}); });
+  }
+  return P;
+}
+
+/* Chomsky-Hierarchie */
+function _grType(P){
+  if(!P||!P.prods.length) return null;
+  const isNT=s=>P.nt.has(s);
+  if(P.isCF){
+    const ntCount=r=>r.filter(isNT).length;
+    const rightLin=P.prods.every(p=>{ const r=p.rhs; return r.length===0||ntCount(r)===0||(ntCount(r)===1&&isNT(r[r.length-1])); });
+    if(rightLin) return {type:3,sub:'rechtslinear'};
+    const leftLin=P.prods.every(p=>{ const r=p.rhs; return r.length===0||ntCount(r)===0||(ntCount(r)===1&&isNT(r[0])); });
+    if(leftLin) return {type:3,sub:'linkslinear'};
+    return {type:2};
+  }
+  return P.nonContracting?{type:1}:{type:0};
+}
+
+/* kürzeste Terminallänge je Nichtterminal (nur kontextfreie Regeln) – für das Abschneiden aussichtsloser Formen */
+function _grMinLen(P){
+  const m={}; P.nt.forEach(s=>{ m[s]=Infinity; });
+  let changed=true, guard=0;
+  while(changed&&guard++<300){
+    changed=false;
+    P.prods.forEach(p=>{
+      if(p.lhs.length!==1) return;
+      let sum=0;
+      for(const s of p.rhs){ sum+=P.nt.has(s)?m[s]:1; if(sum===Infinity) break; }
+      if(sum<m[p.lhs[0]]){ m[p.lhs[0]]=sum; changed=true; }
+    });
+  }
+  return m;
+}
+
+/* ── Ableitungs-Engine ── */
+function _grMoves(P, form){                          // alle anwendbaren (Regel, Position)-Paare
+  const mv=[];
+  P.prods.forEach((p,pi)=>{
+    const L=p.lhs.length; if(!L) return;
+    for(let i=0;i+L<=form.length;i++){
+      let ok=true; for(let j=0;j<L;j++){ if(form[i+j]!==p.lhs[j]){ ok=false; break; } }
+      if(ok) mv.push({pi,pos:i});
+    }
+  });
+  return mv;
+}
+function _grApply(P, form, mv){ const p=P.prods[mv.pi]; return form.slice(0,mv.pos).concat(p.rhs, form.slice(mv.pos+p.lhs.length)); }
+function _grFormText(P, form){ return form.length?form.join(P.wordMode?' ':''):'ε'; }
+
+function _grWordTokens(P, str){                      // Eingabewort → Terminal-Liste (+ unbekannte Symbole)
+  const s=String(str==null?'':str).trim();
+  if(s===''||GR_EPS_ALT.has(s.toLowerCase())) return {list:[],bad:[]};
+  let list;
+  if(/\s/.test(s)) list=s.split(/\s+/);
+  else{
+    const terms=[...P.t].sort((a,b)=>b.length-a.length);
+    list=[]; let i=0;
+    while(i<s.length){
+      const rest=s.slice(i), hit=terms.find(t=>t.length>0&&rest.startsWith(t));
+      if(hit){ list.push(hit); i+=hit.length; } else { const c=Array.from(rest)[0]; list.push(c); i+=c.length; }
+    }
+  }
+  return {list,bad:[...new Set(list.filter(x=>!P.t.has(x)))]};
+}
+
+/* Wortproblem: Breitensuche (kürzeste Ableitung zuerst). Kontextfrei → nur Linksableitungen mit Präfix-Prüfung.
+   exhausted=true heißt: ALLE Möglichkeiten durchsucht → Wort gehört sicher nicht zur Sprache. */
+function _grSearch(P, target, maxNodes){
+  maxNodes=maxNodes||GR_SEARCH_NODES;
+  const N=target.length, nt=P.nt, start=[P.start], key=f=>f.join('\u0001');
+  if(!P.start||!P.prods.length) return {found:false,exhausted:true,forms:[],moves:[]};
+  const eq=f=>f.length===N&&f.every((x,i)=>x===target[i]);
+  const nodes=[{form:start,parent:-1,mv:null}];
+  const done=idx=>{ const forms=[], moves=[]; let i=idx; while(i>=0){ forms.push(nodes[i].form); if(nodes[i].mv) moves.push(nodes[i].mv); i=nodes[i].parent; } return {found:true,forms:forms.reverse(),moves:moves.reverse()}; };
+  if(eq(start)) return done(0);
+  const hasEps=P.prods.some(p=>p.rhs.length===0);
+  const minLen=P.isCF?_grMinLen(P):null;
+  const seen=new Set([key(start)]);
+  let head=0, limited=false, pruned=false;
+  while(head<nodes.length){
+    if(nodes.length>maxNodes){ limited=true; break; }
+    const form=nodes[head].form; let moves;
+    if(P.isCF){
+      const i=form.findIndex(s=>nt.has(s));
+      if(i<0){ head++; continue; }
+      let okp=true; for(let j=0;j<i;j++){ if(form[j]!==target[j]){ okp=false; break; } }
+      if(!okp){ head++; continue; }
+      moves=[]; P.prods.forEach((p,pi)=>{ if(p.lhs[0]===form[i]) moves.push({pi,pos:i}); });
+    } else moves=_grMoves(P,form);
+    for(const mv of moves){
+      const nf=_grApply(P,form,mv);
+      if(P.isCF){
+        let tc=0, ms=0; for(const s of nf){ if(nt.has(s)) ms+=minLen[s]; else tc++; }
+        if(tc+ms>N) continue;
+        if(nf.length>(hasEps?N+4:N)){ if(hasEps) pruned=true; continue; }
+      } else {
+        const lim=P.nonContracting?N:N+4;
+        if(nf.length>lim){ if(!P.nonContracting) pruned=true; continue; }
+      }
+      const k=key(nf); if(seen.has(k)) continue; seen.add(k);
+      nodes.push({form:nf,parent:head,mv});
+      if(eq(nf)) return done(nodes.length-1);
+    }
+    head++;
+  }
+  return {found:false,exhausted:!limited&&!pruned,limited,forms:[],moves:[]};
+}
+
+/* Beispielwörter der Sprache bis zu einer Länge (kürzeste zuerst) */
+function _grGenerate(P, maxLen){
+  if(!P.start||!P.prods.length) return {words:[],complete:true};
+  const nt=P.nt, minLen=P.isCF?_grMinLen(P):null, hasEps=P.prods.some(p=>p.rhs.length===0), key=f=>f.join('\u0001');
+  const out=new Map(), queue=[[P.start]], seen=new Set([key([P.start])]);
+  let head=0, limited=false, pruned=false;
+  while(head<queue.length){
+    if(queue.length>GR_GEN_NODES){ limited=true; break; }
+    const form=queue[head++];
+    if(!form.some(s=>nt.has(s))){ if(form.length<=maxLen) out.set(key(form),form); continue; }
+    let moves;
+    if(P.isCF){ const i=form.findIndex(s=>nt.has(s)); moves=[]; P.prods.forEach((p,pi)=>{ if(p.lhs[0]===form[i]) moves.push({pi,pos:i}); }); }
+    else moves=_grMoves(P,form);
+    for(const mv of moves){
+      const nf=_grApply(P,form,mv);
+      if(P.isCF){
+        let tc=0, ms=0; for(const s of nf){ if(nt.has(s)) ms+=minLen[s]; else tc++; }
+        if(tc+ms>maxLen) continue;
+        if(nf.length>(hasEps?maxLen+4:maxLen)){ if(hasEps) pruned=true; continue; }
+      } else {
+        const lim=P.nonContracting?maxLen:maxLen+4;
+        if(nf.length>lim){ if(!P.nonContracting) pruned=true; continue; }
+      }
+      const k=key(nf); if(seen.has(k)) continue; seen.add(k); queue.push(nf);
+    }
+  }
+  const words=[...out.values()].sort((a,b)=>a.length-b.length||_grFormText(P,a).localeCompare(_grFormText(P,b)));
+  return {words,complete:!limited&&!pruned};
+}
+
+/* Zufällige Ableitung (kontextfrei: Linksableitung) – nach einigen Schritten werden kurze Regeln bevorzugt */
+function _grRandom(P){
+  if(!P.start||!P.prods.length) return null;
+  const nt=P.nt, minLen=P.isCF?_grMinLen(P):null;
+  const okProd=p=>!P.isCF||p.rhs.every(s=>!nt.has(s)||minLen[s]<Infinity);
+  const cnt=mv=>P.prods[mv.pi].rhs.filter(s=>nt.has(s)).length;
+  for(let attempt=0;attempt<10;attempt++){
+    let form=[P.start]; const forms=[form], moves=[];
+    for(let step=0;step<60;step++){
+      if(!form.some(s=>nt.has(s))) break;
+      let ms;
+      if(P.isCF){ const i=form.findIndex(s=>nt.has(s)); ms=[]; P.prods.forEach((p,pi)=>{ if(p.lhs[0]===form[i]&&okProd(p)) ms.push({pi,pos:i}); }); }
+      else ms=_grMoves(P,form);
+      if(!ms.length) break;
+      let pool=ms;
+      if(step>=6){ const best=Math.min(...ms.map(cnt)); pool=ms.filter(m=>cnt(m)===best); }
+      const mv=pool[Math.floor(Math.random()*pool.length)];
+      form=_grApply(P,form,mv); forms.push(form); moves.push(mv);
+    }
+    if(!form.some(s=>nt.has(s))) return {forms,moves};
+  }
+  return null;
+}
+
+/* Ableitungsbaum (nur kontextfreie Grammatiken) */
+function _grBuildTree(P, d){
+  const root={s:P.start,kids:[]}; let frontier=[root];
+  for(const mv of d.moves){
+    const p=P.prods[mv.pi], node=frontier[mv.pos]; if(!node||p.lhs.length!==1) return null;
+    if(p.rhs.length===0){ node.kids=[{s:'ε',eps:true,kids:[]}]; frontier.splice(mv.pos,1); }
+    else { node.kids=p.rhs.map(s=>({s,kids:[]})); frontier.splice(mv.pos,1,...node.kids); }
+  }
+  return root;
+}
+function _grTreeSVG(P, root){
+  let leaf=0, maxD=0, maxLen=1; const all=[];
+  (function lay(n,d){
+    n.d=d; if(d>maxD) maxD=d; all.push(n); if(n.s.length>maxLen) maxLen=n.s.length;
+    if(!n.kids.length){ n.x=leaf++; }
+    else { n.kids.forEach(k=>lay(k,d+1)); n.x=(n.kids[0].x+n.kids[n.kids.length-1].x)/2; }
+  })(root,0);
+  const dx=Math.max(34,maxLen*8.4+16), dy=44, padX=dx/2+4, padY=18;
+  const W=Math.ceil(Math.max(1,leaf)*dx+8), H=Math.ceil((maxD+1)*dy+padY);
+  const X=n=>n.x*dx+padX, Y=n=>n.d*dy+padY;
+  let svg=`<svg width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg">`;
+  all.forEach(n=>n.kids.forEach(k=>{ svg+=`<line class="gt-line" x1="${X(n)}" y1="${Y(n)+6}" x2="${X(k)}" y2="${Y(k)-12}"/>`; }));
+  all.forEach(n=>{ svg+=`<text class="${n.eps?'gt-eps':(P.nt.has(n.s)?'gt-nt':'gt-t')}" x="${X(n)}" y="${Y(n)+4}">${esc(n.s)}</text>`; });
+  return svg+'</svg>';
+}
+
+/* Farbige Darstellung (Nichtterminale gold, Terminale grün) für die Leseansicht */
+function _grColorize(text, P){
+  const wm=P?P.wordMode:false;
+  return _grAlts(text,wm).map(segs=>{
+    const raw=_grAltText(segs);
+    if(raw===''||GR_EPS_ALT.has(raw.toLowerCase())) return '<span class="gr-eps">ε</span>';
+    const a=segs.slice(); while(a.length&&a[0].k==='ws') a.shift(); while(a.length&&a[a.length-1].k==='ws') a.pop();
+    return a.map(s=>{
+      if(s.k==='ws') return ' ';
+      if(s.q&&s.empty) return '';
+      if(!s.q&&GR_EPS_TOK.has(s.t.toLowerCase())) return '<span class="gr-eps">ε</span>';
+      return `<span class="${(P&&!s.q&&P.nt.has(s.t))?'gr-nt':'gr-t'}">${esc(s.x)}</span>`;
+    }).join('');
+  }).join(' <span class="gr-bar">|</span> ');
+}
+
+const GR_EXAMPLES=[
+  {n:'aⁿbⁿ (kontextfrei)',                 r:[['S','aSb | ab']], t:'aabb'},
+  {n:'Klammern (Dyck-Sprache)',            r:[['S','(S)S | ε']], t:'(()())'},
+  {n:'Palindrome über {a, b}',             r:[['S','aSa | bSb | a | b | ε']], t:'abba'},
+  {n:'gerade Anzahl a (regulär)',          r:[['S','bS | aA | ε'],['A','bA | aS']], t:'abab'},
+  {n:'Arithmetische Ausdrücke',            r:[['E','E+T | T'],['T','T*F | F'],['F','(E) | Z'],['Z','0 | 1 | 2 | 3']], t:'1+2*3'},
+  {n:'Einfacher Satz (wortweise)',         r:[['Satz','Subjekt Prädikat Objekt'],['Subjekt','der hund | die katze'],['Prädikat','jagt | sieht'],['Objekt','den ball | die maus']], t:'der hund jagt den ball', sym:'word'},
+  {n:'aⁿbⁿcⁿ (kontextsensitiv)',           r:[['S','aSBC | aBC'],['CB','BC'],['aB','ab'],['bB','bb'],['bC','bc'],['cC','cc']], t:'aabbcc'}
+];
+
+function buildGrammarWidget(el, readOnly, canRun){
+  const wrap=document.createElement('div'); wrap.className='el-gr-wrap';
+  if(!el.grammar) el.grammar={rules:[{id:uid(),lhs:'S',rhs:'aSb | ab'}],start:'',test:'aabb',sym:'auto',n:6};
+  const live=()=>{ try{ const e=getEl(el.id); if(e&&e.grammar) return e.grammar; }catch(_){} return el.grammar; };
+  const interactive=!readOnly||canRun;
+  wrap.style.setProperty('--gr-fs',((el.style&&el.style.fontSize)||13)+'px');
+  const mk=(tag,cls,txt)=>{ const e=document.createElement(tag); if(cls) e.className=cls; if(txt!=null) e.textContent=txt; return e; };
+  const stopMD=e=>e.addEventListener('mousedown',ev=>ev.stopPropagation());
+  const noFocusSteal=e=>e.addEventListener('mousedown',ev=>{ ev.stopPropagation(); ev.preventDefault(); });
+  const safe=fn=>(...a)=>{ try{ return fn(...a); }catch(err){ console.error('Grammatik:',err); } };
+  const ui={d:null, opts:null, lastInput:null, langTimer:0};
+  let P=_grParse(live());
+  let resEl=null, testIn=null, wordsEl=null, nLabel=null;
+
+  const top=mk('div','gr-top');
+  const title=mk('span','gr-title'); title.innerHTML='G = (<i>N</i>, <i>Σ</i>, <i>P</i>, <i>S</i>)';
+  const typeChip=mk('span','gr-type tn','—');
+  top.appendChild(title); top.appendChild(typeChip);
+  if(!readOnly){
+    const exSel=mk('select','gr-ex'); exSel.title='Beispielgrammatik laden';
+    const o0=mk('option',null,'Beispiel laden …'); o0.value=''; exSel.appendChild(o0);
+    GR_EXAMPLES.forEach((ex,i)=>{ const o=mk('option',null,ex.n); o.value=String(i); exSel.appendChild(o); });
+    stopMD(exSel);
+    exSel.addEventListener('change',()=>{ const v=exSel.value; exSel.value=''; if(v!=='') loadExample(+v); });
+    top.appendChild(exSel);
+  }
+  const body=mk('div','gr-body');
+  const secRules=mk('div','gr-sec'), secDef=mk('div','gr-sec'), secDer=mk('div','gr-sec'), secTest=mk('div','gr-sec'), secLang=mk('div','gr-sec');
+  body.appendChild(secRules); body.appendChild(secDef);
+  if(interactive){ body.appendChild(secDer); body.appendChild(secTest); body.appendChild(secLang); }
+  wrap.appendChild(top); wrap.appendChild(body);
+  // Der Editor zoomt sonst beim Scrollen die Folie – im scrollbaren Bereich soll das Mausrad scrollen
+  body.addEventListener('wheel',ev=>{ if(ev.ctrlKey) return; if(body.scrollHeight>body.clientHeight+1) ev.stopPropagation(); },{passive:true});
+  if(!readOnly) stopMD(wrap);
+
+  const symsHTML=arr=>arr.length?arr.map(s=>`<span class="${P.nt.has(s)?'gr-nt':'gr-t'}">${esc(s)}</span>`).join(P.wordMode?' ':''):'<span class="gr-eps">ε</span>';
+
+  /* ── Produktionen ── */
+  const renderRules=safe(function(focus){
+    const G=live();
+    secRules.innerHTML=''; secRules.appendChild(mk('div','gr-sec-h','Produktionen P'));
+    const list=mk('div','gr-rules'); secRules.appendChild(list);
+    if(readOnly){
+      G.rules.forEach(r=>{ const row=mk('div','gr-ro'); row.innerHTML=`${_grColorize(r.lhs,P)} <span class="gr-arrow">→</span> ${_grColorize(r.rhs,P)}`; list.appendChild(row); });
+      return;
+    }
+    G.rules.forEach(r=>{
+      const row=mk('div','gr-row');
+      const li=mk('input','gr-in gr-lhs'); li.type='text'; li.value=r.lhs||''; li.placeholder='N';
+      const ri=mk('input','gr-in gr-rhs'); ri.type='text'; ri.value=r.rhs||''; ri.placeholder='aN | b | ε';
+      [li,ri].forEach(inp=>{ inp.spellcheck=false; inp.autocomplete='off'; stopMD(inp); inp.addEventListener('focus',()=>{ ui.lastInput=inp; }); });
+      const field=(inp,name)=>inp.addEventListener('keydown',ev=>{
+        ev.stopPropagation();
+        const rules=live().rules, idx=rules.findIndex(x=>x.id===r.id);
+        if(ev.key==='Enter'){
+          ev.preventDefault();
+          if(name==='lhs'){ ri.focus(); return; }
+          if(li.value.trim()===''&&ri.value.trim()===''){ inp.blur(); return; }
+          addRule(idx+1,true);
+        } else if(ev.key==='Backspace'&&li.value===''&&ri.value===''&&rules.length>1){
+          ev.preventDefault(); removeRule(idx,true);
+        } else if(ev.key==='ArrowUp'||ev.key==='ArrowDown'){
+          const rows=secRules.querySelectorAll('.gr-row'), t=rows[idx+(ev.key==='ArrowUp'?-1:1)];
+          if(t){ ev.preventDefault(); const f=t.querySelector(name==='lhs'?'.gr-lhs':'.gr-rhs'); if(f) f.focus(); }
+        }
+      });
+      field(li,'lhs'); field(ri,'rhs');
+      [li,ri].forEach(inp=>inp.addEventListener('input',()=>{
+        pushHistoryDebounced('Grammatik bearbeitet');
+        const rr=live().rules.find(x=>x.id===r.id); if(!rr) return;
+        rr.lhs=li.value; rr.rhs=ri.value; onChanged();
+      }));
+      const del=mk('button','gr-del','×'); del.type='button'; del.title='Regel löschen'; noFocusSteal(del);
+      del.addEventListener('click',ev=>{ ev.stopPropagation(); removeRule(live().rules.findIndex(x=>x.id===r.id),false); });
+      row.appendChild(li); row.appendChild(mk('span','gr-arrow','→')); row.appendChild(ri); row.appendChild(del);
+      list.appendChild(row);
+    });
+    const tools=mk('div','gr-tools');
+    const addB=mk('button','gr-btn','+ Regel'); addB.type='button'; noFocusSteal(addB);
+    addB.addEventListener('click',ev=>{ ev.stopPropagation(); addRule(live().rules.length,true); });
+    const epsB=mk('button','gr-btn','ε einfügen'); epsB.type='button'; epsB.title='Leeres Wort ε an der Cursorposition einfügen'; noFocusSteal(epsB);
+    epsB.addEventListener('click',ev=>{ ev.stopPropagation(); insertEps(); });
+    tools.appendChild(addB); tools.appendChild(epsB); secRules.appendChild(tools);
+    if(focus){
+      const t=secRules.querySelectorAll('.gr-row')[focus.i];
+      const f=t&&t.querySelector(focus.f==='rhs'?'.gr-rhs':'.gr-lhs');
+      if(f){ f.focus(); const L=f.value.length; try{ f.setSelectionRange(L,L); }catch(_){} }
+    }
+  });
+  function addRule(at,focusNew){
+    pushHistory('Regel hinzugefügt');
+    live().rules.splice(at,0,{id:uid(),lhs:'',rhs:''});
+    renderRules(focusNew?{i:at,f:'lhs'}:null); onChanged();
+  }
+  function removeRule(idx,focusPrev){
+    if(idx<0) return;
+    pushHistory('Regel gelöscht');
+    const G=live(); G.rules.splice(idx,1);
+    if(!G.rules.length) G.rules.push({id:uid(),lhs:'',rhs:''});
+    renderRules(focusPrev?{i:Math.max(0,idx-1),f:'rhs'}:null); onChanged();
+  }
+  function insertEps(){
+    const i=ui.lastInput;
+    if(!i||!i.isConnected){ const f=secRules.querySelector('.gr-rhs'); if(f) f.focus(); return; }
+    const s=i.selectionStart==null?i.value.length:i.selectionStart, e=i.selectionEnd==null?s:i.selectionEnd;
+    i.focus(); i.setRangeText('ε',s,e,'end'); i.dispatchEvent(new Event('input',{bubbles:true}));
+  }
+  function loadExample(i){
+    const ex=GR_EXAMPLES[i]; if(!ex) return;
+    pushHistory('Beispielgrammatik geladen');
+    const G=live(); G.rules=ex.r.map(([l,r])=>({id:uid(),lhs:l,rhs:r})); G.start=''; G.test=ex.t; G.sym=ex.sym||'auto';
+    if(testIn) testIn.value=G.test;
+    renderRules(); onChanged();
+  }
+
+  /* ── Definition G = (N, Σ, P, S), Typ, Hinweise ── */
+  const updateType=safe(function(){
+    const t=_grType(P), names={3:'regulär',2:'kontextfrei',1:'kontextsensitiv',0:'allgemein'};
+    typeChip.className='gr-type '+(t?'t'+t.type:'tn');
+    typeChip.textContent=t?('Typ '+t.type+' · '+names[t.type]+(t.sub?' ('+t.sub+')':'')):'noch keine Regeln';
+    typeChip.title=t?({3:'Chomsky-Typ 3: Regeln der Form A → a, A → aB (bzw. linkslinear A → Ba)',2:'Chomsky-Typ 2: links steht genau ein Nichtterminal',1:'Chomsky-Typ 1: rechte Seite nie kürzer als die linke',0:'Chomsky-Typ 0: keine Einschränkung'}[t.type]):'';
+  });
+  const renderDef=safe(function(){
+    const G=live();
+    secDef.innerHTML=''; secDef.appendChild(mk('div','gr-sec-h','Definition'));
+    const box=mk('div','gr-def'); secDef.appendChild(box);
+    const chips=(arr,cls)=>arr.length?arr.map(s=>`<span class="gr-chip ${cls}">${esc(s)}</span>`).join(' '):'<span class="gr-hint">–</span>';
+    const rN=mk('div','gr-def-r'); rN.innerHTML=`<b>N</b> = { ${chips(P.order,'nt')} }`;
+    const rT=mk('div','gr-def-r'); rT.innerHTML=`<b>Σ</b> = { ${chips([...P.t],'t')} }`;
+    const rS=mk('div','gr-def-r'); rS.innerHTML='<b>S</b> = ';
+    if(readOnly||!P.order.length){ rS.insertAdjacentHTML('beforeend',P.start?`<span class="gr-chip nt">${esc(P.start)}</span>`:'<span class="gr-hint">–</span>'); }
+    else{
+      const sel=mk('select','gr-sel');
+      P.order.forEach(s=>{ const o=mk('option',null,s); o.value=s; if(s===P.start) o.selected=true; sel.appendChild(o); });
+      stopMD(sel); sel.addEventListener('change',()=>{ pushHistory('Startsymbol geändert'); live().start=sel.value; onChanged(); });
+      rS.appendChild(sel);
+    }
+    box.appendChild(rN); box.appendChild(rT); box.appendChild(rS);
+    if(!readOnly){
+      const rM=mk('div','gr-def-r'); rM.appendChild(mk('span','gr-lab','Symbole'));
+      const ms=mk('select','gr-sel');
+      [['auto','automatisch'],['char','einzelne Zeichen (aSb)'],['word','durch Leerzeichen getrennt']].forEach(([v,t])=>{ const o=mk('option',null,t); o.value=v; ms.appendChild(o); });
+      ms.value=G.sym||'auto'; stopMD(ms);
+      ms.addEventListener('change',()=>{ pushHistory('Schreibweise geändert'); live().sym=ms.value; onChanged(); });
+      rM.appendChild(ms); box.appendChild(rM);
+    }
+    if(P.issues.length){
+      const w=mk('div','gr-warns');
+      P.issues.slice(0,5).forEach(x=>w.appendChild(mk('div','gr-warn '+x.lvl,(x.lvl==='err'?'✗ ':x.lvl==='warn'?'⚠ ':'ℹ ')+x.msg)));
+      secDef.appendChild(w);
+    }
+  });
+
+  /* ── Ableitung ── */
+  function getD(){ if(!ui.d) ui.d={forms:[[P.start]],moves:[]}; return ui.d; }
+  function onChip(i){
+    const d=getD(), form=d.forms[d.forms.length-1];
+    const ms=_grMoves(P,form).filter(m=>i>=m.pos&&i<m.pos+P.prods[m.pi].lhs.length);
+    if(!ms.length) return;
+    if(ms.length===1){ applyMove(ms[0]); return; }
+    ui.opts={i,moves:ms}; renderDer();
+  }
+  function applyMove(mv){
+    const d=getD(); if(d.moves.length>=200) return;
+    d.forms.push(_grApply(P,d.forms[d.forms.length-1],mv)); d.moves.push(mv); ui.opts=null; renderDer();
+  }
+  const renderDer=safe(function(){
+    secDer.innerHTML=''; secDer.appendChild(mk('div','gr-sec-h','Ableitung'));
+    if(!P.start||!P.prods.length){ secDer.appendChild(mk('div','gr-hint','Lege oben mindestens eine Regel an, um abzuleiten.')); return; }
+    const d=getD(), form=d.forms[d.forms.length-1];
+    const mvs=_grMoves(P,form), hasNT=form.some(s=>P.nt.has(s));
+    const formBox=mk('div','gr-form');
+    if(!form.length) formBox.appendChild(mk('span','gr-chip eps','ε'));
+    form.forEach((s,i)=>{
+      const isNT=P.nt.has(s), can=mvs.some(m=>i>=m.pos&&i<m.pos+P.prods[m.pi].lhs.length);
+      const c=mk(can?'button':'span','gr-chip '+(isNT?'nt':'t')+(can?' can':'')+(ui.opts&&ui.opts.i===i?' on':''),s);
+      if(can){ c.type='button'; c.title='Klicken: Regel anwenden'; noFocusSteal(c); c.addEventListener('click',ev=>{ ev.stopPropagation(); onChip(i); }); }
+      formBox.appendChild(c);
+    });
+    secDer.appendChild(formBox);
+    if(ui.opts){
+      const box=mk('div','gr-opts'); box.appendChild(mk('span','gr-hint','Regel wählen:'));
+      ui.opts.moves.forEach(m=>{
+        const p=P.prods[m.pi], b=mk('button','gr-opt'); b.type='button';
+        b.innerHTML=`${symsHTML(p.lhs)} <span class="gr-arrow">→</span> ${symsHTML(p.rhs)}`;
+        noFocusSteal(b); b.addEventListener('click',ev=>{ ev.stopPropagation(); applyMove(m); });
+        box.appendChild(b);
+      });
+      secDer.appendChild(box);
+    }
+    const st=mk('div','gr-state');
+    if(!hasNT){ st.className+=' ok'; st.textContent='✓ Wort erzeugt: '+_grFormText(P,form); }
+    else if(!mvs.length){ st.className+=' err'; st.textContent='✗ Sackgasse – es ist keine Regel mehr anwendbar'; }
+    else if(!d.moves.length){ st.className+=' info'; st.textContent='Klicke ein Nichtterminal, um eine Regel anzuwenden.'; }
+    if(st.textContent) secDer.appendChild(st);
+    if(d.forms.length>1){
+      const ch=mk('div','gr-chain');
+      ch.innerHTML=d.forms.map((f,i)=>{ const t=esc(_grFormText(P,f)); return i===d.forms.length-1?`<b>${t}</b>`:t; }).join('<span class="gr-ar"> ⇒ </span>');
+      secDer.appendChild(ch);
+    }
+    const tools=mk('div','gr-tools');
+    const btn=(label,title,fn,dis)=>{ const b=mk('button','gr-btn',label); b.type='button'; b.title=title; b.disabled=!!dis; noFocusSteal(b); b.addEventListener('click',ev=>{ ev.stopPropagation(); fn(); }); tools.appendChild(b); };
+    btn('↶ Schritt zurück','Letzten Schritt rückgängig machen',()=>{ d.forms.pop(); d.moves.pop(); ui.opts=null; renderDer(); },d.moves.length===0);
+    btn('↺ Neu beginnen','Wieder beim Startsymbol anfangen',()=>{ ui.d=null; ui.opts=null; renderDer(); },d.moves.length===0);
+    btn('🎲 Zufallswort','Zufällige Ableitung erzeugen',()=>{
+      const r=_grRandom(P);
+      if(r){ ui.d={forms:r.forms,moves:r.moves}; ui.opts=null; renderDer(); } else setResult('info','Keine vollständige Zufallsableitung gefunden – vermutlich gibt es Sackgassen.');
+    });
+    secDer.appendChild(tools);
+    if(P.isCF&&d.moves.length>0){
+      try{ const root=_grBuildTree(P,d); if(root){ const tb=mk('div','gr-tree'); tb.innerHTML=_grTreeSVG(P,root); secDer.appendChild(tb); } }catch(_){}
+    }
+  });
+
+  /* ── Wortproblem ── */
+  function setResult(cls,html){ if(!resEl) return; resEl.className='gr-res '+cls; resEl.innerHTML=html; }
+  function resetResult(){ if(resEl){ resEl.className='gr-res'; resEl.innerHTML=''; } }
+  const runTest=safe(function(){
+    if(!P.start||!P.prods.length){ setResult('err','Lege zuerst Regeln an.'); return; }
+    const w=testIn.value, tk=_grWordTokens(P,w), wt=esc(w.trim()===''?'ε':w.trim());
+    if(tk.bad.length){ setResult('err',`✗ „${wt}“ ∉ L(G) – enthält Symbole, die kein Terminal der Grammatik sind: ${tk.bad.map(esc).join(', ')}`); return; }
+    const r=_grSearch(P,tk.list,GR_SEARCH_NODES);
+    if(r.found){
+      ui.d={forms:r.forms,moves:r.moves}; ui.opts=null; renderDer();
+      setResult('ok',`✓ „${wt}“ ∈ L(G) – kürzeste Ableitung mit ${r.moves.length} Schritt${r.moves.length===1?'':'en'} (siehe oben)`);
+    } else if(r.exhausted) setResult('err',`✗ „${wt}“ ∉ L(G) – alle Ableitungen wurden durchsucht`);
+    else setResult('info',`? „${wt}“ nicht gefunden – die Suche wurde begrenzt (das ist noch kein Beweis, dass das Wort nicht zur Sprache gehört)`);
+  });
+  const buildTest=safe(function(){
+    secTest.innerHTML=''; secTest.appendChild(mk('div','gr-sec-h','Wort prüfen (Wortproblem)'));
+    const row=mk('div','gr-test');
+    testIn=mk('input','gr-in'); testIn.type='text'; testIn.value=live().test||''; testIn.placeholder='Wort, z. B. aabb'; testIn.spellcheck=false; testIn.autocomplete='off';
+    stopMD(testIn);
+    testIn.addEventListener('keydown',ev=>{ ev.stopPropagation(); if(ev.key==='Enter'){ ev.preventDefault(); runTest(); } });
+    testIn.addEventListener('input',()=>{ pushHistoryDebounced('Testwort geändert'); try{ live().test=testIn.value; }catch(_){} });
+    const go=mk('button','gr-btn go','Ableiten ▶'); go.type='button'; noFocusSteal(go);
+    go.addEventListener('click',ev=>{ ev.stopPropagation(); runTest(); });
+    row.appendChild(testIn); row.appendChild(go); secTest.appendChild(row);
+    resEl=mk('div','gr-res'); secTest.appendChild(resEl);
+  });
+
+  /* ── Sprache L(G): Beispielwörter ── */
+  const renderLang=safe(function(){
+    if(!wordsEl) return;
+    const n=Math.max(1,Math.min(12,+(live().n)||6));
+    nLabel.textContent='Wörter bis Länge '+n+' (kürzeste zuerst)';
+    wordsEl.innerHTML='';
+    if(!P.start||!P.prods.length){ wordsEl.appendChild(mk('span','gr-hint','–')); return; }
+    let r; try{ r=_grGenerate(P,n); }catch(_){ r={words:[],complete:false}; }
+    if(!r.words.length){ wordsEl.appendChild(mk('span','gr-hint','keine Wörter dieser Länge gefunden')); return; }
+    r.words.slice(0,30).forEach(w=>{
+      const c=mk('button','gr-word',_grFormText(P,w)); c.type='button'; c.title='Klicken: Ableitung zeigen'; noFocusSteal(c);
+      c.addEventListener('click',ev=>{ ev.stopPropagation(); if(testIn){ testIn.value=w.length?w.join(P.wordMode?' ':''):''; try{ live().test=testIn.value; }catch(_){} runTest(); } });
+      wordsEl.appendChild(c);
+    });
+    if(r.words.length>30||!r.complete) wordsEl.appendChild(mk('span','gr-hint','…'));
+  });
+  function scheduleLang(delay){ clearTimeout(ui.langTimer); ui.langTimer=setTimeout(renderLang,delay==null?250:delay); }
+  const buildLang=safe(function(){
+    secLang.innerHTML=''; secLang.appendChild(mk('div','gr-sec-h','Sprache L(G)'));
+    const h=mk('div','gr-lang-h');
+    const step=d=>{ const G=live(); G.n=Math.max(1,Math.min(12,(+G.n||6)+d)); scheduleLang(0); };
+    const minus=mk('button','gr-btn','−'), plus=mk('button','gr-btn','+');
+    [minus,plus].forEach(b=>{ b.type='button'; noFocusSteal(b); });
+    minus.addEventListener('click',ev=>{ ev.stopPropagation(); step(-1); });
+    plus.addEventListener('click',ev=>{ ev.stopPropagation(); step(1); });
+    nLabel=mk('span','gr-hint');
+    h.appendChild(minus); h.appendChild(nLabel); h.appendChild(plus);
+    wordsEl=mk('div','gr-words'); secLang.appendChild(h); secLang.appendChild(wordsEl);
+  });
+
+  /* ── Änderungen an den Regeln ── */
+  function onChanged(){
+    P=_grParse(live()); ui.d=null; ui.opts=null;
+    renderDef(); updateType();
+    if(interactive){ renderDer(); scheduleLang(); resetResult(); }
+    _spRefresh();
+  }
+
+  renderRules(); renderDef(); updateType();
+  if(interactive){ buildTest(); buildLang(); renderDer(); renderLang(); }
   return wrap;
 }
 
@@ -6546,17 +7391,18 @@ function _isAutoEl(el){ return !!el && (el.type==='automaton'||el.type==='mealy'
 function _autoExportObject(el){
   const a=el.automaton||{states:[],transitions:[],test:''}, mealy=el.type==='mealy';
   return {
-    format:AUTO_JSON_FORMAT, version:1, type:mealy?'mealy':'automaton',
+    format:AUTO_JSON_FORMAT, version:2, type:mealy?'mealy':'automaton', canvas:{w:Math.round(el.w||560), h:Math.round((el.h||400)-AUTO_CHROME_EDIT)},
     states:(a.states||[]).map(s=>Object.assign({id:s.id,label:s.label,x:s.x,y:s.y,start:!!s.start}, mealy?{}:{accept:!!s.accept})),
     transitions:(a.transitions||[]).map(t=>({from:t.from,to:t.to,label:t.label})),
     test:a.test||''
   };
 }
-function _autoLayoutPositions(n, startIdx){
+function _autoLayoutPositions(n, startIdx, cw, ch){
+  cw=cw||560; ch=ch||314;
   if(n<=0) return [];
-  if(n===1) return [{x:110,y:150}];
-  if(n===2) return [{x:150,y:150},{x:450,y:150}];
-  const cx=AUTO_VB_W/2, cy=AUTO_VB_H/2+4, rx=AUTO_VB_W/2-85, ry=AUTO_VB_H/2-58, pos=[];
+  if(n===1) return [{x:Math.round(Math.min(110,cw/3)), y:Math.round(ch/2)}];
+  if(n===2) return [{x:Math.round(cw*.27), y:Math.round(ch/2)},{x:Math.round(cw*.73), y:Math.round(ch/2)}];
+  const cx=cw/2, cy=ch/2, rx=Math.max(70,cw/2-90), ry=Math.max(60,ch/2-60), pos=[];
   for(let k=0;k<n;k++){
     const i=(k-startIdx+n)%n, ang=Math.PI+i*2*Math.PI/n;       // Startzustand links, dann im Uhrzeigersinn
     pos[k]={x:Math.round(cx+rx*Math.cos(ang)), y:Math.round(cy+ry*Math.sin(ang))};
@@ -6577,7 +7423,8 @@ function _autoFromSimulator(obj){
   const sim=Array.isArray(A.simulationInput)?A.simulationInput.map(String):[];
   return {type:obj.type, states, transitions, test:sim.join(sim.every(x=>x.length===1)?'':' ')};
 }
-function _autoParseJSON(text){
+function _autoParseJSON(text, cw, ch){
+  cw=cw||560; ch=ch||314;
   let obj;
   try{ obj=JSON.parse(text); }catch(e){ return {ok:false, error:'Keine gültige JSON-Datei ('+e.message+').'}; }
   if(!obj||typeof obj!=='object'||Array.isArray(obj)) return {ok:false, error:'Die Datei enthält keinen Automaten (JSON-Objekt erwartet).'};
@@ -6663,12 +7510,13 @@ function _autoParseJSON(text){
   else if(states.filter(s=>s.start).length>1){ let f=false; states.forEach(s=>{ if(s.start){ if(f){ s.start=false; } f=true; } }); warn.push('Mehrere Startzustände – nur der erste wurde übernommen.'); }
   const startIdx=Math.max(0,states.findIndex(s=>s.start));
   const hasPos=states.every(s=>s.x!==null&&s.y!==null);
-  const auto=hasPos?null:_autoLayoutPositions(states.length,startIdx);
+  const auto=hasPos?null:_autoLayoutPositions(states.length,startIdx,cw,ch);
   const clamp=(v,lo,hi)=>Math.max(lo,Math.min(hi,v));
   const idOf=states.map(()=>uid());
-  // Koordinaten außerhalb der Zeichenfläche (z. B. 900×670) werden proportional eingepasst statt abgeschnitten
-  const fit=(v,hi)=>{ const mn=Math.min(...v), mx=Math.max(...v); return ((mn<AUTO_R||mx>hi)&&mx>mn) ? v.map(a=>AUTO_R+14+(a-mn)*(hi-AUTO_R-28)/(mx-mn)) : v.map(a=>clamp(a,AUTO_R,hi)); };
-  const fx=hasPos?fit(states.map(s=>s.x),AUTO_VB_W-AUTO_R):null, fy=hasPos?fit(states.map(s=>s.y),AUTO_VB_H-AUTO_R):null;
+  // Koordinaten außerhalb der Leinwand werden proportional eingepasst statt abgeschnitten (Startzustand braucht links Platz für den Pfeil)
+  const fit=(v,lo,hi)=>{ const mn=Math.min(...v), mx=Math.max(...v); return ((mn<lo||mx>hi)&&mx>mn) ? v.map(a=>lo+(a-mn)*(hi-lo)/(mx-mn)) : v.map(a=>clamp(a,lo,hi)); };
+  const lox=AUTO_R+AUTO_PAD+30, loy=AUTO_R+AUTO_PAD+6;
+  const fx=hasPos?fit(states.map(s=>s.x),lox,Math.max(lox+1,cw-AUTO_R-AUTO_PAD-6)):null, fy=hasPos?fit(states.map(s=>s.y),loy,Math.max(loy+1,ch-AUTO_R-AUTO_PAD-6)):null;
   const outStates=states.map((s,i)=>({
     id:idOf[i], label:s.label,
     x:Math.round(hasPos?fx[i]:auto[i].x),
@@ -6676,7 +7524,7 @@ function _autoParseJSON(text){
     start:s.start, accept:isMealy?false:s.accept
   }));
   const outTrans=transitions.map(t=>({id:uid(), from:idOf[t.from], to:idOf[t.to], label:isMealy?_mealyNormalize(t.label):_autoLabelDisplay(t.label)}));
-  return {ok:true, kind:isMealy?'mealy':'automaton', automaton:{states:outStates, transitions:outTrans, test:String(src.test||'')}, warnings:warn};
+  return {ok:true, kind:isMealy?'mealy':'automaton', automaton:{states:outStates, transitions:outTrans, test:String(src.test||''), px:1}, warnings:warn};
 }
 
 function _downloadText(filename, text, mime){
@@ -6699,10 +7547,14 @@ function autoExportJSON(elId){
 /* Importiert JSON-Text: in ein bestehendes Automaten-Element (ctx.targetId) oder als neues Element. Liefert true/false. */
 function autoImportText(text, ctx){
   ctx=ctx||{};
-  const p=_autoParseJSON(text);
+  const tgt=ctx.targetId?getEl(ctx.targetId):null, tgtIsAuto=_isAutoEl(tgt);
+  const sl0=curSlide(), sz0=sl0?slSz(sl0):{w:960,h:540};
+  // Leinwand, in die importierte Koordinaten eingepasst werden: das bestehende Element bzw. eine großzügige Fläche für ein neues
+  const cw=tgtIsAuto?Math.max(200,tgt.w||560):Math.min(sz0.w-80,860);
+  const ch=tgtIsAuto?Math.max(120,(tgt.h||400)-AUTO_CHROME_EDIT):Math.min(sz0.h-80-AUTO_CHROME_EDIT,420);
+  const p=_autoParseJSON(text,cw,ch);
   if(!p.ok){ _ftToast(p.error,'err'); return false; }
-  const tgt=ctx.targetId?getEl(ctx.targetId):null;
-  if(_isAutoEl(tgt)){
+  if(tgtIsAuto){
     pushHistory('Automat importiert');
     tgt.type=p.kind; tgt.automaton=p.automaton;
     renderSlide(); selectEl(tgt.id);
@@ -6710,8 +7562,13 @@ function autoImportText(text, ctx){
     addEl(p.kind);
     const el=getEl(selElId); if(!el) return false;
     el.automaton=p.automaton;
+    // Element so groß machen, dass der Automat 1:1 hineinpasst (die Zustände behalten ihre Größe)
+    const xs=p.automaton.states.map(s=>s.x), ys=p.automaton.states.map(s=>s.y);
+    el.w=Math.round(Math.min(sz0.w-40,Math.max(el.w,Math.max(...xs)+AUTO_R+40)));
+    el.h=Math.round(Math.min(sz0.h-40,Math.max(el.h,Math.max(...ys)+AUTO_R+40+AUTO_CHROME_EDIT)));
     if(typeof ctx.x==='number') el.x=Math.max(0,Math.round(ctx.x));
     if(typeof ctx.y==='number') el.y=Math.max(0,Math.round(ctx.y));
+    el.x=Math.max(0,Math.min(el.x,sz0.w-el.w)); el.y=Math.max(0,Math.min(el.y,sz0.h-el.h));
     renderSlide(); selectEl(el.id);
   }
   const n=p.automaton.states.length, m=p.automaton.transitions.length;
